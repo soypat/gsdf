@@ -42,5 +42,10 @@ local
 *.gz
 *.tar
 
+# GPU shaders
+*.glsl
+# 3D triangle files.
+*.stl
+
 # If running a python script.
 */__pycache__/*

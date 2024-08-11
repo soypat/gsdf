@@ -1,45 +1,44 @@
-# go-module-template
-[![go.dev reference](https://pkg.go.dev/badge/github.com/soypat/go-module-template)](https://pkg.go.dev/github.com/soypat/go-module-template)
-[![Go Report Card](https://goreportcard.com/badge/github.com/soypat/go-module-template)](https://goreportcard.com/report/github.com/soypat/go-module-template)
-[![codecov](https://codecov.io/gh/soypat/go-module-template/branch/main/graph/badge.svg)](https://codecov.io/gh/soypat/go-module-template)
-[![Go](https://github.com/soypat/go-module-template/actions/workflows/go.yml/badge.svg)](https://github.com/soypat/go-module-template/actions/workflows/go.yml)
-[![stability-frozen](https://img.shields.io/badge/stability-frozen-blue.svg)](https://github.com/emersion/stability-badges#frozen)
-[![sourcegraph](https://sourcegraph.com/github.com/soypat/go-module-template/-/badge.svg)](https://sourcegraph.com/github.com/soypat/go-module-template?badge)
-<!--
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) 
+# gsdf
+Offshoot from [this project](https://github.com/soypat/sdf/pull/13). Is WIP.
 
-[![stability-experimental](https://img.shields.io/badge/stability-experimental-orange.svg)](https://github.com/emersion/stability-badges#experimental)
+## Features
 
-See https://github.com/emersion/stability-badges#unstable for more stability badges.
--->
+- Heapless algorithms for everything. No usage of GC in happy path.
+- Generate visualization for your parts as shaders.
+- Heapless Octree triangle renderer. Is stupid fast.
+- GPU and CPU implementations for all shapes and operations. CPU implementations are actually faster for simple parts.
+    - Design your part using one API, switch between CPU and GPU after design.
+- Extremely coherent API design.
 
-Go module template with instructions on how to make your code importable and setting up codecov CI.
+## NPT Flange example.
+This was converted from the [original example](https://github.com/soypat/sdf/blob/main/examples/npt-flange/flange.go). See [README](https://github.com/soypat/sdf/tree/main/examples) for images.
+```go
+var (
+    npt    threads.NPT
+    flange glbuild.Shader3D
+)
+npt.SetFromNominal(1.0 / 2.0)
+pipe, err := threads.Nut(threads.NutParms{
+    Thread: npt,
+    Style:  threads.NutCircular,
+})
+if err != nil {
+    panic(err)
+}
 
-How to install package with newer versions of Go (+1.16):
-```sh
-go mod download github.com/soypat/go-module-template@latest
+flange, err = gsdf.NewCylinder(flangeD/2, flangeH, flangeH/8)
+return makeSDF(flange)
+if err != nil {
+    return nil, err
+}
+flange = gsdf.Translate(flange, 0, 0, -tlen/2)
+flange = gsdf.SmoothUnion(pipe, flange, 0.2)
+hole, err := gsdf.NewCylinder(internalDiameter/2, 4*flangeH, 0)
+if err != nil {
+    return nil, err
+}
+flange = gsdf.Difference(flange, hole) // Make through-hole in flange bottom
+flange = gsdf.Scale(flange, 25.4)      // convert to millimeters
+
+render(flange) // Do something with it.
 ```
-
-
-## First steps
-
-0. Replace LICENSE with your desired license. BSD 3 clause is included by default.
-
-1. Fix `go.mod` file by replacing `github.com/YOURUSER/YOURREPONAME` with your corresponding project repository link.
-
-2. Replace `soypat/go-module-template` in the badge URLs. Make sure you've replaced all of them by performing text search in the readme for `soypat` and `template`.
-
-3. Rename `module.go` and `module_test.go` to fit your own repository needs. Below are some exemplary modules that abide by what's generally considered "good practices":
-    - [`mu8` minimal machine learning library](https://github.com/soypat/mu8). Note how most interfaces and interface algorithms are defined at the root package level and how the concrete implementations live in the subdirectories.
-    - Similarily [`sdf`](https://github.com/soypat/sdf) also does the same with defining interfaces top level.
-
-## Setting up codecov CI
-This instructive will allow for tests to run on pull requests and pushes to your repository.
-
-1. Create an account on [codecov.io](https://app.codecov.io/)
-
-2. Setup repository on codecov and obtain the CODECOV_TOKEN token, which is a string of base64 characters.
-
-3. Open up the github repository for this project and go to `Settings -> Secrets and variables -> Actions`. Once there create a New Repository Secret. Name it `CODECOV_TOKEN` and copy paste the token obtained in the previous step in the `secret` input box. Click "Add secret".
-
-
