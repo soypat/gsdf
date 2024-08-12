@@ -17,30 +17,20 @@ import (
 )
 
 func init() {
+	flag.BoolVar(&useGPU, "gpu", useGPU, "Enable GPU usage")
+	flag.Parse()
 	if useGPU {
+		fmt.Println("enable GPU usage")
 		runtime.LockOSThread() // For when using GPU this is required.
 	}
 }
 
 var useGPU = false
 
-const (
-	// visualization is the name of the file with a GLSL
-	// generated visualization of the SDF which can be visualized in https://www.shadertoy.com/
-	// or using VSCode's ShaderToy extension. If visualization=="" then no file is generated.
-	visualization = "nptflange.glsl"
-	// thread length
-	tlen             = 18. / 25.4
-	internalDiameter = 1.5 / 2.
-	flangeH          = 7. / 25.4
-	flangeD          = 60. / 25.4
-)
+const visualization = "nptflange.glsl"
 
 func main() {
-	flag.BoolVar(&useGPU, "gpu", useGPU, "Enable GPU usage")
-	flag.Parse()
 	if useGPU {
-		fmt.Println("enable GPU usage")
 		_, terminate, err := glgl.InitWithCurrentWindow33(glgl.WindowConfig{
 			Title:   "compute",
 			Version: [2]int{4, 6},
@@ -84,21 +74,33 @@ func main() {
 }
 
 func scene() (gleval.SDF3, error) {
+	const (
+		// visualization is the name of the file with a GLSL
+		// generated visualization of the SDF which can be visualized in https://www.shadertoy.com/
+		// or using VSCode's ShaderToy extension. If visualization=="" then no file is generated.
+		// thread length
+		tlen             = 18. / 25.4
+		internalDiameter = 1.5 / 2.
+		flangeH          = 7. / 25.4
+		flangeD          = 60. / 25.4
+	)
 	var (
 		npt    threads.NPT
 		flange glbuild.Shader3D
+		err    error
 	)
-	npt.SetFromNominal(1.0 / 2.0)
+	err = npt.SetFromNominal(1.0 / 2.0)
+	if err != nil {
+		return nil, err
+	}
 	pipe, err := threads.Nut(threads.NutParms{
 		Thread: npt,
 		Style:  threads.NutCircular,
 	})
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-
 	flange, err = gsdf.NewCylinder(flangeD/2, flangeH, flangeH/8)
-	return makeSDF(flange)
 	if err != nil {
 		return nil, err
 	}

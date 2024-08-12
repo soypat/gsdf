@@ -84,11 +84,9 @@ func (s *diff) AppendShaderName(b []byte) []byte {
 }
 
 func (s *diff) AppendShaderBody(b []byte) []byte {
-	b = append(b, "return max(-"...)
-	b = s.s1.AppendShaderName(b)
-	b = append(b, "(p),"...)
-	b = s.s2.AppendShaderName(b)
-	b = append(b, "(p));"...)
+	b = appendDistanceDecl(b, s.s1, "a", "p")
+	b = appendDistanceDecl(b, s.s2, "b", "p")
+	b = append(b, "return max(a,-b);"...)
 	return b
 }
 

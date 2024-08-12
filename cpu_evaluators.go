@@ -181,7 +181,7 @@ func (u *diff) Evaluate(pos []ms3.Vec, dist []float32, userData any) error {
 		return err
 	}
 	for i := range dist {
-		dist[i] = maxf(-d1[i], d2[i])
+		dist[i] = maxf(d1[i], -d2[i])
 	}
 	return nil
 }
