@@ -254,7 +254,7 @@ func (u *smoothDiff) Evaluate(pos []ms3.Vec, dist []float32, userData any) error
 	for i := range dist {
 		a, b := d1[i], d2[i]
 		h := clampf(0.5-0.5*(b+a)/k, 0, 1)
-		dist[i] = mixf(b, -a, h) + k*h*(1-h)
+		dist[i] = mixf(a, -b, h) + k*h*(1-h)
 	}
 	return nil
 }
@@ -425,17 +425,27 @@ func (e *elongate) Evaluate(pos []ms3.Vec, dist []float32, userData any) error {
 }
 
 func (sh *shell) Evaluate(pos []ms3.Vec, dist []float32, userData any) error {
+	vp, err := gleval.GetVecPool(userData)
+	if err != nil {
+		return err
+	}
+	auxpos := vp.V3.Acquire(len(pos))
+	defer vp.V3.Release(auxpos)
+	thickness := sh.thick
+	for i, p := range pos {
+		auxpos[i] = ms3.Scale(1/thickness, p)
+	}
 	sdf, err := gleval.AssertSDF3(sh.s)
 	if err != nil {
 		return err
 	}
-	err = sdf.Evaluate(pos, dist, userData)
+	err = sdf.Evaluate(auxpos, dist, userData)
 	if err != nil {
 		return err
 	}
-	thickness := sh.thick
+
 	for i, d := range dist {
-		dist[i] = absf(d) - thickness
+		dist[i] = thickness * (absf(d) - thickness)
 	}
 	return nil
 }

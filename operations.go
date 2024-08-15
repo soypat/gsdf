@@ -507,7 +507,7 @@ func (s *smoothDiff) AppendShaderBody(b []byte) []byte {
 	b = appendDistanceDecl(b, s.s2, "d2", "p")
 	b = appendFloatDecl(b, "k", s.k)
 	b = append(b, `float h = clamp( 0.5 - 0.5*(d2+d1)/k, 0.0, 1.0 );
-return mix( d2, -d1, h ) + k*h*(1.0-h);`...)
+return mix( d1, -d2, h ) + k*h*(1.0-h);`...)
 	return b
 }
 
@@ -592,7 +592,12 @@ type shell struct {
 }
 
 func (u *shell) Bounds() ms3.Box {
-	return u.s.Bounds()
+	bb := u.s.Bounds()
+	return bb
+	return ms3.Box{
+		Min: ms3.Sub(bb.Min, ms3.Vec{u.thick, u.thick, u.thick}),
+		Max: ms3.Add(bb.Max, ms3.Vec{u.thick, u.thick, u.thick}),
+	}
 }
 
 func (s *shell) ForEachChild(userData any, fn func(userData any, s *glbuild.Shader3D) error) error {
@@ -608,11 +613,10 @@ func (s *shell) AppendShaderName(b []byte) []byte {
 }
 
 func (s *shell) AppendShaderBody(b []byte) []byte {
-	b = append(b, "return abs("...)
+	b = appendFloatDecl(b, "t", s.thick)
+	b = append(b, "return t*(abs("...)
 	b = s.s.AppendShaderName(b)
-	b = append(b, "(p))-"...)
-	b = fappend(b, s.thick, '-', '.')
-	b = append(b, ';')
+	b = append(b, "(p/t))-t);"...)
 	return b
 }
 

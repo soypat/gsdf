@@ -14,7 +14,7 @@ import (
 //
 // The returned [gleval.SDF3] should only require a [gleval.VecPool] as a userData argument,
 // this is automatically taken care of if a nil userData is passed in.
-func NewCPUSDF3(root bounder3) (SDF3, error) {
+func NewCPUSDF3(root bounder3) (*SDF3CPU, error) {
 	sdf, err := AssertSDF3(root)
 	if err != nil {
 		return nil, fmt.Errorf("top level SDF cannot be CPU evaluated: %s", err.Error())

@@ -12,7 +12,7 @@ import (
 )
 
 // NewComputeGPUSDF3 instantiates a SDF3 that runs on the GPU.
-func NewComputeGPUSDF3(glglSourceCode io.Reader, bb ms3.Box) (SDF3, error) {
+func NewComputeGPUSDF3(glglSourceCode io.Reader, bb ms3.Box) (*SDF3Compute, error) {
 	combinedSource, err := glgl.ParseCombined(glglSourceCode)
 	if err != nil {
 		return nil, err
@@ -21,23 +21,23 @@ func NewComputeGPUSDF3(glglSourceCode io.Reader, bb ms3.Box) (SDF3, error) {
 	if err != nil {
 		return nil, errors.New(string(combinedSource.Compute) + "\n" + err.Error())
 	}
-	sdf := computeSDF{
+	sdf := SDF3Compute{
 		prog: glprog,
 		bb:   bb,
 	}
 	return &sdf, nil
 }
 
-type computeSDF struct {
+type SDF3Compute struct {
 	prog glgl.Program
 	bb   ms3.Box
 }
 
-func (sdf *computeSDF) Bounds() ms3.Box {
+func (sdf *SDF3Compute) Bounds() ms3.Box {
 	return sdf.bb
 }
 
-func (sdf *computeSDF) Evaluate(pos []ms3.Vec, dist []float32, userData any) error {
+func (sdf *SDF3Compute) Evaluate(pos []ms3.Vec, dist []float32, userData any) error {
 	sdf.prog.Bind()
 	defer sdf.prog.Unbind()
 	posCfg := glgl.TextureImgConfig{

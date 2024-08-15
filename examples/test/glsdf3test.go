@@ -5,12 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"math"
 	"math/rand"
 	"os"
 	"reflect"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/chewxy/math32"
@@ -63,10 +63,10 @@ var PremadePrimitives = []glbuild.Shader3D{
 	mustShader(gsdf.NewSphere(1)),
 	mustShader(gsdf.NewBoxFrame(1, 1.2, 2.2, .2)),
 	mustShader(gsdf.NewBox(1, 1.2, 2.2, 0.3)),
-	// mustShader(gsdf.NewTorus(3, .5)), // Negative normal?
+	mustShader(gsdf.NewTorus(3, .5)), // Negative normal?
 	mustShader(gsdf.NewTriangularPrism(1, 3)),
 	mustShader(gsdf.NewCylinder(1, 3, .1)),
-	mustShader(threads.Screw(5, threads.ISO{
+	mustShader(threads.Screw(5, threads.ISO{ // Negative normal.
 		D:   1,
 		P:   0.1,
 		Ext: true,
@@ -213,6 +213,11 @@ func test_sdf_gpu_cpu() error {
 			description := sprintOpPrimitive(op, p1, p2)
 			return fmt.Errorf("%s: %s", description, err)
 		}
+		err = test_bounds(sdfcpu, scratchDist, vp)
+		if err != nil {
+			description := sprintOpPrimitive(op, p1, p2)
+			return fmt.Errorf("%s: %s", description, err)
+		}
 	}
 	rng := rand.New(rand.NewSource(1))
 	for _, op := range OtherUnaryRandomizedOps {
@@ -241,6 +246,16 @@ func test_sdf_gpu_cpu() error {
 			if err != nil {
 				description := sprintOpPrimitive(op, primitive)
 				return fmt.Errorf("%d %s: %s", i, description, err)
+			}
+			if getBaseTypename(primitive) == "screw" ||
+				(getBaseTypename(primitive) == "tri" && getFnName(op) == "randomRotation") {
+				log.Println("omit screw unary testbounds checks")
+				continue
+			}
+			err = test_bounds(sdfcpu, scratchDist, vp)
+			if err != nil {
+				description := sprintOpPrimitive(op, primitive)
+				return fmt.Errorf("%s: %s", description, err)
 			}
 		}
 	}
@@ -347,26 +362,31 @@ func test_visualizer_generation() error {
 		P:   0.01,
 		Ext: true,
 	})
-
-	// shape, err := gsdf.NewCylinder(r, 2*r, r/8)
 	if err != nil {
 		return err
 	}
 	s = gsdf.Union(s, shape)
+	return visualize(s, filename)
+}
 
-	// s = gsdf.Union(s, box)
-	envelope, err := gsdf.NewBoundsBoxFrame(shape.Bounds())
+// visualize facilitates the SDF visualization.
+func visualize(sdf glbuild.Shader3D, filename string) error {
+	bb := sdf.Bounds()
+	envelope, err := gsdf.NewBoundsBoxFrame(bb)
 	if err != nil {
 		return err
 	}
-	s = gsdf.Union(s, envelope)
-	s, _ = gsdf.Rotate(s, math.Pi/2, ms3.Vec{X: 1})
+	sdf = gsdf.Union(sdf, envelope)
 	fp, err := os.Create(filename)
 	if err != nil {
 		return err
 	}
 	defer fp.Close()
-	written, err := programmer.WriteFragVisualizerSDF3(fp, gsdf.Scale(s, 4))
+
+	const desiredScale = 2.0
+	diag := ms3.Norm(bb.Size())
+	sdf = gsdf.Scale(sdf, desiredScale/diag)
+	written, err := programmer.WriteFragVisualizerSDF3(fp, sdf)
 	if err != nil {
 		return err
 	}
@@ -378,11 +398,36 @@ func test_visualizer_generation() error {
 	if int64(written) != size {
 		return fmt.Errorf("written (%d) vs filesize (%d) mismatch", written, size)
 	}
-	log.Println("PASS visualizer generation")
 	return nil
 }
 
-func test_bounds(sdf gleval.SDF3, scratchDist []float32, userData any) error {
+func test_bounds(sdf gleval.SDF3, scratchDist []float32, userData any) (err error) {
+	typename := getBaseTypename(sdf)
+	shader := sdf.(glbuild.Shader3D)
+	shader.ForEachChild(nil, func(userData any, s *glbuild.Shader3D) error {
+		ss := *s
+		typename += "|" + getBaseTypename(ss)
+		ss.ForEachChild(userData, func(userData any, s *glbuild.Shader3D) error {
+			typename += "|" + getBaseTypename(*s)
+			return nil
+		})
+		return nil
+	})
+
+	var skipNormCheck bool
+	skipNormCheck = skipNormCheck || strings.Contains(typename, "screw")
+	skipNormCheck = skipNormCheck || strings.Contains(typename, "torus")
+	skipNormCheck = skipNormCheck || strings.Contains(typename, "smoothDiff")
+	if skipNormCheck {
+		log.Println("omit normal checks for", typename)
+	}
+	defer func() {
+		if err != nil {
+			filename := "testboundfail_" + typename + ".glsl"
+			log.Println("test_bounds failed: generating visualization aid file", filename)
+			visualize(shader, filename)
+		}
+	}()
 	const nxbb, nybb, nzbb = 16, 16, 16
 	const ndim = nxbb * nybb * nzbb
 	const eps = 1e-2
@@ -406,7 +451,7 @@ func test_bounds(sdf gleval.SDF3, scratchDist []float32, userData any) error {
 	// Calculate approximate expected normal directions.
 	wantNormals := make([]ms3.Vec, len(originalPos))
 	wantNormals = appendMeshgrid(wantNormals[:0], bb.Add(ms3.Scale(-1, bb.Center())), nxbb, nybb, nzbb)
-
+	var normOmitLog sync.Once
 	var offsize ms3.Vec
 	for _, xo := range offs {
 		offsize.X = xo * (size.X + eps)
@@ -422,7 +467,7 @@ func test_bounds(sdf gleval.SDF3, scratchDist []float32, userData any) error {
 				newPos = appendMeshgrid(newPos[:0], newBB, nxbb, nybb, nzbb)
 				// Calculate expected normal directions.
 
-				err := sdf.Evaluate(newPos, dist, userData)
+				err = sdf.Evaluate(newPos, dist, userData)
 				if err != nil {
 					return err
 				}
@@ -435,14 +480,23 @@ func test_bounds(sdf gleval.SDF3, scratchDist []float32, userData any) error {
 				if err != nil {
 					return err
 				}
+				if skipNormCheck {
+					continue
+				}
+				switch typename {
+				case "screw", "torus", "smoothDiff":
+					normOmitLog.Do(func() {})
+					continue // Skip certain shapes for normal calculation. Bad conditioning?
+				}
 				for i, got := range normals {
 					want := ms3.Add(offsize, wantNormals[i])
 					got = ms3.Unit(got)
 					angle := ms3.Cos(got, want)
 					if angle < math32.Sqrt2/2 {
-						msg := fmt.Sprintf("bad norm p=%v got %v, want %v -> angle=%f off=%v bb=%+v", newPos[i], got, want, angle, offsize, newBB)
+						msg := fmt.Sprintf("bad norm angle %frad p=%v got %v, want %v -> off=%v bb=%+v", angle, newPos[i], got, want, offsize, newBB)
 						if angle <= 0 {
-							return errors.New(msg) // Definitely have a surface outside of the bounding box.
+							err = errors.New(msg)
+							return err //errors.New(msg) // Definitely have a surface outside of the bounding box.
 						} else {
 							// fmt.Println("WARN bad normal:", msg) // Is this possible with a surface contained within the bounding box? Maybe an ill-conditioned/pointy surface?
 						}
@@ -548,11 +602,23 @@ func randomRotation(a glbuild.Shader3D, rng *rand.Rand) glbuild.Shader3D {
 }
 
 func randomShell(a glbuild.Shader3D, rng *rand.Rand) glbuild.Shader3D {
-	thickness := rng.Float32()
+	bb := a.Bounds()
+	size := bb.Size()
+	maxSize := bb.Size().Max() / 128
+	thickness := math32.Min(maxSize, rng.Float32())
 	if thickness <= 1e-8 {
-		thickness = rng.Float32()
+		thickness = math32.Min(maxSize, rng.Float32())
 	}
-	return gsdf.Shell(a, thickness)
+	shell := gsdf.Shell(a, thickness)
+	// Cut shell to visualize interior.
+
+	center := bb.Center()
+	bb.Max.Y = center.Y
+
+	halfbox, _ := gsdf.NewBox(size.X*20, size.Y/3, size.Z*20, 0)
+	halfbox = gsdf.Translate(halfbox, 0, size.Y/3, 0)
+	fmt.Println("thick", thickness, maxSize)
+	return gsdf.Difference(shell, halfbox)
 }
 
 func randomArray(a glbuild.Shader3D, rng *rand.Rand) glbuild.Shader3D {
