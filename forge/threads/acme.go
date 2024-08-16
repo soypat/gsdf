@@ -40,7 +40,7 @@ func (acme Acme) Thread() (glbuild.Shader2D, error) {
 	poly.AddXY(-xOfs1, h)
 	poly.AddXY(-radius, h)
 	poly.AddXY(-radius, 0)
-	verts, err := poly.AppendVertices(nil)
+	verts, err := poly.AppendVecs(nil)
 	if err != nil {
 		return nil, err
 	}

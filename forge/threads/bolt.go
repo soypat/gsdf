@@ -94,7 +94,7 @@ func chamferedCylinder(s glbuild.Shader3D, kb, kt float32) (glbuild.Shader3D, er
 	poly.AddXY(r, -l).Chamfer(r * kb)
 	poly.AddXY(r, l).Chamfer(r * kt)
 	poly.AddXY(0, l)
-	verts, err := poly.AppendVertices(nil)
+	verts, err := poly.AppendVecs(nil)
 	if err != nil {
 		return nil, err
 	}

@@ -16,7 +16,7 @@ func HexHead(radius float32, height float32, round string) (s glbuild.Shader3D, 
 	cornerRound := radius * 0.08
 	var poly ms2.PolygonBuilder
 	poly.Nagon(6, radius-cornerRound)
-	vertices, err := poly.AppendVertices(nil)
+	vertices, err := poly.AppendVecs(nil)
 	if err != nil {
 		return nil, err
 	}

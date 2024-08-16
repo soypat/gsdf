@@ -415,7 +415,7 @@ func test_bounds(sdf gleval.SDF3, scratchDist []float32, userData any) (err erro
 	})
 
 	var skipNormCheck bool
-	skipNormCheck = skipNormCheck || strings.Contains(typename, "screw")
+	skipNormCheck = skipNormCheck
 	skipNormCheck = skipNormCheck || strings.Contains(typename, "torus")
 	skipNormCheck = skipNormCheck || strings.Contains(typename, "smoothDiff")
 	if skipNormCheck {
@@ -617,7 +617,6 @@ func randomShell(a glbuild.Shader3D, rng *rand.Rand) glbuild.Shader3D {
 
 	halfbox, _ := gsdf.NewBox(size.X*20, size.Y/3, size.Z*20, 0)
 	halfbox = gsdf.Translate(halfbox, 0, size.Y/3, 0)
-	fmt.Println("thick", thickness, maxSize)
 	return gsdf.Difference(shell, halfbox)
 }
 

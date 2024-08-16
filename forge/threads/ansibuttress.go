@@ -43,7 +43,7 @@ func (ansi ANSIButtress) Thread() (glbuild.Shader2D, error) {
 	tp.AddXY(-ansi.P, radius)
 	tp.AddXY(-ansi.P, 0)
 
-	verts, err := tp.AppendVertices(nil)
+	verts, err := tp.AppendVecs(nil)
 	if err != nil {
 		return nil, err
 	}

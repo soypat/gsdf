@@ -31,7 +31,7 @@ func (k KnurlParams) Thread() (glbuild.Shader2D, error) {
 	knurl.AddXY(-k.Pitch/2, k.Radius)
 	knurl.AddXY(-k.Pitch/2, 0)
 	//knurl.Render("knurl.dxf")
-	verts, err := knurl.AppendVertices(nil)
+	verts, err := knurl.AppendVecs(nil)
 	if err != nil {
 		return nil, err
 	}

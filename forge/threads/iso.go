@@ -58,7 +58,7 @@ func (iso ISO) Thread() (glbuild.Shader2D, error) {
 		poly.AddXY(-iso.P, rMinor)
 		poly.AddXY(-iso.P, 0)
 	}
-	vertices, err := poly.AppendVertices(nil)
+	vertices, err := poly.AppendVecs(nil)
 	if err != nil {
 		return nil, err
 	}

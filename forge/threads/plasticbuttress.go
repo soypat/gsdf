@@ -41,7 +41,7 @@ func (butt PlasticButtress) Thread() (glbuild.Shader2D, error) {
 	tp.AddXY((h0-h1)*t0-hp, radius).Smooth(0.15*butt.P, 5)
 	tp.AddXY(-butt.P, radius)
 	tp.AddXY(-butt.P, 0)
-	verts, err := tp.AppendVertices(nil)
+	verts, err := tp.AppendVecs(nil)
 	if err != nil {
 		return nil, err
 	}

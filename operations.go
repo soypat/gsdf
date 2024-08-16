@@ -594,10 +594,6 @@ type shell struct {
 func (u *shell) Bounds() ms3.Box {
 	bb := u.s.Bounds()
 	return bb
-	return ms3.Box{
-		Min: ms3.Sub(bb.Min, ms3.Vec{u.thick, u.thick, u.thick}),
-		Max: ms3.Add(bb.Max, ms3.Vec{u.thick, u.thick, u.thick}),
-	}
 }
 
 func (s *shell) ForEachChild(userData any, fn func(userData any, s *glbuild.Shader3D) error) error {
