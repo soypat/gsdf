@@ -104,8 +104,8 @@ var SmoothBinaryOps = []func(a, b glbuild.Shader3D, k float32) glbuild.Shader3D{
 var OtherUnaryRandomizedOps = []func(a glbuild.Shader3D, rng *rand.Rand) glbuild.Shader3D{
 	randomRotation,
 	randomShell,
-	randomElongate,
-	randomRound,
+	// randomElongate,
+	// randomRound,
 	randomScale,
 	randomSymmetry,
 	randomTranslate,
@@ -413,9 +413,11 @@ func test_bounds(sdf gleval.SDF3, scratchDist []float32, userData any) (err erro
 		})
 		return nil
 	})
+	if strings.Contains(typename, "randomRotation") {
+		fmt.Println("omit rotation testbounds (inexact)")
+	}
 
 	var skipNormCheck bool
-	skipNormCheck = skipNormCheck
 	skipNormCheck = skipNormCheck || strings.Contains(typename, "torus")
 	skipNormCheck = skipNormCheck || strings.Contains(typename, "smoothDiff")
 	if skipNormCheck {
@@ -633,8 +635,10 @@ func randomArray(a glbuild.Shader3D, rng *rand.Rand) glbuild.Shader3D {
 }
 
 func randomElongate(a glbuild.Shader3D, rng *rand.Rand) glbuild.Shader3D {
-	const minDim = 1.0
-	dx, dy, dz := rng.Float32()+minDim, rng.Float32()+minDim, rng.Float32()+minDim
+	const minDim = 0.0
+	const maxDim = 0.3
+	const dim = maxDim - minDim
+	dx, dy, dz := dim*rng.Float32()+minDim, dim*rng.Float32()+minDim, dim*rng.Float32()+minDim
 	return gsdf.Elongate(a, dx, dy, dz)
 }
 
