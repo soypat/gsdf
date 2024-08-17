@@ -1,5 +1,7 @@
 github.com/chewxy/math32 v1.10.1 h1:LFpeY0SLJXeaiej/eIp2L40VYfscTvKh/FSEZ68uMkU=
 github.com/chewxy/math32 v1.10.1/go.mod h1:dOB2rcuFrCn6UHrze36WSLVPKtzPMRAQvBvUwkSsLqs=
+github.com/chewxy/math32 v1.11.0 h1:8sek2JWqeaKkVnHa7bPVqCEOUPbARo4SGxs6toKyAOo=
+github.com/chewxy/math32 v1.11.0/go.mod h1:dOB2rcuFrCn6UHrze36WSLVPKtzPMRAQvBvUwkSsLqs=
 github.com/go-gl/gl v0.0.0-20231021071112-07e5d0ea2e71 h1:5BVwOaUSBTlVZowGO6VZGw2H/zl9nrd3eCZfYV+NfQA=
 github.com/go-gl/gl v0.0.0-20231021071112-07e5d0ea2e71/go.mod h1:9YTyiznxEY1fVinfM7RvRcjRHbw2xLBJ3AAGIT0I4Nw=
 github.com/go-gl/glfw v0.0.0-20221017161538-93cebf72946b h1:2hdUMUOJuLQkhaPAwoyOeSzoaBydYEkXkBEuqDuDBfg=
@@ -10,5 +12,7 @@ github.com/soypat/glgl v0.0.0-20240811035753-f615f56436f0 h1:9CU+IDi7gSeBRWxekqm
 github.com/soypat/glgl v0.0.0-20240811035753-f615f56436f0/go.mod h1:jcTX7fb8Y1WYrBfHyqZtzZyXzEQaOVp/z+ngMn9IQuk=
 github.com/soypat/glgl v0.0.0-20240816031826-41aea5d4ce11 h1:fM68EXUFrx6EmIQOUz6PV4X5Jnrx0FhSzrzY9h2Ut24=
 github.com/soypat/glgl v0.0.0-20240816031826-41aea5d4ce11/go.mod h1:jcTX7fb8Y1WYrBfHyqZtzZyXzEQaOVp/z+ngMn9IQuk=
+github.com/soypat/glgl v0.0.0-20240817151124-b984688a7f05 h1:xNPZV7iwDmhYLze/1Bhd4j4cuWFYxMS6bAEQYPN6d94=
+github.com/soypat/glgl v0.0.0-20240817151124-b984688a7f05/go.mod h1:jcTX7fb8Y1WYrBfHyqZtzZyXzEQaOVp/z+ngMn9IQuk=
 golang.org/x/exp v0.0.0-20221230185412-738e83a70c30 h1:m9O6OTJ627iFnN2JIWfdqlZCzneRO6EEBsHXI25P8ws=
 golang.org/x/exp v0.0.0-20221230185412-738e83a70c30/go.mod h1:CxIveKay+FTh1D0yPZemJVgC/95VzuuOLq5Qi4xnoYc=

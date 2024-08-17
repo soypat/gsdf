@@ -9,6 +9,7 @@ Offshoot from [this project](https://github.com/soypat/sdf/pull/13). Is WIP.
 - GPU and CPU implementations for all shapes and operations. CPU implementations are actually faster for simple parts.
     - Design your part using one API, switch between CPU and GPU after design.
 - Extremely coherent API design.
+- TinyGo supported for CPU evaluation :)
 
 ## Package layour/structure
 

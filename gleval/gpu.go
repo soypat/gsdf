@@ -12,6 +12,18 @@ import (
 	"github.com/soypat/glgl/v4.6-core/glgl"
 )
 
+// Init1x1GLFW starts a 1x1 sized GLFW so that user can start working with GPU.
+// It returns a termination function that should be called when user is done running loads on GPU.
+func Init1x1GLFW() (terminate func(), err error) {
+	_, terminate, err = glgl.InitWithCurrentWindow33(glgl.WindowConfig{
+		Title:   "compute",
+		Version: [2]int{4, 6},
+		Width:   1,
+		Height:  1,
+	})
+	return terminate, err
+}
+
 // NewComputeGPUSDF3 instantiates a [SDF3] that runs on the GPU.
 func NewComputeGPUSDF3(glglSourceCode io.Reader, bb ms3.Box) (*SDF3Compute, error) {
 	combinedSource, err := glgl.ParseCombined(glglSourceCode)

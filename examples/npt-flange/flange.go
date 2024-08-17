@@ -8,7 +8,6 @@ import (
 	"os"
 	"runtime"
 
-	"github.com/soypat/glgl/v4.6-core/glgl"
 	"github.com/soypat/gsdf"
 	"github.com/soypat/gsdf/forge/threads"
 	"github.com/soypat/gsdf/glbuild"
@@ -31,12 +30,7 @@ const visualization = "nptflange.glsl"
 
 func main() {
 	if useGPU {
-		_, terminate, err := glgl.InitWithCurrentWindow33(glgl.WindowConfig{
-			Title:   "compute",
-			Version: [2]int{4, 6},
-			Width:   1,
-			Height:  1,
-		})
+		terminate, err := gleval.Init1x1GLFW()
 		if err != nil {
 			log.Fatal("FAIL to start GLFW", err.Error())
 		}
