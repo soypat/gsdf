@@ -117,7 +117,9 @@ func (s *screw) AppendShaderBody(b []byte) []byte {
 	b = append(b, `
 #define Pi 3.1415926535897932384626433832795
 float y = length(p.xy);
-if (taper != 0.) { y += p.z * atan(p.x, taper); }
+if (taper != 0.) {
+	y += p.z * atan(taper);
+}
 float theta = atan(p.y, p.x);
 float z = p.z + lead*theta/(2.*Pi);
 float sawt = (z + pitch/2.)/pitch;

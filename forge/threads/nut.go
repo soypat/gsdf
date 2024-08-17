@@ -71,7 +71,7 @@ func Nut(k NutParms) (s glbuild.Shader3D, err error) {
 		return nil, err
 	}
 	// internal thread
-	thread, err := Screw(nh, k.Thread)
+	thread, err := Screw(nh*(1+1e-2), k.Thread)
 	if err != nil {
 		return nil, err
 	}
