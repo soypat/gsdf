@@ -62,6 +62,8 @@ type Programmer struct {
 	scratchNodes  []Shader
 	scratch       []byte
 	computeHeader []byte
+	// names maps shader names to body hashes for checking duplicates.
+	names map[uint64]uint64
 }
 
 var defaultComputeHeader = []byte("#shader compute\n#version 430\n")
@@ -72,6 +74,7 @@ func NewDefaultProgrammer() *Programmer {
 		scratchNodes:  make([]Shader, 64),
 		scratch:       make([]byte, 1024), // Max length of shader token is around 1024..1060 characters.
 		computeHeader: defaultComputeHeader,
+		names:         make(map[uint64]uint64),
 	}
 }
 
@@ -87,13 +90,11 @@ func (p *Programmer) WriteComputeSDF3(w io.Writer, obj Shader) (int, error) {
 	if err != nil {
 		return n, err
 	}
-	ngot, newScratch, err := WriteShaders(w, nodes, p.scratch)
-	p.scratch = newScratch
+	ngot, err := p.writeShaders(w, nodes)
 	n += ngot
 	if err != nil {
 		return n, err
 	}
-
 	ngot, err = fmt.Fprintf(w, `
 
 layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
@@ -122,8 +123,7 @@ func (p *Programmer) WriteFragVisualizerSDF3(w io.Writer, obj Shader3D) (n int, 
 	if err != nil {
 		return 0, err
 	}
-	ngot, newScratch, err := WriteShaders(w, nodes, p.scratch)
-	p.scratch = newScratch
+	ngot, err := p.writeShaders(w, nodes)
 	n += ngot
 	if err != nil {
 		return n, err
@@ -139,6 +139,36 @@ func (p *Programmer) WriteFragVisualizerSDF3(w io.Writer, obj Shader3D) (n int, 
 		return n, err
 	}
 	return n, nil
+}
+
+func (p *Programmer) writeShaders(w io.Writer, nodes []Shader) (n int, err error) {
+	clear(p.names)
+	for i := len(nodes) - 1; i >= 0; i-- {
+		scratch := p.scratch // Scratch buffer is renewed if capacity is increased.
+		node := nodes[i]
+		name := node.AppendShaderName(scratch[:0])
+		nameHash := hash(name, 0)
+		body := node.AppendShaderBody(scratch[len(name):len(name)])
+		bodyHash := hash(body, nameHash) // Body hash mixes name as well.
+		gotBodyHash, nameConflict := p.names[nameHash]
+		if nameConflict {
+			// Name already exists in tree, check if bodies are identical.
+			if bodyHash == gotBodyHash {
+				continue // Shader already written and is identical, skip.
+			}
+			return n, fmt.Errorf("duplicate %T shader name %q", node, name)
+		} else {
+			p.names[nameHash] = bodyHash // Not found, add it.
+		}
+		_, is3D := node.(Shader3D)
+		var ngot int
+		ngot, p.scratch, err = writeShaderBytes(w, name, body, body[len(body):], is3D)
+		n += ngot
+		if err != nil {
+			return n, err
+		}
+	}
+	return n, err
 }
 
 func RewriteNames3D(root *Shader3D, maxRewriteLen int) error {
@@ -203,7 +233,7 @@ func ParseAppendNodes(dst []Shader, root Shader) (baseName string, nodes []Shade
 // WriteShaders iterates over the argument nodes in reverse order and
 // writes their GL code to the writer. scratch is an auxiliary buffer to avoid heap allocations.
 //
-// WriteShaders does not check for
+// WriteShaders does not check for repeated shader names nor long tokens which may yield errors in the GL.
 func WriteShaders(w io.Writer, nodes []Shader, scratch []byte) (n int, newscratch []byte, err error) {
 	if scratch == nil {
 		scratch = make([]byte, 1024)
@@ -231,6 +261,21 @@ func WriteShader(w io.Writer, s Shader, scratch []byte) (int, []byte, error) {
 		scratch = append(scratch, "(vec2 p) {\n"...)
 	}
 	scratch = s.AppendShaderBody(scratch)
+	scratch = append(scratch, "\n}\n\n"...)
+	n, err := w.Write(scratch)
+	return n, scratch, err
+}
+
+func writeShaderBytes(w io.Writer, name, body, scratch []byte, is3D bool) (int, []byte, error) {
+	scratch = scratch[:0]
+	scratch = append(scratch, "float "...)
+	scratch = append(scratch, name...)
+	if is3D {
+		scratch = append(scratch, "(vec3 p) {\n"...)
+	} else {
+		scratch = append(scratch, "(vec2 p) {\n"...)
+	}
+	scratch = append(scratch, body...)
 	scratch = append(scratch, "\n}\n\n"...)
 	n, err := w.Write(scratch)
 	return n, scratch, err

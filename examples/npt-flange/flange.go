@@ -93,10 +93,13 @@ func scene() (gleval.SDF3, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	pipe, err := threads.Nut(threads.NutParms{
-		Thread: npt,
-		Style:  threads.NutCircular,
+		Thread: threads.ISO{D: npt.D, P: 1.0 / npt.TPI},
+		Style:  threads.NutHex,
 	})
+
+	return makeSDF(pipe)
 	if err != nil {
 		return nil, err
 	}
