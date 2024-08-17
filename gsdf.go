@@ -82,7 +82,7 @@ func vecappend(b []byte, v ms3.Vec, sep, neg, decimal byte) []byte {
 }
 
 func sliceappend(b []byte, s []float32, sep, neg, decimal byte) []byte {
-	return glbuild.AppendFloats(b, s, sep, neg, decimal)
+	return glbuild.AppendFloats(b, sep, neg, decimal, s...)
 }
 
 func appendDistanceDecl(b []byte, s glbuild.Shader, name, input string) []byte {

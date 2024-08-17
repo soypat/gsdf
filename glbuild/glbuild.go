@@ -195,7 +195,7 @@ func (p *Programmer) writeShaders(w io.Writer, nodes []Shader) (n int, err error
 			if bodyHash == gotBodyHash {
 				continue // Shader already written and is identical, skip.
 			}
-			return n, fmt.Errorf("duplicate %T shader name %q", node, name)
+			return n, fmt.Errorf("duplicate %T shader name %q w/ body:\n%s", node, name, body)
 		} else {
 			p.names[nameHash] = bodyHash // Not found, add it.
 		}
@@ -448,7 +448,7 @@ func AppendVec3Decl(b []byte, name string, v ms3.Vec) []byte {
 	b = append(b, name...)
 	b = append(b, "=vec3("...)
 	arr := v.Array()
-	b = AppendFloats(b, arr[:], ',', '-', '.')
+	b = AppendFloats(b, ',', '-', '.', arr[:]...)
 	b = append(b, ')', ';', '\n')
 	return b
 }
@@ -458,7 +458,7 @@ func AppendVec2Decl(b []byte, name string, v ms2.Vec) []byte {
 	b = append(b, name...)
 	b = append(b, "=vec2("...)
 	arr := v.Array()
-	b = AppendFloats(b, arr[:], ',', '-', '.')
+	b = AppendFloats(b, ',', '-', '.', arr[:]...)
 	b = append(b, ')', ';', '\n')
 	return b
 }
@@ -509,7 +509,7 @@ func AppendFloat(b []byte, v float32, neg, decimal byte) []byte {
 	return b[:end]
 }
 
-func AppendFloats(b []byte, s []float32, sep, neg, decimal byte) []byte {
+func AppendFloats(b []byte, sep, neg, decimal byte, s ...float32) []byte {
 	for i, v := range s {
 		b = AppendFloat(b, v, neg, decimal)
 		if sep != 0 && i != len(s)-1 {
@@ -714,12 +714,22 @@ func (nos2 *nameOverloadShader2D) Evaluate(pos []ms2.Vec, dist []float32, userDa
 }
 
 func hash(b []byte, in uint64) uint64 {
+	// Leaving md5 here since we may need to revert to
+	// a more entropic hash to avoid collisions...
+	// though I don't think it'll be necessary.
+	// var result [16]byte
+	// h := md5.New()
+	// h.Write(b)
+	// h.Sum(result[:0])
+	// x1 := binary.LittleEndian.Uint64(result[:])
+	// x2 := binary.LittleEndian.Uint64(result[8:])
+	// return x1 ^ x2 ^ in
 	x := in
 	for len(b) >= 8 {
-		x = x ^ binary.LittleEndian.Uint64(b)
+		x ^= binary.LittleEndian.Uint64(b)
 		x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9
 		x = (x ^ (x >> 27)) * 0x94d049bb133111eb
-		x = x ^ (x >> 31)
+		x ^= x >> 31
 		b = b[8:]
 	}
 	for i := range b {

@@ -84,13 +84,13 @@ func Screw(length float32, thread Threader) (glbuild.Shader3D, error) {
 		return nil, err
 	}
 	params := thread.ThreadParams()
-	s := screw{}
-	s.thread = tsdf
-	s.pitch = params.Pitch
-	s.length = length / 2
-	s.length *= 1 + 1e-3
-	s.taper = params.Taper
-	s.lead = -s.pitch * float32(params.Starts)
+	s := screw{
+		thread: tsdf,
+		pitch:  params.Pitch,
+		lead:   -params.Pitch * float32(params.Starts),
+		length: length / 2,
+		taper:  params.Taper,
+	}
 	return &s, nil
 }
 
@@ -104,6 +104,7 @@ func (s *screw) ForEach2DChild(userData any, fn func(any, *glbuild.Shader2D) err
 
 func (s *screw) AppendShaderName(b []byte) []byte {
 	b = append(b, "screw_"...)
+	b = glbuild.AppendFloats(b, 0, 'n', 'd', s.pitch, s.lead, s.length, s.taper)
 	b = s.thread.AppendShaderName(b)
 	return b
 }

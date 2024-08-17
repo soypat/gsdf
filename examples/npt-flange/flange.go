@@ -92,8 +92,9 @@ func scene() (gleval.SDF3, error) {
 
 	pipe, _ := threads.Nut(threads.NutParms{
 		Thread: npt,
-		Style:  threads.NutCircular,
+		Style:  threads.NutKnurl,
 	})
+	return makeSDF(pipe)
 	// Base plate which goes bolted to joint.
 	flange, _ = gsdf.NewCylinder(flangeD/2, flangeH, flangeH/8)
 	// Make through-hole in flange bottom.
