@@ -92,19 +92,21 @@ func scene() (gleval.SDF3, error) {
 
 	pipe, _ := threads.Nut(threads.NutParms{
 		Thread: npt,
-		Style:  threads.NutHex,
+		Style:  threads.NutCircular,
 	})
-	pipe = gsdf.Scale(pipe, 100)
-	return makeSDF(pipe)
+
 	// Base plate which goes bolted to joint.
 	flange, _ = gsdf.NewCylinder(flangeD/2, flangeH, flangeH/8)
-	// Make through-hole in flange bottom.
-	hole, _ := gsdf.NewCylinder(internalDiameter/2, 4*flangeH, 0)
-	flange = gsdf.Difference(flange, hole)
 
 	// Join threaded section with flange.
 	flange = gsdf.Translate(flange, 0, 0, -tlen/2)
 	union := gsdf.SmoothUnion(pipe, flange, 0.2)
+
+	// Make through-hole in flange bottom. Holes usually done at the end
+	// to avoid smoothing effects covering up desired negative space.
+	hole, _ := gsdf.NewCylinder(internalDiameter/2, 4*flangeH, 0)
+	union = gsdf.Difference(union, hole)
+	// Convert from imperial inches units to millimeter:
 	union = gsdf.Scale(union, 25.4)
 	return makeSDF(union)
 }
