@@ -105,7 +105,7 @@ var OtherUnaryRandomizedOps = []func(a glbuild.Shader3D, rng *rand.Rand) glbuild
 	randomRotation,
 	randomShell,
 	// randomElongate,
-	// randomRound,
+	randomRound,
 	randomScale,
 	randomSymmetry,
 	randomTranslate,
@@ -118,15 +118,19 @@ var OtherUnaryRandomizedOps2D3D = []func(a glbuild.Shader2D, rng *rand.Rand) glb
 }
 
 func test_sdf_gpu_cpu() error {
+	const maxBuf = 16 * 16 * 16
 	const nx, ny, nz = 10, 10, 10
 	vp := &gleval.VecPool{}
-	scratchDist := make([]float32, 16*16*16)
+	scratchDistCPU := make([]float32, maxBuf)
+	scratchDistGPU := make([]float32, maxBuf)
+	scratchDist := make([]float32, maxBuf)
+	scratchPos := make([]ms3.Vec, maxBuf)
 	for _, primitive := range PremadePrimitives {
 		log.Printf("begin evaluating %s\n", getBaseTypename(primitive))
 		bounds := primitive.Bounds()
-		pos := meshgrid(bounds, nx, ny, nz)
-		distCPU := make([]float32, len(pos))
-		distGPU := make([]float32, len(pos))
+		pos := appendMeshgrid(scratchPos[:0], bounds, nx, ny, nz)
+		distCPU := scratchDistCPU[:len(pos)]
+		distGPU := scratchDistGPU[:len(pos)]
 		sdfcpu, err := gleval.AssertSDF3(primitive)
 		if err != nil {
 			return err
@@ -158,9 +162,9 @@ func test_sdf_gpu_cpu() error {
 		p2 := PremadePrimitives[1]
 		obj := op(p1, p2)
 		bounds := obj.Bounds()
-		pos := meshgrid(bounds, nx, ny, nz)
-		distCPU := make([]float32, len(pos))
-		distGPU := make([]float32, len(pos))
+		pos := appendMeshgrid(scratchPos[:0], bounds, nx, ny, nz)
+		distCPU := scratchDistCPU[:len(pos)]
+		distGPU := scratchDistGPU[:len(pos)]
 		sdfcpu, err := gleval.AssertSDF3(obj)
 		if err != nil {
 			return err
@@ -192,9 +196,9 @@ func test_sdf_gpu_cpu() error {
 		p2 := PremadePrimitives[1]
 		obj := op(p1, p2, .1)
 		bounds := obj.Bounds()
-		pos := meshgrid(bounds, nx, ny, nz)
-		distCPU := make([]float32, len(pos))
-		distGPU := make([]float32, len(pos))
+		pos := appendMeshgrid(scratchPos[:0], bounds, nx, ny, nz)
+		distCPU := scratchDistCPU[:len(pos)]
+		distGPU := scratchDistGPU[:len(pos)]
 		sdfcpu, err := gleval.AssertSDF3(obj)
 		if err != nil {
 			return err
@@ -226,9 +230,9 @@ func test_sdf_gpu_cpu() error {
 			primitive := PremadePrimitives[rng.Intn(len(PremadePrimitives))]
 			obj := op(primitive, rng)
 			bounds := obj.Bounds()
-			pos := meshgrid(bounds, nx, ny, nz)
-			distCPU := make([]float32, len(pos))
-			distGPU := make([]float32, len(pos))
+			pos := appendMeshgrid(scratchPos[:0], bounds, nx, ny, nz)
+			distCPU := scratchDistCPU[:len(pos)]
+			distGPU := scratchDistGPU[:len(pos)]
 			sdfcpu, err := gleval.AssertSDF3(obj)
 			if err != nil {
 				return err
@@ -265,9 +269,9 @@ func test_sdf_gpu_cpu() error {
 			primitive := PremadePrimitives2D[rng.Intn(len(PremadePrimitives2D))]
 			obj := op(primitive, rng)
 			bounds := obj.Bounds()
-			pos := meshgrid(bounds, nx, ny, nz)
-			distCPU := make([]float32, len(pos))
-			distGPU := make([]float32, len(pos))
+			pos := appendMeshgrid(scratchPos[:0], bounds, nx, ny, nz)
+			distCPU := scratchDistCPU[:len(pos)]
+			distGPU := scratchDistGPU[:len(pos)]
 			sdfcpu, err := gleval.AssertSDF3(obj)
 			if err != nil {
 				return err
@@ -680,7 +684,8 @@ func randomScale(a glbuild.Shader3D, rng *rand.Rand) glbuild.Shader3D {
 func randomExtrude(a glbuild.Shader2D, rng *rand.Rand) glbuild.Shader3D {
 	const minheight, maxHeight = 0.01, 40.
 	height := minheight + rng.Float32()*(maxHeight-minheight)
-	return gsdf.Extrude(a, height)
+	ex, _ := gsdf.Extrude(a, height)
+	return ex
 }
 
 func randomRevolve(a glbuild.Shader2D, rng *rand.Rand) glbuild.Shader3D {

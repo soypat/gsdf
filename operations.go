@@ -344,16 +344,19 @@ func (s *translate) AppendShaderBody(b []byte) []byte {
 //
 // [Inigo's youtube video]: https://www.youtube.com/watch?v=s5NGeUV2EyU
 func Offset(s glbuild.Shader3D, sdfAdd float32) glbuild.Shader3D {
-	return &offset{s: s, rad: sdfAdd}
+	return &offset{s: s, off: sdfAdd}
 }
 
 type offset struct {
 	s   glbuild.Shader3D
-	rad float32
+	off float32
 }
 
 func (u *offset) Bounds() ms3.Box {
-	return u.s.Bounds()
+	bb := u.s.Bounds()
+	bb.Max = ms3.AddScalar(-u.off, bb.Max)
+	bb.Min = ms3.AddScalar(u.off, bb.Min)
+	return bb.Canon()
 }
 
 func (s *offset) ForEachChild(userData any, fn func(userData any, s *glbuild.Shader3D) error) error {
@@ -362,7 +365,7 @@ func (s *offset) ForEachChild(userData any, fn func(userData any, s *glbuild.Sha
 
 func (s *offset) AppendShaderName(b []byte) []byte {
 	b = append(b, "offset"...)
-	b = fappend(b, s.rad, 'n', 'p')
+	b = fappend(b, s.off, 'n', 'p')
 	b = append(b, '_')
 	b = s.s.AppendShaderName(b)
 	return b
@@ -372,7 +375,7 @@ func (s *offset) AppendShaderBody(b []byte) []byte {
 	b = append(b, "return "...)
 	b = s.s.AppendShaderName(b)
 	b = append(b, "(p)+("...)
-	b = fappend(b, s.rad, '-', '.')
+	b = fappend(b, s.off, '-', '.')
 	b = append(b, ')', ';')
 	return b
 }

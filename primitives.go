@@ -3,7 +3,7 @@ package gsdf
 import (
 	"errors"
 
-	"github.com/soypat/glgl/math/ms2"
+	"github.com/chewxy/math32"
 	"github.com/soypat/glgl/math/ms3"
 	"github.com/soypat/gsdf/glbuild"
 )
@@ -198,50 +198,14 @@ return min(max(d.x,d.y),0.0) + length(max(d,0.0));`...)
 }
 
 func NewTriangularPrism(triHeight, extrudeLength float32) (glbuild.Shader3D, error) {
-	if triHeight <= 0 || extrudeLength <= 0 {
-		return nil, errors.New("invalid triangular prism parameter")
+	if extrudeLength > 0 && !math32.IsInf(extrudeLength, 1) {
+		tri, err := NewEquilateralTriangle(triHeight)
+		if err != nil {
+			return nil, err
+		}
+		return Extrude(tri, extrudeLength)
 	}
-	return &tri{height: triHeight, extrudeLength: extrudeLength}, nil
-}
-
-type tri struct {
-	height        float32
-	extrudeLength float32
-}
-
-func (t *tri) args() (h1, h2 float32) {
-	return t.height / 3, t.extrudeLength / 2
-}
-
-func (t *tri) Bounds() ms3.Box {
-	height := t.height
-	side := height / tribisect
-	longBisect := side / sqrt3    // (L/2)/cosd(30)
-	shortBisect := longBisect / 2 // (L/2)/tand(60)
-	hd2 := t.extrudeLength / 2
-	return ms3.Box{
-		Min: ms3.Vec{X: -side / 2, Y: -shortBisect, Z: -hd2},
-		Max: ms3.Vec{X: side / 2, Y: longBisect, Z: hd2},
-	}
-}
-
-func (t *tri) ForEachChild(userData any, fn func(userData any, s *glbuild.Shader3D) error) error {
-	return nil
-}
-
-func (t *tri) AppendShaderName(b []byte) []byte {
-	b = append(b, "tri"...)
-	b = fappend(b, t.height, 'n', 'p')
-	b = fappend(b, t.extrudeLength, 'n', 'p')
-	return b
-}
-
-func (t *tri) AppendShaderBody(b []byte) []byte {
-	h1, h2 := t.args()
-	b = appendVec2Decl(b, "h", ms2.Vec{X: h1, Y: h2})
-	b = append(b, `vec3 q = abs(p);
-return max(q.z-h.y,max(q.x*0.8660254038+p.y*0.5,-p.y)-h.x);`...)
-	return b
+	return nil, errors.New("bad triangular prism extrude length")
 }
 
 type torus struct {

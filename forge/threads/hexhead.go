@@ -25,7 +25,7 @@ func HexHead(radius float32, height float32, round string) (s glbuild.Shader3D, 
 		return nil, err
 	}
 	hex2d = gsdf.Offset2D(hex2d, -cornerRound)
-	hex3d := gsdf.Extrude(hex2d, height)
+	hex3d, _ := gsdf.Extrude(hex2d, height)
 
 	// round out the top and/or bottom as required
 	if round != "" {

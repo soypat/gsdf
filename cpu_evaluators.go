@@ -459,7 +459,7 @@ func (r *offset) Evaluate(pos []ms3.Vec, dist []float32, userData any) error {
 	if err != nil {
 		return err
 	}
-	radius := r.rad
+	radius := r.off
 	for i, d := range dist {
 		dist[i] = d + radius
 	}
@@ -551,6 +551,22 @@ func (c *circle2D) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {
 	r := c.r
 	for i, p := range pos {
 		dist[i] = ms2.Norm(p) - r
+	}
+	return nil
+}
+
+func (t *equilateralTri2d) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {
+	const k = sqrt3
+	r := t.hTri * tribisect
+	for i, p := range pos {
+		p.X = math32.Abs(p.X) - r
+		p.Y += r / k
+		if p.X+k*p.Y > 0 {
+			p = ms2.Vec{X: p.X - k*p.Y, Y: -k*p.X - p.Y}
+			p = ms2.Scale(0.5, p)
+		}
+		p.X -= clampf(p.X, -2*r, 0)
+		dist[i] = -ms2.Norm(p) * signf(p.Y)
 	}
 	return nil
 }

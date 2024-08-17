@@ -3,6 +3,7 @@ package glbuild
 import (
 	"bytes"
 	_ "embed"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -11,6 +12,8 @@ import (
 	"github.com/soypat/glgl/math/ms2"
 	"github.com/soypat/glgl/math/ms3"
 )
+
+const decimalDigits = 9
 
 //go:embed visualizer_footer.tmpl
 var visualizerFooter []byte
@@ -67,7 +70,7 @@ var defaultComputeHeader = []byte("#shader compute\n#version 430\n")
 func NewDefaultProgrammer() *Programmer {
 	return &Programmer{
 		scratchNodes:  make([]Shader, 64),
-		scratch:       make([]byte, 1024),
+		scratch:       make([]byte, 1024), // Max length of shader token is around 1024..1060 characters.
 		computeHeader: defaultComputeHeader,
 	}
 }
@@ -138,6 +141,48 @@ func (p *Programmer) WriteFragVisualizerSDF3(w io.Writer, obj Shader3D) (n int, 
 	return n, nil
 }
 
+func RewriteNames3D(root *Shader3D, maxRewriteLen int) error {
+	scratch := make([]byte, 1024)
+	var h uint64 = 0xff51afd7ed558ccd
+	// makeNewName creates a name from scratch
+	makeNewName := func(s Shader) []byte {
+		scratch = s.AppendShaderName(scratch[:0])
+		if len(scratch) < maxRewriteLen {
+			return nil
+		}
+		newName := append([]byte{}, scratch[:maxRewriteLen]...)
+		h = hash(scratch, h)
+		scratch = s.AppendShaderBody(scratch[:0])
+		h = hash(scratch, h)
+		newName = strconv.AppendUint(newName, h, 32)
+		return newName
+	}
+	rewrite3 := func(a any, s3 *Shader3D) error {
+		sd3 := *s3
+		name := makeNewName(sd3)
+		if name == nil {
+			return nil
+		}
+		*s3 = &nameOverloadShader3D{Shader: sd3, name: name}
+		return nil
+	}
+	rewrite2 := func(a any, s2 *Shader2D) error {
+		sd2 := *s2
+		name := makeNewName(sd2)
+		if name == nil {
+			return nil
+		}
+		*s2 = &nameOverloadShader2D{Shader: sd2, name: name}
+		return nil
+	}
+
+	err := forEachNode(*root, rewrite3, rewrite2)
+	if err != nil {
+		return err
+	}
+	return rewrite3(nil, root)
+}
+
 // ParseAppendNodes parses the shader object tree and appends all nodes in Depth First order
 // to the dst Shader argument buffer and returns the result.
 func ParseAppendNodes(dst []Shader, root Shader) (baseName string, nodes []Shader, err error) {
@@ -161,7 +206,7 @@ func ParseAppendNodes(dst []Shader, root Shader) (baseName string, nodes []Shade
 // WriteShaders does not check for
 func WriteShaders(w io.Writer, nodes []Shader, scratch []byte) (n int, newscratch []byte, err error) {
 	if scratch == nil {
-		scratch = make([]byte, 512)
+		scratch = make([]byte, 1024)
 	}
 	var ngot int
 	for i := len(nodes) - 1; i >= 0; i-- {
@@ -250,6 +295,59 @@ func AppendAllNodes(dst []Shader, root Shader) ([]Shader, error) {
 	return dst, nil
 }
 
+func forEachNode(root Shader, fn3 func(any, *Shader3D) error, fn2 func(any, *Shader2D) error) error {
+	var userData any
+	children := []Shader{root}
+	nextChild := 0
+	nilChild := errors.New("got nil child in AppendAllNodes")
+	for len(children[nextChild:]) > 0 {
+		newChildren := children[nextChild:]
+		for _, obj := range newChildren {
+			nextChild++
+			obj3, ok3 := obj.(Shader3D)
+			obj2, ok2 := obj.(Shader2D)
+			if !ok2 && !ok3 {
+				return fmt.Errorf("found shader %T that does not implement Shader3D nor Shader2D", obj)
+			}
+			var err error
+			if ok3 {
+				// Got Shader3D in obj.
+				err = obj3.ForEachChild(userData, func(userData any, s *Shader3D) error {
+					if s == nil || *s == nil {
+						return nilChild
+					}
+					children = append(children, *s)
+					return fn3(userData, s)
+				})
+				if obj32, ok32 := obj.(shader3D2D); ok32 {
+					// The Shader3D obj contains Shader2D children, such is case for 2D->3D operations i.e: revolution and extrusion operations.
+					err = obj32.ForEach2DChild(userData, func(userData any, s *Shader2D) error {
+						if s == nil || *s == nil {
+							return nilChild
+						}
+						children = append(children, *s)
+						return fn2(userData, s)
+					})
+				}
+			}
+			if err == nil && !ok3 && ok2 {
+				// Got Shader2D in obj.
+				err = obj2.ForEach2DChild(userData, func(userData any, s *Shader2D) error {
+					if s == nil || *s == nil {
+						return nilChild
+					}
+					children = append(children, *s)
+					return fn2(userData, s)
+				})
+			}
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func AppendDistanceDecl(b []byte, s Shader, name, input string) []byte {
 	b = append(b, "float "...)
 	b = append(b, name...)
@@ -311,7 +409,7 @@ func AppendMat4Decl(b []byte, name string, m44 ms3.Mat4) []byte {
 
 func AppendFloat(b []byte, v float32, neg, decimal byte) []byte {
 	start := len(b)
-	b = strconv.AppendFloat(b, float64(v), 'f', 6, 32)
+	b = strconv.AppendFloat(b, float64(v), 'f', decimalDigits, 32)
 	idx := bytes.IndexByte(b[start:], '.')
 	if decimal != '.' && idx >= 0 {
 		b[start+idx] = decimal
@@ -453,4 +551,95 @@ func (c2 *CachedShader2D) AppendShaderName(b []byte) []byte {
 // AppendShaderBody returns the cached Shader function body. Implements [Shader]. Update by calling RefreshCache.
 func (c2 *CachedShader2D) AppendShaderBody(b []byte) []byte {
 	return append(b, c2.data[c2.bodyOffset:]...)
+}
+
+type nameOverloadShader3D struct {
+	Shader Shader3D
+	name   []byte
+}
+
+// Bounds returns the cached 3D bounds. Implements [Shader3D]. Update by calling RefreshCache.
+func (nos3 *nameOverloadShader3D) Bounds() ms3.Box { return nos3.Shader.Bounds() }
+
+// ForEachChild calls the underlying Shader's ForEachChild. Implements [Shader3D].
+func (nos3 *nameOverloadShader3D) ForEachChild(userData any, fn func(userData any, s *Shader3D) error) error {
+	return nos3.Shader.ForEachChild(userData, fn)
+}
+
+// AppendShaderBody returns the cached Shader function body. Implements [Shader]. Update by calling RefreshCache.
+func (nos3 *nameOverloadShader3D) AppendShaderBody(b []byte) []byte {
+	return nos3.Shader.AppendShaderBody(b)
+}
+
+// ForEach2DChild calls the underlying Shader's ForEach2DChild. This method is called for 3D shapes that
+// use 2D shaders such as extrude and revolution. Implements [Shader2D].
+func (nos3 *nameOverloadShader3D) ForEach2DChild(userData any, fn func(userData any, s *Shader2D) error) (err error) {
+	s2, ok := nos3.Shader.(shader3D2D)
+	if ok {
+		err = s2.ForEach2DChild(userData, fn)
+	}
+	return err
+}
+
+type (
+	sdf3 interface {
+		Evaluate(pos []ms3.Vec, dist []float32, userData any) error
+	}
+	sdf2 interface {
+		Evaluate(pos []ms2.Vec, dist []float32, userData any) error
+	}
+)
+
+func (nos3 *nameOverloadShader3D) Evaluate(pos []ms3.Vec, dist []float32, userData any) error {
+	sdf, ok := nos3.Shader.(sdf3)
+	if !ok {
+		return fmt.Errorf("%T does not implement gleval.SDF3", nos3.Shader)
+	}
+	return sdf.Evaluate(pos, dist, userData)
+}
+
+func (nos3 *nameOverloadShader3D) AppendShaderName(b []byte) []byte {
+	return append(b, nos3.name...)
+}
+
+type nameOverloadShader2D struct {
+	Shader Shader2D
+	name   []byte
+}
+
+func (nos2 *nameOverloadShader2D) Bounds() ms2.Box { return nos2.Shader.Bounds() }
+
+func (nos2 *nameOverloadShader2D) ForEach2DChild(userData any, fn func(userData any, s *Shader2D) error) error {
+	return nos2.Shader.ForEach2DChild(userData, fn)
+}
+
+func (nos2 *nameOverloadShader2D) AppendShaderName(b []byte) []byte {
+	return append(b, nos2.name...)
+}
+
+func (nos2 *nameOverloadShader2D) AppendShaderBody(b []byte) []byte {
+	return nos2.Shader.AppendShaderBody(b)
+}
+
+func (nos2 *nameOverloadShader2D) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {
+	sdf, ok := nos2.Shader.(sdf2)
+	if !ok {
+		return fmt.Errorf("%T does not implement gleval.SDF2", nos2.Shader)
+	}
+	return sdf.Evaluate(pos, dist, userData)
+}
+
+func hash(b []byte, in uint64) uint64 {
+	x := in
+	for len(b) >= 8 {
+		x = x ^ binary.LittleEndian.Uint64(b)
+		x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9
+		x = (x ^ (x >> 27)) * 0x94d049bb133111eb
+		x = x ^ (x >> 31)
+		b = b[8:]
+	}
+	for i := range b {
+		x ^= uint64(b[i]) << i * 8
+	}
+	return x
 }

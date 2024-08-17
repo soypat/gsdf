@@ -6,6 +6,7 @@ import (
 	"math"
 	"strconv"
 
+	"github.com/chewxy/math32"
 	"github.com/soypat/glgl/math/ms2"
 	"github.com/soypat/glgl/math/ms3"
 	"github.com/soypat/gsdf/glbuild"
@@ -16,10 +17,10 @@ type circle2D struct {
 }
 
 func NewCircle(radius float32) (glbuild.Shader2D, error) {
-	if radius <= 0 {
-		return nil, errors.New("zero or negative circle radius")
+	if radius > 0 && !math32.IsInf(radius, 1) {
+		return &circle2D{r: radius}, nil
 	}
-	return &circle2D{r: radius}, nil
+	return nil, errors.New("bad circle radius")
 }
 
 func (c *circle2D) Bounds() ms2.Box {
@@ -43,15 +44,58 @@ func (c *circle2D) ForEach2DChild(userData any, fn func(userData any, s *glbuild
 	return nil
 }
 
+type equilateralTri2d struct {
+	hTri float32
+}
+
+func NewEquilateralTriangle(triangleHeight float32) (glbuild.Shader2D, error) {
+	if triangleHeight > 0 && !math32.IsInf(triangleHeight, 1) {
+		return &equilateralTri2d{hTri: triangleHeight}, nil
+	}
+	return nil, errors.New("bad equilateral triangle height")
+}
+
+func (t *equilateralTri2d) Bounds() ms2.Box {
+	height := t.hTri
+	side := height / tribisect
+	longBisect := side / sqrt3    // (L/2)/cosd(30)
+	shortBisect := longBisect / 2 // (L/2)/tand(60)
+	return ms2.Box{
+		Min: ms2.Vec{X: -side / 2, Y: -shortBisect},
+		Max: ms2.Vec{X: side / 2, Y: longBisect},
+	}
+}
+
+func (t *equilateralTri2d) AppendShaderName(b []byte) []byte {
+	b = append(b, "circle"...)
+	b = fappend(b, t.hTri, 'n', 'p')
+	return b
+}
+
+func (t *equilateralTri2d) AppendShaderBody(b []byte) []byte {
+	b = appendFloatDecl(b, "h", t.hTri/1.7)
+	b = append(b, `const float k = sqrt(3.0);
+    p.x = abs(p.x) - h;
+    p.y = p.y + h/k;
+    if( p.x+k*p.y>0.0 ) p = vec2(p.x-k*p.y,-k*p.x-p.y)/2.0;
+    p.x -= clamp( p.x, -2.0*h, 0.0 );
+    return -length(p)*sign(p.y);`...)
+	return b
+}
+
+func (t *equilateralTri2d) ForEach2DChild(userData any, fn func(userData any, s *glbuild.Shader2D) error) error {
+	return nil
+}
+
 type rect2D struct {
 	d ms2.Vec
 }
 
 func NewRectangle(x, y float32) (glbuild.Shader2D, error) {
-	if x <= 0 || y <= 0 {
-		return nil, errors.New("zero or negative rectangle dimension")
+	if x > 0 && y > 0 && !math32.IsInf(x, 1) && !math32.IsInf(y, 1) {
+		return &rect2D{d: ms2.Vec{X: x, Y: y}}, nil
 	}
-	return &rect2D{d: ms2.Vec{X: x, Y: y}}, nil
+	return nil, errors.New("bad rectangle dimension")
 }
 
 func (c *rect2D) Bounds() ms2.Box {
@@ -82,10 +126,10 @@ type hex2D struct {
 }
 
 func NewHexagon(side float32) (glbuild.Shader2D, error) {
-	if side <= 0 {
-		return nil, errors.New("zero or negative hexagon dimension")
+	if side > 0 && !math32.IsInf(side, 1) {
+		return &hex2D{side: side}, nil
 	}
-	return &hex2D{side: side}, nil
+	return nil, errors.New("bad hexagon dimension")
 }
 
 func (c *hex2D) Bounds() ms2.Box {
@@ -118,10 +162,10 @@ type ellipse2D struct {
 }
 
 func NewEllipse(a, b float32) (glbuild.Shader2D, error) {
-	if a <= 0 || b <= 0 {
-		return nil, errors.New("zero or negative ellipse dimension")
+	if a > 0 && b > 0 && !math32.IsInf(a, 1) && !math32.IsInf(b, 1) {
+		return &ellipse2D{a: a, b: b}, nil
 	}
-	return &ellipse2D{a: a, b: b}, nil
+	return nil, errors.New("bad ellipse dimension")
 }
 
 func (c *ellipse2D) Bounds() ms2.Box {
@@ -251,11 +295,13 @@ func (c *poly2D) ForEach2DChild(userData any, fn func(userData any, s *glbuild.S
 }
 
 // Extrude converts a 2D SDF into a 3D extrusion. Extrudes in both positive and negative Z direction, half of h both ways.
-func Extrude(s glbuild.Shader2D, h float32) glbuild.Shader3D {
+func Extrude(s glbuild.Shader2D, h float32) (glbuild.Shader3D, error) {
 	if s == nil {
 		panic("nil argument to Extrude")
+	} else if h < 0 {
+		return nil, errors.New("bad extrusion length")
 	}
-	return &extrusion{s: s, h: h}
+	return &extrusion{s: s, h: h}, nil
 }
 
 type extrusion struct {
@@ -340,7 +386,7 @@ func (r *revolution) AppendShaderBody(b []byte) []byte {
 // Union2D joins the shapes of two SDFs into one. Is exact.
 func Union2D(s1, s2 glbuild.Shader2D) glbuild.Shader2D {
 	if s1 == nil || s2 == nil {
-		panic("nil object")
+		panic("nil argument to Union2D")
 	}
 	return &union2D{s1: s1, s2: s2}
 }
@@ -381,7 +427,7 @@ func (s *union2D) AppendShaderBody(b []byte) []byte {
 // Difference2D is the SDF difference of a-b. Does not produce a true SDF.
 func Difference2D(a, b glbuild.Shader2D) glbuild.Shader2D {
 	if a == nil || b == nil {
-		panic("nil argument to Difference")
+		panic("nil argument to Difference2D")
 	}
 	return &diff2D{s1: a, s2: b}
 }
@@ -422,7 +468,7 @@ func (s *diff2D) AppendShaderBody(b []byte) []byte {
 // Intersection2D is the SDF intersection of a ^ b. Does not produce an exact SDF.
 func Intersection2D(a, b glbuild.Shader2D) glbuild.Shader2D {
 	if a == nil || b == nil {
-		panic("nil argument to Difference")
+		panic("nil argument to Intersection2D")
 	}
 	return &intersect2D{s1: a, s2: b}
 }
@@ -463,7 +509,7 @@ func (s *intersect2D) AppendShaderBody(b []byte) []byte {
 // Xor2D is the mutually exclusive boolean operation and results in an exact SDF.
 func Xor2D(s1, s2 glbuild.Shader2D) glbuild.Shader2D {
 	if s1 == nil || s2 == nil {
-		panic("nil argument to Xor")
+		panic("nil argument to Xor2D")
 	}
 	return &xor2D{s1: s1, s2: s2}
 }
@@ -503,10 +549,11 @@ func (s *xor2D) AppendShaderBody(b []byte) []byte {
 func Array2D(s glbuild.Shader2D, spacingX, spacingY float32, nx, ny int) (glbuild.Shader2D, error) {
 	if nx <= 0 || ny <= 0 {
 		return nil, errors.New("invalid array repeat param")
-	} else if spacingX <= 0 || spacingY <= 0 {
-		return nil, errors.New("invalid array spacing")
 	}
-	return &array2D{s: s, d: ms2.Vec{X: spacingX, Y: spacingY}, nx: nx, ny: ny}, nil
+	if spacingX > 0 && spacingY > 0 && !math32.IsInf(spacingX, 1) && !math32.IsInf(spacingY, 1) {
+		return &array2D{s: s, d: ms2.Vec{X: spacingX, Y: spacingY}, nx: nx, ny: ny}, nil
+	}
+	return nil, errors.New("bad array spacing")
 }
 
 type array2D struct {
