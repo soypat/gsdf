@@ -547,7 +547,10 @@ return mix( d2, d1, h ) + k*h*(1.0-h);`...)
 }
 
 // Elongate "stretches" the SDF in a direction by splitting it on the origin in
-// the plane perpendicular to the argument direction. Arguments are distances, so zero-valued arguments are no-op.
+// the plane perpendicular to the argument direction. The part of the shape in the negative
+// plane is discarded and replaced with the elongated positive part.
+//
+// Arguments are distances, so zero-valued arguments are no-op.
 func Elongate(s glbuild.Shader3D, dirX, dirY, dirZ float32) glbuild.Shader3D {
 	return &elongate{s: s, h: ms3.Vec{X: dirX, Y: dirY, Z: dirZ}}
 }
@@ -559,8 +562,10 @@ type elongate struct {
 
 func (u *elongate) Bounds() ms3.Box {
 	box := u.s.Bounds()
-	box.Min = ms3.MinElem(box.Min, ms3.Add(box.Min, u.h))
-	box.Max = ms3.MaxElem(box.Max, ms3.Add(box.Max, u.h))
+	// Elongate splits shape around origin and keeps positive bits only.
+	box.Max = ms3.MaxElem(box.Max, ms3.Vec{})
+	box.Max = ms3.Add(box.Max, ms3.Scale(0.5, u.h))
+	box.Min = ms3.Scale(-1, box.Max) // Discard negative side of shape.
 	return box
 }
 
@@ -577,7 +582,7 @@ func (s *elongate) AppendShaderName(b []byte) []byte {
 }
 
 func (s *elongate) AppendShaderBody(b []byte) []byte {
-	b = appendVec3Decl(b, "h", s.h)
+	b = appendVec3Decl(b, "h", ms3.Scale(0.5, s.h))
 	b = append(b, "vec3 q = abs(p)-h;"...)
 	b = appendDistanceDecl(b, s.s, "d", "max(q,0.0)")
 	b = append(b, "return d + min(max(q.x,max(q.y,q.z)),0.0);"...)

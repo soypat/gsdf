@@ -398,7 +398,7 @@ func (e *elongate) Evaluate(pos []ms3.Vec, dist []float32, userData any) error {
 	defer vp.V3.Release(transformed)
 	aux := vp.Float.Acquire(len(pos))
 	defer vp.Float.Release(aux)
-	h := e.h
+	h := ms3.Scale(0.5, e.h)
 	for i, p := range pos {
 		q := ms3.Sub(ms3.AbsElem(p), h)
 		aux[i] = math32.Min(q.Max(), 0)
