@@ -88,6 +88,7 @@ func Screw(length float32, thread Threader) (glbuild.Shader3D, error) {
 	s.thread = tsdf
 	s.pitch = params.Pitch
 	s.length = length / 2
+	s.length *= 1 + 1e-3
 	s.taper = params.Taper
 	s.lead = -s.pitch * float32(params.Starts)
 	return &s, nil

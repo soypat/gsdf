@@ -10,6 +10,14 @@ Offshoot from [this project](https://github.com/soypat/sdf/pull/13). Is WIP.
     - Design your part using one API, switch between CPU and GPU after design.
 - Extremely coherent API design.
 
+## Package layour/structure
+
+- `gsdf`: Top level package defines exact SDFs primitives and operations for use on CPU or GPU workloads. Consumes `glbuild` interfaces and logic to build shaders.
+- `glbuild`: Automatic shader generation interfaces and logic.
+- `gleval`: SDF evaluation interfaces and facilities, both CPU and GPU bound.
+- `glrender`: Triangle rendering logic which consumes gleval. STL generation.
+- `forge`: Composed shape generation such as `threads` package for generating screw threads. Engineering applications.
+
 ## Part design - NPT Flange example.
 This was converted from the [original example](https://github.com/soypat/sdf/blob/main/examples/npt-flange/flange.go). See [README](https://github.com/soypat/sdf/tree/main/examples) for images.
 
