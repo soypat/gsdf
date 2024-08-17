@@ -21,6 +21,14 @@ Offshoot from [this project](https://github.com/soypat/sdf/pull/13). Is WIP.
 ## Part design - NPT Flange example.
 This was converted from the [original example](https://github.com/soypat/sdf/blob/main/examples/npt-flange/flange.go). See [README](https://github.com/soypat/sdf/tree/main/examples) for images.
 
+
+See working example under [examples](./examples/) directory. Run on GPU with `-gpu` flag: 
+```sh
+go run ./examples/npt-flange -gpu
+```
+
+
+
 ```go
 	const (
 		tlen             = 18. / 25.4
