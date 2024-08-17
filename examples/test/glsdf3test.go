@@ -66,6 +66,7 @@ var PremadePrimitives = []glbuild.Shader3D{
 	mustShader(gsdf.NewTorus(3, .5)), // Negative normal?
 	mustShader(gsdf.NewTriangularPrism(1, 2)),
 	mustShader(gsdf.NewCylinder(1, 3, .1)),
+	mustShader(gsdf.NewCylinder(1, 3, 0)), // Cylinder with no rounding.
 	mustShader(threads.Screw(5, threads.ISO{ // Negative normal.
 		D:   1,
 		P:   0.1,

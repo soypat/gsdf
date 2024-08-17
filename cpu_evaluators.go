@@ -62,7 +62,7 @@ func (c *cylinder) Evaluate(pos []ms3.Vec, dist []float32, userData any) error {
 	if round == 0 {
 		for i, p := range pos {
 			p = ms3.Vec{X: p.X, Y: p.Z, Z: p.Y}
-			dx := math32.Hypot(p.X, p.Y) - r
+			dx := math32.Hypot(p.X, p.Z) - r
 			dy := math32.Abs(p.Y) - h
 			dist[i] = minf(0, maxf(dx, dy)) + math32.Hypot(math32.Max(0, dx), math32.Max(0, dy))
 		}

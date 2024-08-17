@@ -98,8 +98,6 @@ func scene() (gleval.SDF3, error) {
 		Thread: threads.ISO{D: npt.D, P: 1.0 / npt.TPI},
 		Style:  threads.NutHex,
 	})
-
-	return makeSDF(pipe)
 	if err != nil {
 		return nil, err
 	}
@@ -113,6 +111,7 @@ func scene() (gleval.SDF3, error) {
 	if err != nil {
 		return nil, err
 	}
+	// return makeSDF(hole)
 	flange = gsdf.Difference(flange, hole) // Make through-hole in flange bottom
 	flange = gsdf.Scale(flange, 25.4)      // convert to millimeters
 	return makeSDF(flange)

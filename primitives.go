@@ -98,13 +98,14 @@ func (s *box) Bounds() ms3.Box {
 }
 
 func NewCylinder(r, h, rounding float32) (glbuild.Shader3D, error) {
-	if rounding < 0 || rounding >= r || rounding > h/2 {
+	okRounding := rounding >= 0 && rounding < r && rounding < h/2
+	if !okRounding {
 		return nil, errors.New("invalid cylinder rounding")
 	}
-	if r <= 0 || h <= 0 {
-		return nil, errors.New("zero or negative cylinder dimension")
+	if r > 0 && h > 0 {
+		return &cylinder{r: r, h: h, round: rounding}, nil
 	}
-	return &cylinder{r: r, h: h, round: rounding}, nil
+	return nil, errors.New("bad cylinder dimension")
 }
 
 type cylinder struct {
