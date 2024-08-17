@@ -73,7 +73,7 @@ func (t *equilateralTri2d) AppendShaderName(b []byte) []byte {
 }
 
 func (t *equilateralTri2d) AppendShaderBody(b []byte) []byte {
-	b = appendFloatDecl(b, "h", t.hTri/1.7)
+	b = appendFloatDecl(b, "h", t.hTri/sqrt3)
 	b = append(b, `const float k = sqrt(3.0);
     p.x = abs(p.x) - h;
     p.y = p.y + h/k;
@@ -332,7 +332,7 @@ func (e *extrusion) AppendShaderName(b []byte) []byte {
 }
 
 func (e *extrusion) AppendShaderBody(b []byte) []byte {
-	b = appendFloatDecl(b, "h", e.h)
+	b = appendFloatDecl(b, "h", e.h/2)
 	b = appendDistanceDecl(b, e.s, "d", "p.xy")
 	b = append(b, `vec2 w = vec2( d, abs(p.z) - h );
 return min(max(w.x,w.y),0.0) + length(max(w,0.0));`...)

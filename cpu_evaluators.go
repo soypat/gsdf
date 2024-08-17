@@ -94,16 +94,6 @@ func (h *hex) Evaluate(pos []ms3.Vec, dist []float32, userData any) error {
 	return nil
 }
 
-func (t *tri) Evaluate(pos []ms3.Vec, dist []float32, userData any) error {
-	h1, h2 := t.args()
-	for i, p := range pos {
-		q := ms3.AbsElem(p)
-		m1 := maxf(q.X*tribisect+p.Y*0.5, -p.Y)
-		dist[i] = maxf(q.Z-h2, m1-h1)
-	}
-	return nil
-}
-
 func evaluateSDF3(obj bounder3, pos []ms3.Vec, dist []float32, userData any) error {
 	sdf, err := gleval.AssertSDF3(obj)
 	if err != nil {
@@ -520,7 +510,7 @@ func (e *extrusion) Evaluate(pos []ms3.Vec, dist []float32, userData any) error 
 	if err != nil {
 		return err
 	}
-	h := e.h
+	h := e.h / 2
 	for i, p := range pos {
 		d := dist[i]
 		wy := math32.Abs(p.Z) - h
@@ -557,7 +547,7 @@ func (c *circle2D) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {
 
 func (t *equilateralTri2d) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {
 	const k = sqrt3
-	r := t.hTri * tribisect
+	r := t.hTri / sqrt3
 	for i, p := range pos {
 		p.X = math32.Abs(p.X) - r
 		p.Y += r / k
