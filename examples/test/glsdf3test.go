@@ -73,6 +73,8 @@ var PremadePrimitives = []glbuild.Shader3D{
 		Ext: true,
 	})),
 }
+var npt threads.NPT
+var _ = npt.SetFromNominal(1.0 / 2.0)
 
 var PremadePrimitives2D = []glbuild.Shader2D{
 	mustShader2D(gsdf.NewCircle(1)),
@@ -80,6 +82,7 @@ var PremadePrimitives2D = []glbuild.Shader2D{
 	mustShader2D(gsdf.NewPolygon([]ms2.Vec{
 		{X: -1, Y: -1}, {X: -1, Y: 0}, {X: 0.5, Y: 2},
 	})),
+	mustShader2D(npt.Thread()),
 	// mustShader2D(gsdf.NewEllipse(1, 2)), // Ellipse seems to be very sensitive to position.
 }
 var BinaryOps = []func(a, b glbuild.Shader3D) glbuild.Shader3D{
@@ -126,6 +129,7 @@ func test_sdf_gpu_cpu() error {
 	scratchDistGPU := make([]float32, maxBuf)
 	scratchDist := make([]float32, maxBuf)
 	scratchPos := make([]ms3.Vec, maxBuf)
+	scratchPos2 := make([]ms2.Vec, maxBuf)
 	for _, primitive := range PremadePrimitives {
 		log.Printf("begin evaluating %s\n", getBaseTypename(primitive))
 		bounds := primitive.Bounds()
@@ -155,6 +159,37 @@ func test_sdf_gpu_cpu() error {
 			description := sprintOpPrimitive(nil, primitive)
 			return fmt.Errorf("%s: %s", description, err)
 		}
+	}
+
+	for _, primitive := range PremadePrimitives2D {
+		log.Printf("evaluate 2D %s\n", getBaseTypename(primitive))
+		bounds := primitive.Bounds()
+		pos := appendMeshgrid2D(scratchPos2[:0], bounds, nx, ny, nz)
+		distCPU := scratchDistCPU[:len(pos)]
+		distGPU := scratchDistGPU[:len(pos)]
+		sdfcpu, err := gleval.AssertSDF2(primitive)
+		if err != nil {
+			return err
+		}
+		err = sdfcpu.Evaluate(pos, distCPU, vp)
+		if err != nil {
+			return err
+		}
+		sdfgpu := makeGPUSDF2(primitive)
+		err = sdfgpu.Evaluate(pos, distGPU, nil)
+		if err != nil {
+			return err
+		}
+		err = cmpDist(pos, distCPU, distGPU)
+		if err != nil {
+			description := sprintOpPrimitive(nil, primitive)
+			return fmt.Errorf("%s: %s", description, err)
+		}
+		// err = test_bounds(sdfcpu, scratchDist, vp)
+		// if err != nil {
+		// 	description := sprintOpPrimitive(nil, primitive)
+		// 	return fmt.Errorf("%s: %s", description, err)
+		// }
 	}
 
 	for _, op := range BinaryOps {
@@ -536,6 +571,20 @@ func appendMeshgrid(dst []ms3.Vec, bounds ms3.Box, nx, ny, nz int) []ms3.Vec {
 	return dst
 }
 
+func appendMeshgrid2D(dst []ms2.Vec, bounds ms2.Box, nx, ny, nz int) []ms2.Vec {
+	nxyz := ms2.Vec{X: float32(nx), Y: float32(ny)}
+	dxyz := ms2.DivElem(bounds.Size(), nxyz)
+	var xy ms2.Vec
+	for j := 0; j < nx; j++ {
+		xy.Y = bounds.Min.Y + dxyz.Y*float32(j)
+		for i := 0; i < nx; i++ {
+			xy.X = bounds.Min.X + dxyz.X*float32(i)
+			dst = append(dst, xy)
+		}
+	}
+	return dst
+}
+
 func makeGPUSDF3(s glbuild.Shader3D) gleval.SDF3 {
 	if s == nil {
 		panic("nil Shader3D")
@@ -548,6 +597,24 @@ func makeGPUSDF3(s glbuild.Shader3D) gleval.SDF3 {
 		panic("bytes written mismatch")
 	}
 	sdfgpu, err := gleval.NewComputeGPUSDF3(&source, s.Bounds())
+	if err != nil {
+		panic(err)
+	}
+	return sdfgpu
+}
+
+func makeGPUSDF2(s glbuild.Shader2D) gleval.SDF2 {
+	if s == nil {
+		panic("nil Shader3D")
+	}
+	var source bytes.Buffer
+	n, err := programmer.WriteComputeSDF2(&source, s)
+	if err != nil {
+		panic(err)
+	} else if n != source.Len() {
+		panic("bytes written mismatch")
+	}
+	sdfgpu, err := gleval.NewComputeGPUSDF2(&source, s.Bounds())
 	if err != nil {
 		panic(err)
 	}
@@ -568,7 +635,7 @@ func mustShader2D(s glbuild.Shader2D, err error) glbuild.Shader2D {
 	return s
 }
 
-func cmpDist(pos []ms3.Vec, dcpu, dgpu []float32) error {
+func cmpDist[T any](pos []T, dcpu, dgpu []float32) error {
 	mismatches := 0
 	const tol = 5e-3
 	var mismatchErr error

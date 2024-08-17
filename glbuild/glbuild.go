@@ -80,7 +80,7 @@ func NewDefaultProgrammer() *Programmer {
 
 // WriteDistanceIO creates the bare bones I/O compute program for calculating SDF
 // and writes it to the writer.
-func (p *Programmer) WriteComputeSDF3(w io.Writer, obj Shader) (int, error) {
+func (p *Programmer) WriteComputeSDF3(w io.Writer, obj Shader3D) (int, error) {
 	baseName, nodes, err := ParseAppendNodes(p.scratchNodes[:0], obj)
 	if err != nil {
 		return 0, err
@@ -107,6 +107,45 @@ void main() {
 	ivec2 pos = ivec2( gl_GlobalInvocationID.xy );
 	// Get SDF position value.
 	vec3 p = imageLoad( in_tex, pos ).rgb;
+	float distance = %s(p);
+	// store new value in image
+	imageStore( out_tex, pos, vec4( distance, 0.0, 0.0, 0.0 ) );
+}
+`, baseName)
+
+	n += ngot
+	return n, err
+}
+
+// WriteDistanceIO creates the bare bones I/O compute program for calculating SDF
+// and writes it to the writer.
+func (p *Programmer) WriteComputeSDF2(w io.Writer, obj Shader2D) (int, error) {
+	baseName, nodes, err := ParseAppendNodes(p.scratchNodes[:0], obj)
+	if err != nil {
+		return 0, err
+	}
+	// Begin writing shader source code.
+	n, err := w.Write(p.computeHeader)
+	if err != nil {
+		return n, err
+	}
+	ngot, err := p.writeShaders(w, nodes)
+	n += ngot
+	if err != nil {
+		return n, err
+	}
+	ngot, err = fmt.Fprintf(w, `
+
+layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+layout(rg32f, binding = 0) uniform image2D in_tex;
+// The binding argument refers to the textures Unit.
+layout(r32f, binding = 1) uniform image2D out_tex;
+
+void main() {
+	// get position to read/write data from.
+	ivec2 pos = ivec2( gl_GlobalInvocationID.xy );
+	// Get SDF position value.
+	vec2 p = imageLoad( in_tex, pos ).rg;
 	float distance = %s(p);
 	// store new value in image
 	imageStore( out_tex, pos, vec4( distance, 0.0, 0.0, 0.0 ) );

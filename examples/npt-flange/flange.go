@@ -48,7 +48,7 @@ func main() {
 		os.Exit(1)
 	}
 	const resDiv = 200
-	const evaluationBufferSize = 1024
+	const evaluationBufferSize = 1024 * 8
 	resolution := sdf.Bounds().Size().Max() / resDiv
 	renderer, err := glrender.NewOctreeRenderer(sdf, resolution, evaluationBufferSize)
 	if err != nil {
@@ -75,10 +75,6 @@ func main() {
 
 func scene() (gleval.SDF3, error) {
 	const (
-		// visualization is the name of the file with a GLSL
-		// generated visualization of the SDF which can be visualized in https://www.shadertoy.com/
-		// or using VSCode's ShaderToy extension. If visualization=="" then no file is generated.
-		// thread length
 		tlen             = 18. / 25.4
 		internalDiameter = 1.5 / 2.
 		flangeH          = 7. / 25.4
@@ -94,30 +90,28 @@ func scene() (gleval.SDF3, error) {
 		return nil, err
 	}
 
-	pipe, err := threads.Nut(threads.NutParms{
-		Thread: threads.ISO{D: npt.D, P: 1.0 / npt.TPI},
-		Style:  threads.NutHex,
+	pipe, _ := threads.Nut(threads.NutParms{
+		Thread: npt,
+		Style:  threads.NutCircular,
 	})
-	if err != nil {
-		return nil, err
-	}
-	flange, err = gsdf.NewCylinder(flangeD/2, flangeH, flangeH/8)
-	if err != nil {
-		return nil, err
-	}
+	// Base plate which goes bolted to joint.
+	flange, _ = gsdf.NewCylinder(flangeD/2, flangeH, flangeH/8)
+	// Make through-hole in flange bottom.
+	hole, _ := gsdf.NewCylinder(internalDiameter/2, 4*flangeH, 0)
+	flange = gsdf.Difference(flange, hole)
+
+	// Join threaded section with flange.
 	flange = gsdf.Translate(flange, 0, 0, -tlen/2)
-	flange = gsdf.SmoothUnion(pipe, flange, 0.2)
-	hole, err := gsdf.NewCylinder(internalDiameter/2, 4*flangeH, 0)
-	if err != nil {
-		return nil, err
-	}
-	// return makeSDF(hole)
-	flange = gsdf.Difference(flange, hole) // Make through-hole in flange bottom
-	flange = gsdf.Scale(flange, 25.4)      // convert to millimeters
-	return makeSDF(flange)
+	union := gsdf.SmoothUnion(pipe, flange, 0.2)
+	union = gsdf.Scale(union, 25.4)
+	return makeSDF(union)
 }
 
 func makeSDF(s glbuild.Shader3D) (gleval.SDF3, error) {
+	err := glbuild.RewriteNames3D(&s, 32) // Shorten names to not crash GL tokenizer.
+	if err != nil {
+		return nil, err
+	}
 	if visualization != "" {
 		const sceneSize = 0.5
 		// We include the bounding box in the visualization.
@@ -126,13 +120,13 @@ func makeSDF(s glbuild.Shader3D) (gleval.SDF3, error) {
 		if err != nil {
 			return nil, err
 		}
-		s = gsdf.Union(s, envelope)
+		visual := gsdf.Union(s, envelope)
 		// Scale size and translate to center so visualization is in camera range.
 		center := bb.Center()
-		s = gsdf.Translate(s, center.X, center.Y, center.Z)
-		s = gsdf.Scale(s, sceneSize/bb.Size().Max())
+		visual = gsdf.Translate(visual, center.X, center.Y, center.Z)
+		visual = gsdf.Scale(visual, sceneSize/bb.Size().Max())
 		source := new(bytes.Buffer)
-		_, err = glbuild.NewDefaultProgrammer().WriteFragVisualizerSDF3(source, s)
+		_, err = glbuild.NewDefaultProgrammer().WriteFragVisualizerSDF3(source, visual)
 		if err != nil {
 			return nil, err
 		}

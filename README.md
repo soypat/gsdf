@@ -22,8 +22,8 @@ Offshoot from [this project](https://github.com/soypat/sdf/pull/13). Is WIP.
 This was converted from the [original example](https://github.com/soypat/sdf/blob/main/examples/npt-flange/flange.go). See [README](https://github.com/soypat/sdf/tree/main/examples) for images.
 
 ```go
-    const (
-		tlen             = 18. / 25.4 // thread length
+	const (
+		tlen             = 18. / 25.4
 		internalDiameter = 1.5 / 2.
 		flangeH          = 7. / 25.4
 		flangeD          = 60. / 25.4
@@ -37,24 +37,20 @@ This was converted from the [original example](https://github.com/soypat/sdf/blo
 	if err != nil {
 		return nil, err
 	}
-	pipe, err := threads.Nut(threads.NutParms{
+
+	pipe, _ := threads.Nut(threads.NutParms{
 		Thread: npt,
 		Style:  threads.NutCircular,
 	})
-	if err != nil {
-		return nil, err
-	}
-	flange, err = gsdf.NewCylinder(flangeD/2, flangeH, flangeH/8)
-	if err != nil {
-		return nil, err
-	}
+	// Base plate which goes bolted to joint.
+	flange, _ = gsdf.NewCylinder(flangeD/2, flangeH, flangeH/8)
+	// Make through-hole in flange bottom.
+	hole, _ := gsdf.NewCylinder(internalDiameter/2, flangeH, 0)
+	flange = gsdf.Difference(flange, hole)
+
+	// Join threaded section with flange.
 	flange = gsdf.Translate(flange, 0, 0, -tlen/2)
-	flange = gsdf.SmoothUnion(pipe, flange, 0.2)
-	hole, err := gsdf.NewCylinder(internalDiameter/2, 4*flangeH, 0)
-	if err != nil {
-		return nil, err
-	}
-	flange = gsdf.Difference(flange, hole) // Make through-hole in flange bottom
-	flange = gsdf.Scale(flange, 25.4)      // convert to millimeters
-	renderSDF(flange)
+	union := gsdf.SmoothUnion(pipe, flange, 0.2)
+	union = gsdf.Scale(union, 1)
+	renderSDF(union)
 ```
