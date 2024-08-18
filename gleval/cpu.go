@@ -133,6 +133,11 @@ func (vp *VecPool) AssertAllReleased() error {
 	return nil
 }
 
+// TotalAlloc returns the number of bytes allocated by all underlying buffers.
+func (vp *VecPool) TotalAlloc() uint64 {
+	return vp.Float.TotalAlloc() + vp.V2.TotalAlloc() + vp.V3.TotalAlloc()
+}
+
 type bufPool[T any] struct {
 	_ins      [][]T
 	_acquired []bool
@@ -140,9 +145,11 @@ type bufPool[T any] struct {
 	releaseErr error
 }
 
+// Acquire gets a buffer from the pool of the desired length and marks it as used.
+// If no buffer is available then a new one is allocated.
 func (bp *bufPool[T]) Acquire(length int) []T {
 	for i, locked := range bp._acquired {
-		if !locked && len(bp._ins[i]) > length {
+		if !locked && len(bp._ins[i]) >= length {
 			bp._acquired[i] = true
 			return bp._ins[i][:length]
 		}
@@ -159,6 +166,8 @@ var (
 	errBufpoolReleaseNonexistent = errors.New("release of nonexistent resource")
 )
 
+// Release receives a buffer that was previously returned by [bufPool.Acquire]
+// and returns it to the pool and marks it as unused/free.
 func (bp *bufPool[T]) Release(buf []T) error {
 	for i, instance := range bp._ins {
 		if &instance[0] == &buf[0] {
@@ -187,7 +196,7 @@ func (bp *bufPool[T]) assertAllReleased() error {
 	return nil
 }
 
-// NumBuffers returns quantity of buffers.
+// NumBuffers returns quantity of buffers allocated by the pool.
 func (bp *bufPool[T]) NumBuffers() int {
 	return len(bp._ins)
 }
@@ -201,4 +210,33 @@ func (bp *bufPool[T]) TotalAlloc() uint64 {
 		n += uint64(len(bp._ins[i]))
 	}
 	return size * n
+}
+
+// Free returns total number of free buffers. To calculate number of used buffers do [bufPool.NumBuffers]() - [bufPool.Free]().
+func (bp *bufPool[T]) Free() (free int) {
+	for _, b := range bp._acquired {
+		if !b {
+			free++
+		}
+	}
+	return free
+}
+
+func (bp *bufPool[T]) String() string {
+	alloc := bp.TotalAlloc()
+	const (
+		_ = 1 << (10 * iota)
+		kB
+		MB
+	)
+	units := "b"
+	switch {
+	case alloc > MB:
+		alloc /= MB
+		units = "MB"
+	case alloc > kB:
+		alloc /= kB
+		units = "kB"
+	}
+	return fmt.Sprintf("bufPool{free:%d/%d  mem:%d%s}", bp.Free(), bp.NumBuffers(), alloc, units)
 }

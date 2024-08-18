@@ -121,6 +121,12 @@ var OtherUnaryRandomizedOps2D3D = []func(a glbuild.Shader2D, rng *rand.Rand) glb
 	randomRevolve,
 }
 
+const (
+	_ = 1 << (iota * 10)
+	kB
+	MB
+)
+
 func test_sdf_gpu_cpu() error {
 	const maxBuf = 16 * 16 * 16
 	const nx, ny, nz = 10, 10, 10
@@ -131,7 +137,7 @@ func test_sdf_gpu_cpu() error {
 	scratchPos := make([]ms3.Vec, maxBuf)
 	scratchPos2 := make([]ms2.Vec, maxBuf)
 	for _, primitive := range PremadePrimitives {
-		log.Printf("begin evaluating %s\n", getBaseTypename(primitive))
+		log.Printf("begin evaluating %s", getBaseTypename(primitive))
 		bounds := primitive.Bounds()
 		pos := appendMeshgrid(scratchPos[:0], bounds, nx, ny, nz)
 		distCPU := scratchDistCPU[:len(pos)]
@@ -287,6 +293,7 @@ func test_sdf_gpu_cpu() error {
 				description := sprintOpPrimitive(op, primitive)
 				return fmt.Errorf("%d %s: %s", i, description, err)
 			}
+			// log.Printf("allocated v3=%dMB v2=%dMB f32=%dMB", vp.V3.TotalAlloc()/MB, vp.V2.TotalAlloc()/MB, vp.Float.TotalAlloc()/MB)
 			if getBaseTypename(primitive) == "screw" ||
 				(getBaseTypename(primitive) == "tri" && getFnName(op) == "randomRotation") {
 				log.Println("omit screw unary testbounds checks")
@@ -299,6 +306,7 @@ func test_sdf_gpu_cpu() error {
 			}
 		}
 	}
+
 	for _, op := range OtherUnaryRandomizedOps2D3D {
 		log.Printf("begin evaluating %s\n", getFnName(op))
 		for i := 0; i < 10; i++ {
@@ -326,9 +334,14 @@ func test_sdf_gpu_cpu() error {
 				description := sprintOpPrimitive(op, primitive)
 				return fmt.Errorf("%s: %s", description, err)
 			}
+			err = vp.AssertAllReleased()
+			if err != nil {
+				return err
+			}
 		}
 	}
-	log.Println("PASS CPU vs. GPU comparisons")
+	log.Printf("Allocated: v3:%s  v2:%s  f32:%s", vp.V3.String(), vp.V2.String(), vp.Float.String())
+	log.Printf("PASS CPU vs. GPU comparisons.")
 	return nil
 }
 
@@ -374,7 +387,7 @@ func test_stl_generation() error {
 			return fmt.Errorf("triangle %d: got %+v, want %+v", i, got, want)
 		}
 	}
-	log.Printf("wrote+read %d triangles (rendered in %s)", len(triangles), elapsed.String())
+	log.Printf("wrote+read %d triangles with %d evaluations (rendered in %s)", len(triangles), sdfgpu.Evaluations(), elapsed.String())
 	return err
 }
 
@@ -585,7 +598,7 @@ func appendMeshgrid2D(dst []ms2.Vec, bounds ms2.Box, nx, ny, nz int) []ms2.Vec {
 	return dst
 }
 
-func makeGPUSDF3(s glbuild.Shader3D) gleval.SDF3 {
+func makeGPUSDF3(s glbuild.Shader3D) *gleval.SDF3Compute {
 	if s == nil {
 		panic("nil Shader3D")
 	}
