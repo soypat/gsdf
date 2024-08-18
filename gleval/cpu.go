@@ -28,6 +28,7 @@ func NewCPUSDF3(root bounder3) (*SDF3CPU, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return &sdfcpu, nil
 }
 
@@ -52,13 +53,16 @@ func AssertSDF2(s bounder2) (SDF2, error) {
 }
 
 type SDF3CPU struct {
-	SDF SDF3
-	vp  VecPool
+	SDF   SDF3
+	vp    VecPool
+	evals uint64
 }
 
 func (sdf *SDF3CPU) Evaluate(pos []ms3.Vec, dist []float32, userData any) error {
 	if userData == nil {
 		userData = &sdf.vp
+	} else if len(pos) != len(dist) {
+		return errors.New("position and distance buffer length mismatch")
 	}
 	err := sdf.SDF.Evaluate(pos, dist, userData)
 	err2 := sdf.vp.AssertAllReleased()
@@ -71,12 +75,16 @@ func (sdf *SDF3CPU) Evaluate(pos []ms3.Vec, dist []float32, userData any) error 
 	if err2 != nil {
 		return err2
 	}
+	sdf.evals += uint64(len(pos))
 	return nil
 }
 
 func (sdf *SDF3CPU) Bounds() ms3.Box {
 	return sdf.SDF.Bounds()
 }
+
+// Evaluations returns total evaluations performed succesfully during sdf's lifetime.
+func (sdf *SDF3CPU) Evaluations() uint64 { return sdf.evals }
 
 // VecPool method exposes the SDF3CPU's VecPool in case user wishes to use their own userData in evaluations.
 func (sdf *SDF3CPU) VecPool() *VecPool { return &sdf.vp }

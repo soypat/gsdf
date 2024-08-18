@@ -41,17 +41,21 @@ type ivec struct {
 	z int
 }
 
-func (a ivec) Add(b ivec) ivec      { return ivec{x: a.x + b.x, y: a.y + b.y, z: a.z + b.z} }
-func (a ivec) AddScalar(f int) ivec { return ivec{x: a.x + f, y: a.y + f, z: a.z + f} }
-func (a ivec) ScaleMul(f int) ivec  { return ivec{x: a.x * f, y: a.y * f, z: a.z * f} }
-func (a ivec) ScaleDiv(f int) ivec  { return ivec{x: a.x / f, y: a.y / f, z: a.z / f} }
-func (a ivec) Sub(b ivec) ivec      { return ivec{x: a.x - b.x, y: a.y - b.y, z: a.z - b.z} }
-func (a ivec) Vec() ms3.Vec         { return ms3.Vec{X: float32(a.x), Y: float32(a.y), Z: float32(a.z)} }
+func (a ivec) Add(b ivec) ivec        { return ivec{x: a.x + b.x, y: a.y + b.y, z: a.z + b.z} }
+func (a ivec) AddScalar(f int) ivec   { return ivec{x: a.x + f, y: a.y + f, z: a.z + f} }
+func (a ivec) ScaleMul(f int) ivec    { return ivec{x: a.x * f, y: a.y * f, z: a.z * f} }
+func (a ivec) ScaleDiv(f int) ivec    { return ivec{x: a.x / f, y: a.y / f, z: a.z / f} }
+func (a ivec) ShiftRight(lo int) ivec { return ivec{x: a.x >> lo, y: a.y >> lo, z: a.z >> lo} }
+func (a ivec) ShiftLeft(hi int) ivec  { return ivec{x: a.x << hi, y: a.y << hi, z: a.z << hi} }
+func (a ivec) Sub(b ivec) ivec        { return ivec{x: a.x - b.x, y: a.y - b.y, z: a.z - b.z} }
+func (a ivec) Vec() ms3.Vec           { return ms3.Vec{X: float32(a.x), Y: float32(a.y), Z: float32(a.z)} }
 
 type icube struct {
 	ivec
 	lvl int
 }
+
+func (c icube) isSmallest() bool { return c.lvl == 1 }
 
 func (c icube) size(baseRes float32) float32 {
 	dim := 1 << (c.lvl - 1)
@@ -59,23 +63,39 @@ func (c icube) size(baseRes float32) float32 {
 }
 
 func (c icube) box(origin ms3.Vec, size float32) ms3.Box {
+	origin = c.origin(origin, size) // Replace origin with icube origin.
 	return ms3.Box{
-		Min: ms3.Add(origin, ms3.Scale(size, c.ivec.Vec())),
-		Max: ms3.Add(origin, ms3.Scale(size, c.ivec.Add(ivec{2, 2, 2}).Vec())),
+		Min: origin,
+		Max: ms3.AddScalar(size, origin),
 	}
 }
 
-// corners returns the cube corners.
+func (c icube) origin(origin ms3.Vec, size float32) ms3.Vec {
+	idx := c.lvlIdx()
+	return ms3.Add(origin, ms3.Scale(size, idx.Vec()))
+}
+
+func (c icube) lvlIdx() ivec {
+	return c.ivec.ShiftRight(c.lvl) // icube indices per level in the octree.
+}
+
+func (c icube) center(origin ms3.Vec, size float32) ms3.Vec {
+	return c.box(origin, size).Center()
+}
+
+// corners returns the cube corners. Be aware size is NOT the minimum cube resolution but
+// can be calculated with the [icube.size] method using resolution. If [icube.lvl]==1 then size is resolution.
 func (c icube) corners(origin ms3.Vec, size float32) [8]ms3.Vec {
+	origin = c.origin(origin, size)
 	return [8]ms3.Vec{
-		ms3.Add(origin, ms3.Scale(size, c.ivec.Add(ivec{0, 0, 0}).Vec())),
-		ms3.Add(origin, ms3.Scale(size, c.ivec.Add(ivec{2, 0, 0}).Vec())),
-		ms3.Add(origin, ms3.Scale(size, c.ivec.Add(ivec{2, 2, 0}).Vec())),
-		ms3.Add(origin, ms3.Scale(size, c.ivec.Add(ivec{0, 2, 0}).Vec())),
-		ms3.Add(origin, ms3.Scale(size, c.ivec.Add(ivec{0, 0, 2}).Vec())),
-		ms3.Add(origin, ms3.Scale(size, c.ivec.Add(ivec{2, 0, 2}).Vec())),
-		ms3.Add(origin, ms3.Scale(size, c.ivec.Add(ivec{2, 2, 2}).Vec())),
-		ms3.Add(origin, ms3.Scale(size, c.ivec.Add(ivec{0, 2, 2}).Vec())),
+		ms3.Add(origin, ms3.Vec{X: 0, Y: 0, Z: 0}),
+		ms3.Add(origin, ms3.Vec{X: size, Y: 0, Z: 0}),
+		ms3.Add(origin, ms3.Vec{X: size, Y: size, Z: 0}),
+		ms3.Add(origin, ms3.Vec{X: 0, Y: size, Z: 0}),
+		ms3.Add(origin, ms3.Vec{X: 0, Y: 0, Z: size}),
+		ms3.Add(origin, ms3.Vec{X: size, Y: 0, Z: size}),
+		ms3.Add(origin, ms3.Vec{X: size, Y: size, Z: size}),
+		ms3.Add(origin, ms3.Vec{X: 0, Y: size, Z: size}),
 	}
 }
 

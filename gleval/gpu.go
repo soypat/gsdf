@@ -42,13 +42,17 @@ func NewComputeGPUSDF3(glglSourceCode io.Reader, bb ms3.Box) (*SDF3Compute, erro
 }
 
 type SDF3Compute struct {
-	prog glgl.Program
-	bb   ms3.Box
+	prog  glgl.Program
+	bb    ms3.Box
+	evals uint64
 }
 
 func (sdf *SDF3Compute) Bounds() ms3.Box {
 	return sdf.bb
 }
+
+// Evaluations returns total evaluations performed succesfully during sdf's lifetime.
+func (sdf *SDF3Compute) Evaluations() uint64 { return sdf.evals }
 
 func (sdf *SDF3Compute) Evaluate(pos []ms3.Vec, dist []float32, userData any) error {
 	sdf.prog.Bind()
@@ -94,6 +98,7 @@ func (sdf *SDF3Compute) Evaluate(pos []ms3.Vec, dist []float32, userData any) er
 	if err != nil {
 		return err
 	}
+	sdf.evals += uint64(len(pos))
 	return nil
 }
 
@@ -115,13 +120,17 @@ func NewComputeGPUSDF2(glglSourceCode io.Reader, bb ms2.Box) (*SDF2Compute, erro
 }
 
 type SDF2Compute struct {
-	prog glgl.Program
-	bb   ms2.Box
+	prog  glgl.Program
+	bb    ms2.Box
+	evals uint64
 }
 
 func (sdf *SDF2Compute) Bounds() ms2.Box {
 	return sdf.bb
 }
+
+// Evaluations returns total evaluations performed succesfully during sdf's lifetime.
+func (sdf *SDF2Compute) Evaluations() uint64 { return sdf.evals }
 
 func (sdf *SDF2Compute) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {
 	sdf.prog.Bind()
@@ -167,5 +176,6 @@ func (sdf *SDF2Compute) Evaluate(pos []ms2.Vec, dist []float32, userData any) er
 	if err != nil {
 		return err
 	}
+	sdf.evals += uint64(len(pos))
 	return nil
 }

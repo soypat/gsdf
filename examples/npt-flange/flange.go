@@ -54,6 +54,8 @@ func main() {
 		fmt.Println("error rendering triangles:", err)
 		os.Exit(1)
 	}
+	evals := sdf.(interface{ Evaluations() uint64 }).Evaluations()
+	fmt.Println("evaluated sdf", evals, "times")
 	fp, err := os.Create("nptflange.stl")
 	if err != nil {
 		fmt.Println("error creating file:", err)
