@@ -1,12 +1,14 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"flag"
 	"fmt"
 	"log"
 	"os"
 	"runtime"
+	"time"
 
 	"github.com/soypat/gsdf"
 	"github.com/soypat/gsdf/forge/threads"
@@ -19,7 +21,7 @@ func init() {
 	flag.BoolVar(&useGPU, "gpu", useGPU, "Enable GPU usage")
 	flag.Parse()
 	if useGPU {
-		fmt.Println("enable GPU usage")
+		fmt.Println("enabled GPU usage")
 		runtime.LockOSThread() // For when using GPU this is required.
 	}
 }
@@ -32,16 +34,18 @@ func main() {
 	if useGPU {
 		terminate, err := gleval.Init1x1GLFW()
 		if err != nil {
-			log.Fatal("FAIL to start GLFW", err.Error())
+			log.Fatal("failed to start GLFW", err.Error())
 		}
 		defer terminate()
 	}
+	sceneStart := time.Now()
 	sdf, err := scene()
 	if err != nil {
 		fmt.Println("error making scene:", err)
 		os.Exit(1)
 	}
-	const resDiv = 100
+	elapsedScene := time.Since(sceneStart)
+	const resDiv = 200
 	const evaluationBufferSize = 1024 * 8
 	resolution := sdf.Bounds().Size().Max() / resDiv
 	renderer, err := glrender.NewOctreeRenderer(sdf, resolution, evaluationBufferSize)
@@ -49,24 +53,30 @@ func main() {
 		fmt.Println("error creating renderer:", err)
 		os.Exit(1)
 	}
+	start := time.Now()
 	triangles, err := glrender.RenderAll(renderer)
 	if err != nil {
 		fmt.Println("error rendering triangles:", err)
 		os.Exit(1)
 	}
+	elapsed := time.Since(start)
 	evals := sdf.(interface{ Evaluations() uint64 }).Evaluations()
-	fmt.Println("evaluated sdf", evals, "times")
+
 	fp, err := os.Create("nptflange.stl")
 	if err != nil {
 		fmt.Println("error creating file:", err)
 		os.Exit(1)
 	}
 	defer fp.Close()
-	_, err = glrender.WriteBinarySTL(fp, triangles)
+	start = time.Now()
+	w := bufio.NewWriter(fp)
+	_, err = glrender.WriteBinarySTL(w, triangles)
 	if err != nil {
-		fmt.Println("error creating file:", err)
+		fmt.Println("error writing triangles to file:", err)
 		os.Exit(1)
 	}
+	w.Flush()
+	fmt.Println("SDF created in ", elapsedScene, "evaluated sdf", evals, "times, rendered", len(triangles), "triangles in", elapsed, "wrote file in", time.Since(start))
 }
 
 func scene() (gleval.SDF3, error) {

@@ -23,11 +23,28 @@ Offshoot from [this project](https://github.com/soypat/sdf/pull/13). Is WIP.
 This was converted from the [original example](https://github.com/soypat/sdf/blob/main/examples/npt-flange/flange.go). See [README](https://github.com/soypat/sdf/tree/main/examples) for images.
 
 
-See working example under [examples](./examples/) directory. Run on GPU with `-gpu` flag: 
-```sh
-go run ./examples/npt-flange -gpu
-```
+See working example under [examples](./examples/) directory. Run on GPU with `-gpu` flag: `go run ./examples/npt-flange -gpu`
 
+Output and timings for
+- CPU: 12th Gen Intel i5-12400F (12) @ 4.400GHz
+- GPU: AMD ATI Radeon RX 6800
+
+```sh
+$ time go run ./examples/npt-flange/ -gpu
+enabled GPU usage
+SDF created in  5.253108ms evaluated sdf 13808829 times, rendered 219992 triangles in 847.606426ms wrote file in 29.16306ms
+
+real    0m1,307s
+user    0m0,753s
+sys     0m0,284s
+
+$ time go run ./examples/npt-flange/ 
+SDF created in  229.895µs evaluated sdf 13808405 times, rendered 220064 triangles in 2.411541291s wrote file in 28.265793ms
+
+real    0m2,744s
+user    0m2,826s
+sys     0m0,280s
+```
 
 
 ```go
