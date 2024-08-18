@@ -41,7 +41,7 @@ func main() {
 		fmt.Println("error making scene:", err)
 		os.Exit(1)
 	}
-	const resDiv = 200
+	const resDiv = 100
 	const evaluationBufferSize = 1024 * 8
 	resolution := sdf.Bounds().Size().Max() / resDiv
 	renderer, err := glrender.NewOctreeRenderer(sdf, resolution, evaluationBufferSize)
