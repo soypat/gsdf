@@ -46,7 +46,11 @@ user    0m2,826s
 sys     0m0,280s
 ```
 
+The result of running the example are two files:
+- `nptflange.glsl`: Visualization shader that can be copy pasted into [shadertoy](https://www.shadertoy.com/new) to visualize the part, or rendered within your editor with an extension such as the [Shader Toy Visual Studio Code extension](https://marketplace.visualstudio.com/items?itemName=stevensona.shader-toy).
+- `nptflange.stl`: Triangle model file used in 3D printing software such as [Cura](https://ultimaker.com/software/ultimaker-cura/). Can be visualized online in sites such as [View STL](https://www.viewstl.com/).
 
+Below is the 3D scene code. Omits rendering pipeline.
 ```go
 	const (
 		tlen             = 18. / 25.4
