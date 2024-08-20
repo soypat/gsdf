@@ -30,12 +30,12 @@ func (c *circle2D) Bounds() ms2.Box {
 
 func (c *circle2D) AppendShaderName(b []byte) []byte {
 	b = append(b, "circle"...)
-	b = fappend(b, c.r, 'n', 'p')
+	b = glbuild.AppendFloat(b, 'n', 'p', c.r)
 	return b
 }
 
 func (c *circle2D) AppendShaderBody(b []byte) []byte {
-	b = appendFloatDecl(b, "r", c.r)
+	b = glbuild.AppendFloatDecl(b, "r", c.r)
 	b = append(b, "return length(p)-r;"...)
 	return b
 }
@@ -68,12 +68,12 @@ func (t *equilateralTri2d) Bounds() ms2.Box {
 
 func (t *equilateralTri2d) AppendShaderName(b []byte) []byte {
 	b = append(b, "circle"...)
-	b = fappend(b, t.hTri, 'n', 'p')
+	b = glbuild.AppendFloat(b, 'n', 'p', t.hTri)
 	return b
 }
 
 func (t *equilateralTri2d) AppendShaderBody(b []byte) []byte {
-	b = appendFloatDecl(b, "h", t.hTri/sqrt3)
+	b = glbuild.AppendFloatDecl(b, "h", t.hTri/sqrt3)
 	b = append(b, `const float k = sqrt(3.0);
     p.x = abs(p.x) - h;
     p.y = p.y + h/k;
@@ -106,12 +106,12 @@ func (c *rect2D) Bounds() ms2.Box {
 func (c *rect2D) AppendShaderName(b []byte) []byte {
 	b = append(b, "rect"...)
 	arr := c.d.Array()
-	b = sliceappend(b, arr[:], 0, 'n', 'p')
+	b = glbuild.AppendFloats(b, 0, 'n', 'p', arr[:]...)
 	return b
 }
 
 func (c *rect2D) AppendShaderBody(b []byte) []byte {
-	b = appendVec2Decl(b, "b", c.d)
+	b = glbuild.AppendVec2Decl(b, "b", c.d)
 	b = append(b, `vec2 d = abs(p)-b;
     return length(max(d,0.0)) + min(max(d.x,d.y),0.0);`...)
 	return b
@@ -139,12 +139,12 @@ func (c *hex2D) Bounds() ms2.Box {
 
 func (c *hex2D) AppendShaderName(b []byte) []byte {
 	b = append(b, "hex2d"...)
-	b = fappend(b, c.side, 'n', 'p')
+	b = glbuild.AppendFloat(b, 'n', 'p', c.side)
 	return b
 }
 
 func (c *hex2D) AppendShaderBody(b []byte) []byte {
-	b = appendFloatDecl(b, "r", c.side)
+	b = glbuild.AppendFloatDecl(b, "r", c.side)
 	b = append(b, `const vec3 k = vec3(-0.8660254038,0.5,0.577350269);
 p = abs(p);
 p -= 2.0*min(dot(k.xy,p),0.0)*k.xy;
@@ -176,13 +176,12 @@ func (c *ellipse2D) Bounds() ms2.Box {
 
 func (c *ellipse2D) AppendShaderName(b []byte) []byte {
 	b = append(b, "ellipse2D"...)
-	b = fappend(b, c.a, 'n', 'p')
-	b = fappend(b, c.b, 'n', 'p')
+	b = glbuild.AppendFloats(b, 0, 'n', 'p', c.a, c.b)
 	return b
 }
 
 func (c *ellipse2D) AppendShaderBody(b []byte) []byte {
-	b = appendVec2Decl(b, "ab", ms2.Vec{X: c.a, Y: c.b})
+	b = glbuild.AppendVec2Decl(b, "ab", ms2.Vec{X: c.a, Y: c.b})
 	b = append(b, `p = abs(p);
 if( p.x > p.y ) {
 	p=p.yx;
@@ -261,9 +260,7 @@ func (c *poly2D) AppendShaderBody(b []byte) []byte {
 	for i, v := range c.vert {
 		last := i == len(c.vert)-1
 		b = append(b, "vec2("...)
-		b = fappend(b, v.X, '-', '.')
-		b = append(b, ',')
-		b = fappend(b, v.Y, '-', '.')
+		b = glbuild.AppendFloats(b, ',', '-', '.', v.X, v.Y)
 		b = append(b, ')')
 		if !last {
 			b = append(b, ',')
@@ -332,8 +329,8 @@ func (e *extrusion) AppendShaderName(b []byte) []byte {
 }
 
 func (e *extrusion) AppendShaderBody(b []byte) []byte {
-	b = appendFloatDecl(b, "h", e.h/2)
-	b = appendDistanceDecl(b, e.s, "d", "p.xy")
+	b = glbuild.AppendFloatDecl(b, "h", e.h/2)
+	b = glbuild.AppendDistanceDecl(b, "d", "p.xy", e.s)
 	b = append(b, `vec2 w = vec2( d, abs(p.z) - h );
 return min(max(w.x,w.y),0.0) + length(max(w,0.0));`...)
 	return b
@@ -376,9 +373,9 @@ func (r *revolution) AppendShaderName(b []byte) []byte {
 }
 
 func (r *revolution) AppendShaderBody(b []byte) []byte {
-	b = appendFloatDecl(b, "w", r.off)
+	b = glbuild.AppendFloatDecl(b, "w", r.off)
 	b = append(b, "vec2 q = vec2( length(p.xz) - w, p.y );\n"...)
-	b = appendDistanceDecl(b, r.s, "d", "q")
+	b = glbuild.AppendDistanceDecl(b, "d", "q", r.s)
 	b = append(b, "return d;"...)
 	return b
 }
@@ -539,8 +536,8 @@ func (s *xor2D) AppendShaderName(b []byte) []byte {
 }
 
 func (s *xor2D) AppendShaderBody(b []byte) []byte {
-	b = appendDistanceDecl(b, s.s1, "d1", "(p)")
-	b = appendDistanceDecl(b, s.s2, "d2", "(p)")
+	b = glbuild.AppendDistanceDecl(b, "d1", "(p)", s.s1)
+	b = glbuild.AppendDistanceDecl(b, "d2", "(p)", s.s2)
 	b = append(b, "return max(min(d1,d2),-max(d1,d2));"...)
 	return b
 }
@@ -579,9 +576,9 @@ func (s *array2D) ForEach2DChild(userData any, fn func(userData any, s *glbuild.
 func (s *array2D) AppendShaderName(b []byte) []byte {
 	b = append(b, "array2d"...)
 	arr := s.d.Array()
-	b = sliceappend(b, arr[:], 'q', 'n', 'p')
+	b = glbuild.AppendFloats(b, 'q', 'n', 'p', arr[:]...)
 	arr = s.nvec2().Array()
-	b = sliceappend(b, arr[:], 'q', 'n', 'p')
+	b = glbuild.AppendFloats(b, 'q', 'n', 'p', arr[:]...)
 	b = append(b, '_')
 	b = s.s.AppendShaderName(b)
 	return b
@@ -648,7 +645,7 @@ func (s *offset2D) ForEach2DChild(userData any, fn func(userData any, s *glbuild
 
 func (s *offset2D) AppendShaderName(b []byte) []byte {
 	b = append(b, "offset2D"...)
-	b = fappend(b, s.f, 'n', 'p')
+	b = glbuild.AppendFloat(b, 'n', 'p', s.f)
 	b = append(b, '_')
 	b = s.s.AppendShaderName(b)
 	return b
@@ -658,17 +655,7 @@ func (s *offset2D) AppendShaderBody(b []byte) []byte {
 	b = append(b, "return "...)
 	b = s.s.AppendShaderName(b)
 	b = append(b, "(p)+("...)
-	b = fappend(b, s.f, '-', '.')
+	b = glbuild.AppendFloat(b, '-', '.', s.f)
 	b = append(b, ')', ';')
-	return b
-}
-
-func appendVec2Decl(b []byte, name string, v ms2.Vec) []byte {
-	b = append(b, "vec2 "...)
-	b = append(b, name...)
-	b = append(b, "=vec2("...)
-	arr := v.Array()
-	b = sliceappend(b, arr[:], ',', '-', '.')
-	b = append(b, ')', ';', '\n')
 	return b
 }

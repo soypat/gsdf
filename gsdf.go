@@ -6,7 +6,6 @@ import (
 	"github.com/chewxy/math32"
 	"github.com/soypat/glgl/math/ms2"
 	"github.com/soypat/glgl/math/ms3"
-	"github.com/soypat/gsdf/glbuild"
 )
 
 const (
@@ -58,35 +57,6 @@ func maxf(a, b float32) float32 {
 
 func absf(a float32) float32 {
 	return math32.Abs(a)
-}
-
-func appendVec3Decl(b []byte, name string, v ms3.Vec) []byte {
-	return glbuild.AppendVec3Decl(b, name, v)
-}
-
-func appendFloatDecl(b []byte, name string, v float32) []byte {
-	return glbuild.AppendFloatDecl(b, name, v)
-}
-
-func appendMat4Decl(b []byte, name string, m44 ms3.Mat4) []byte {
-	return glbuild.AppendMat4Decl(b, name, m44)
-}
-
-func fappend(b []byte, v float32, neg, decimal byte) []byte {
-	return glbuild.AppendFloat(b, v, neg, decimal)
-}
-
-func vecappend(b []byte, v ms3.Vec, sep, neg, decimal byte) []byte {
-	arr := v.Array()
-	return sliceappend(b, arr[:], sep, neg, decimal)
-}
-
-func sliceappend(b []byte, s []float32, sep, neg, decimal byte) []byte {
-	return glbuild.AppendFloats(b, sep, neg, decimal, s...)
-}
-
-func appendDistanceDecl(b []byte, s glbuild.Shader, name, input string) []byte {
-	return glbuild.AppendDistanceDecl(b, s, name, input)
 }
 
 func hashf(values []float32) float32 {

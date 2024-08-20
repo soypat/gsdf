@@ -84,8 +84,8 @@ func (s *diff) AppendShaderName(b []byte) []byte {
 }
 
 func (s *diff) AppendShaderBody(b []byte) []byte {
-	b = appendDistanceDecl(b, s.s1, "a", "p")
-	b = appendDistanceDecl(b, s.s2, "b", "p")
+	b = glbuild.AppendDistanceDecl(b, "a", "p", s.s1)
+	b = glbuild.AppendDistanceDecl(b, "b", "p", s.s2)
 	b = append(b, "return max(a,-b);"...)
 	return b
 }
@@ -164,8 +164,8 @@ func (s *xor) AppendShaderName(b []byte) []byte {
 }
 
 func (s *xor) AppendShaderBody(b []byte) []byte {
-	b = appendDistanceDecl(b, s.s1, "d1", "(p)")
-	b = appendDistanceDecl(b, s.s2, "d2", "(p)")
+	b = glbuild.AppendDistanceDecl(b, "d1", "(p)", s.s1)
+	b = glbuild.AppendDistanceDecl(b, "d2", "(p)", s.s2)
 	b = append(b, "return max(min(d1,d2),-max(d1,d2));"...)
 	return b
 }
@@ -196,7 +196,7 @@ func (s *scale) AppendShaderName(b []byte) []byte {
 }
 
 func (s *scale) AppendShaderBody(b []byte) []byte {
-	b = appendFloatDecl(b, "s", s.scale)
+	b = glbuild.AppendFloatDecl(b, "s", s.scale)
 	b = append(b, "return "...)
 	b = s.s.AppendShaderName(b)
 	b = append(b, "(p/s)*s;"...)
@@ -281,14 +281,14 @@ func (s *transform) AppendShaderName(b []byte) []byte {
 	b = append(b, "transform"...)
 	// Hash floats so that name is not too long.
 	values := s.invT.Array()
-	b = fappend(b, hashf(values[:]), 'n', 'd')
+	b = glbuild.AppendFloat(b, 'p', 'n', hashf(values[:]))
 	b = append(b, '_')
 	b = s.s.AppendShaderName(b)
 	return b
 }
 
 func (r *transform) AppendShaderBody(b []byte) []byte {
-	b = appendMat4Decl(b, "invT", r.invT)
+	b = glbuild.AppendMat4Decl(b, "invT", r.invT)
 	b = append(b, "return "...)
 	b = r.s.AppendShaderName(b)
 	b = append(b, "(((invT) * vec4(p,0.0)).xyz);"...)
@@ -324,14 +324,15 @@ func (s *translate) ForEachChild(userData any, fn func(userData any, s *glbuild.
 
 func (s *translate) AppendShaderName(b []byte) []byte {
 	b = append(b, "translate"...)
-	b = vecappend(b, s.p, 0, 'n', 'p')
+	arr := s.p.Array()
+	b = glbuild.AppendFloats(b, 0, 'n', 'p', arr[:]...)
 	b = append(b, '_')
 	b = s.s.AppendShaderName(b)
 	return b
 }
 
 func (s *translate) AppendShaderBody(b []byte) []byte {
-	b = appendVec3Decl(b, "t", s.p)
+	b = glbuild.AppendVec3Decl(b, "t", s.p)
 	b = append(b, "return "...)
 	b = s.s.AppendShaderName(b)
 	b = append(b, "(p-t);"...)
@@ -365,7 +366,7 @@ func (s *offset) ForEachChild(userData any, fn func(userData any, s *glbuild.Sha
 
 func (s *offset) AppendShaderName(b []byte) []byte {
 	b = append(b, "offset"...)
-	b = fappend(b, s.off, 'n', 'p')
+	b = glbuild.AppendFloat(b, 'n', 'p', s.off)
 	b = append(b, '_')
 	b = s.s.AppendShaderName(b)
 	return b
@@ -375,7 +376,7 @@ func (s *offset) AppendShaderBody(b []byte) []byte {
 	b = append(b, "return "...)
 	b = s.s.AppendShaderName(b)
 	b = append(b, "(p)+("...)
-	b = fappend(b, s.off, '-', '.')
+	b = glbuild.AppendFloat(b, '-', '.', s.off)
 	b = append(b, ')', ';')
 	return b
 }
@@ -410,8 +411,10 @@ func (s *array) ForEachChild(userData any, fn func(userData any, s *glbuild.Shad
 
 func (s *array) AppendShaderName(b []byte) []byte {
 	b = append(b, "repeat"...)
-	b = vecappend(b, s.d, 'q', 'n', 'p')
-	b = vecappend(b, s.nvec3(), 'q', 'n', 'p')
+	arr := s.d.Array()
+	b = glbuild.AppendFloats(b, 'q', 'n', 'p', arr[:]...)
+	arr = s.nvec3().Array()
+	b = glbuild.AppendFloats(b, 'q', 'n', 'p', arr[:]...)
 	b = append(b, '_')
 	b = s.s.AppendShaderName(b)
 	return b
@@ -465,7 +468,7 @@ type smoothUnion struct {
 
 func (s *smoothUnion) AppendShaderName(b []byte) []byte {
 	b = append(b, "smoothUnion_"...)
-	b = fappend(b, s.k, 'n', 'd')
+	b = glbuild.AppendFloat(b, 'n', 'd', s.k)
 	b = append(b, '_')
 	b = s.s1.AppendShaderName(b)
 	b = append(b, '_')
@@ -474,9 +477,9 @@ func (s *smoothUnion) AppendShaderName(b []byte) []byte {
 }
 
 func (s *smoothUnion) AppendShaderBody(b []byte) []byte {
-	b = appendDistanceDecl(b, s.s1, "d1", "p")
-	b = appendDistanceDecl(b, s.s2, "d2", "p")
-	b = appendFloatDecl(b, "k", s.k)
+	b = glbuild.AppendDistanceDecl(b, "d1", "p", s.s1)
+	b = glbuild.AppendDistanceDecl(b, "d2", "p", s.s2)
+	b = glbuild.AppendFloatDecl(b, "k", s.k)
 	b = append(b, `float h = clamp( 0.5 + 0.5*(d2-d1)/k, 0.0, 1.0 );
 return mix( d2, d1, h ) - k*h*(1.0-h);`...)
 	return b
@@ -497,7 +500,7 @@ type smoothDiff struct {
 
 func (s *smoothDiff) AppendShaderName(b []byte) []byte {
 	b = append(b, "smoothDiff"...)
-	b = fappend(b, s.k, 'n', 'd')
+	b = glbuild.AppendFloat(b, 'n', 'd', s.k)
 	b = append(b, '_')
 	b = s.s1.AppendShaderName(b)
 	b = append(b, '_')
@@ -506,9 +509,9 @@ func (s *smoothDiff) AppendShaderName(b []byte) []byte {
 }
 
 func (s *smoothDiff) AppendShaderBody(b []byte) []byte {
-	b = appendDistanceDecl(b, s.s1, "d1", "p")
-	b = appendDistanceDecl(b, s.s2, "d2", "p")
-	b = appendFloatDecl(b, "k", s.k)
+	b = glbuild.AppendDistanceDecl(b, "d1", "p", s.s1)
+	b = glbuild.AppendDistanceDecl(b, "d2", "p", s.s2)
+	b = glbuild.AppendFloatDecl(b, "k", s.k)
 	b = append(b, `float h = clamp( 0.5 - 0.5*(d2+d1)/k, 0.0, 1.0 );
 return mix( d1, -d2, h ) + k*h*(1.0-h);`...)
 	return b
@@ -529,7 +532,7 @@ type smoothIntersect struct {
 
 func (s *smoothIntersect) AppendShaderName(b []byte) []byte {
 	b = append(b, "smoothIntersect"...)
-	b = fappend(b, s.k, 'n', 'd')
+	b = glbuild.AppendFloat(b, 'n', 'd', s.k)
 	b = append(b, '_')
 	b = s.s1.AppendShaderName(b)
 	b = append(b, '_')
@@ -538,9 +541,9 @@ func (s *smoothIntersect) AppendShaderName(b []byte) []byte {
 }
 
 func (s *smoothIntersect) AppendShaderBody(b []byte) []byte {
-	b = appendDistanceDecl(b, s.s1, "d1", "p")
-	b = appendDistanceDecl(b, s.s2, "d2", "p")
-	b = appendFloatDecl(b, "k", s.k)
+	b = glbuild.AppendDistanceDecl(b, "d1", "p", s.s1)
+	b = glbuild.AppendDistanceDecl(b, "d2", "p", s.s2)
+	b = glbuild.AppendFloatDecl(b, "k", s.k)
 	b = append(b, `float h = clamp( 0.5 - 0.5*(d2-d1)/k, 0.0, 1.0 );
 return mix( d2, d1, h ) + k*h*(1.0-h);`...)
 	return b
@@ -575,17 +578,18 @@ func (s *elongate) ForEachChild(userData any, fn func(userData any, s *glbuild.S
 
 func (s *elongate) AppendShaderName(b []byte) []byte {
 	b = append(b, "elongate"...)
-	b = vecappend(b, s.h, 'i', 'n', 'p')
+	arr := s.h.Array()
+	b = glbuild.AppendFloats(b, 0, 'n', 'p', arr[:]...)
 	b = append(b, '_')
 	b = s.s.AppendShaderName(b)
 	return b
 }
 
 func (s *elongate) AppendShaderBody(b []byte) []byte {
-	b = appendVec3Decl(b, "h", ms3.Scale(0.5, s.h))
-	b = append(b, "vec3 q = abs(p)-h;"...)
-	b = appendDistanceDecl(b, s.s, "d", "max(q,0.0)")
-	b = append(b, "return d + min(max(q.x,max(q.y,q.z)),0.0);"...)
+	b = glbuild.AppendVec3Decl(b, "h", ms3.Scale(0.5, s.h))
+	b = append(b, "vec3 q=abs(p)-h;"...)
+	b = glbuild.AppendDistanceDecl(b, "d", "max(q,0.)", s.s)
+	b = append(b, "return d+min(max(q.x,max(q.y,q.z)),0.);"...)
 	return b
 }
 
@@ -610,14 +614,14 @@ func (s *shell) ForEachChild(userData any, fn func(userData any, s *glbuild.Shad
 
 func (s *shell) AppendShaderName(b []byte) []byte {
 	b = append(b, "shell"...)
-	b = fappend(b, s.thick, 'n', 'p')
+	b = glbuild.AppendFloat(b, 'n', 'p', s.thick)
 	b = append(b, '_')
 	b = s.s.AppendShaderName(b)
 	return b
 }
 
 func (s *shell) AppendShaderBody(b []byte) []byte {
-	b = appendFloatDecl(b, "t", s.thick)
+	b = glbuild.AppendFloatDecl(b, "t", s.thick)
 	b = append(b, "return t*(abs("...)
 	b = s.s.AppendShaderName(b)
 	b = append(b, "(p/t))-t);"...)
@@ -666,8 +670,7 @@ func (ca *circarray) ForEachChild(userData any, fn func(userData any, s *glbuild
 
 func (ca *circarray) AppendShaderName(b []byte) []byte {
 	b = append(b, "circarray"...)
-	b = fappend(b, float32(ca.n), 'n', 'p')
-	b = fappend(b, ca.angle, 'n', 'p')
+	b = glbuild.AppendFloats(b, 0, 'n', 'p', float32(ca.n), ca.angle)
 	b = append(b, '_')
 	b = ca.s.AppendShaderName(b)
 	return b

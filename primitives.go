@@ -42,13 +42,13 @@ func (s *sphere) ForEachChild(userData any, fn func(userData any, s *glbuild.Sha
 
 func (s *sphere) AppendShaderName(b []byte) []byte {
 	b = append(b, "sphere"...)
-	b = fappend(b, s.r, 'n', 'p')
+	b = glbuild.AppendFloat(b, 'n', 'p', s.r)
 	return b
 }
 
 func (s *sphere) AppendShaderBody(b []byte) []byte {
 	b = append(b, "return length(p)-"...)
-	b = fappend(b, s.r, '-', '.')
+	b = glbuild.AppendFloat(b, '-', '.', s.r)
 	b = append(b, ';')
 	return b
 }
@@ -80,14 +80,15 @@ func (s *box) ForEachChild(userData any, fn func(userData any, s *glbuild.Shader
 
 func (s *box) AppendShaderName(b []byte) []byte {
 	b = append(b, "box"...)
-	b = vecappend(b, s.dims, 'i', 'n', 'p')
-	b = fappend(b, s.round, 'n', 'p')
+	arr := s.dims.Array()
+	b = glbuild.AppendFloats(b, 0, 'n', 'p', arr[:]...)
+	b = glbuild.AppendFloat(b, 'n', 'p', s.round)
 	return b
 }
 
 func (s *box) AppendShaderBody(b []byte) []byte {
-	b = appendFloatDecl(b, "r", s.round)
-	b = appendVec3Decl(b, "d", ms3.Scale(0.5, s.dims)) // Inigo's SDF is x2 size.
+	b = glbuild.AppendFloatDecl(b, "r", s.round)
+	b = glbuild.AppendVec3Decl(b, "d", ms3.Scale(0.5, s.dims)) // Inigo's SDF is x2 size.
 	b = append(b, `vec3 q = abs(p)-d+r;
 return length(max(q,0.0)) + min(max(q.x,max(q.y,q.z)),0.0)-r;`...)
 	return b
@@ -127,22 +128,20 @@ func (s *cylinder) ForEachChild(userData any, fn func(userData any, s *glbuild.S
 
 func (s *cylinder) AppendShaderName(b []byte) []byte {
 	b = append(b, "cyl"...)
-	b = fappend(b, s.r, 'n', 'p')
-	b = fappend(b, s.h, 'n', 'p')
-	b = fappend(b, s.round, 'n', 'p')
+	b = glbuild.AppendFloats(b, 0, 'n', 'p', s.r, s.h, s.round)
 	return b
 }
 
 func (s *cylinder) AppendShaderBody(b []byte) []byte {
 	r, h, round := s.args()
 	b = append(b, "p = p.xzy;\n"...)
-	b = appendFloatDecl(b, "r", r)
-	b = appendFloatDecl(b, "h", h) // Correct height for rounding effect.
+	b = glbuild.AppendFloatDecl(b, "r", r)
+	b = glbuild.AppendFloatDecl(b, "h", h) // Correct height for rounding effect.
 	if s.round == 0 {
 		b = append(b, `vec2 d = abs(vec2(length(p.xz),p.y)) - vec2(r,h);
 return min(max(d.x,d.y),0.0) + length(max(d,0.0));`...)
 	} else {
-		b = appendFloatDecl(b, "rd", round)
+		b = glbuild.AppendFloatDecl(b, "rd", round)
 		b = append(b, `vec2 d = vec2( length(p.xz)-r+rd, abs(p.y) - h );
 return min(max(d.x,d.y),0.0) + length(max(d,0.0)) - rd;`...)
 	}
@@ -180,14 +179,13 @@ func (s *hex) ForEachChild(userData any, fn func(userData any, s *glbuild.Shader
 
 func (s *hex) AppendShaderName(b []byte) []byte {
 	b = append(b, "hex"...)
-	b = fappend(b, s.side, 'n', 'p')
-	b = fappend(b, s.h, 'n', 'p')
+	b = glbuild.AppendFloats(b, 0, 'n', 'p', s.side, s.h)
 	return b
 }
 
 func (s *hex) AppendShaderBody(b []byte) []byte {
-	b = appendFloatDecl(b, "_h", s.h)
-	b = appendFloatDecl(b, "side", s.side)
+	b = glbuild.AppendFloatDecl(b, "_h", s.h)
+	b = glbuild.AppendFloatDecl(b, "side", s.side)
 	b = append(b, `vec2 h = vec2(side, _h);
 const vec3 k = vec3(-0.8660254038, 0.5, 0.57735);
 p = abs(p);
@@ -228,14 +226,14 @@ func (s *torus) ForEachChild(userData any, fn func(userData any, s *glbuild.Shad
 
 func (s *torus) AppendShaderName(b []byte) []byte {
 	b = append(b, "torus"...)
-	b = fappend(b, s.rRing, 'n', 'p')
-	b = fappend(b, s.rGreater, 'n', 'p')
+	b = glbuild.AppendFloat(b, 'n', 'p', s.rRing)
+	b = glbuild.AppendFloat(b, 'n', 'p', s.rGreater)
 	return b
 }
 
 func (s *torus) AppendShaderBody(b []byte) []byte {
-	b = appendFloatDecl(b, "t1", s.rGreater) // Counteract rounding effect.
-	b = appendFloatDecl(b, "t2", s.rRing)
+	b = glbuild.AppendFloatDecl(b, "t1", s.rGreater) // Counteract rounding effect.
+	b = glbuild.AppendFloatDecl(b, "t2", s.rRing)
 	b = append(b, `p = p.xzy;
 vec2 t = vec2(t1, t2);
 vec2 q = vec2(length(p.xz)-t.x,p.y);
@@ -274,15 +272,16 @@ func (bf *boxframe) ForEachChild(userData any, fn func(userData any, s *glbuild.
 
 func (bf *boxframe) AppendShaderName(b []byte) []byte {
 	b = append(b, "boxframe"...)
-	b = vecappend(b, bf.dims, 'i', 'n', 'p')
-	b = fappend(b, bf.e, 'n', 'p')
+	arr := bf.dims.Array()
+	b = glbuild.AppendFloats(b, 0, 'n', 'p', arr[:]...)
+	b = glbuild.AppendFloat(b, 'n', 'p', bf.e)
 	return b
 }
 
 func (bf *boxframe) AppendShaderBody(b []byte) []byte {
 	e, bb := bf.args()
-	b = appendFloatDecl(b, "e", e)
-	b = appendVec3Decl(b, "b", bb)
+	b = glbuild.AppendFloatDecl(b, "e", e)
+	b = glbuild.AppendVec3Decl(b, "b", bb)
 	b = append(b, `p = abs(p)-b;
 vec3 q = abs(p+e)-e;
 return min(min(

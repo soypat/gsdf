@@ -432,7 +432,7 @@ func forEachNode(root Shader, fn3 func(any, *Shader3D) error, fn2 func(any, *Sha
 	return nil
 }
 
-func AppendDistanceDecl(b []byte, s Shader, name, input string) []byte {
+func AppendDistanceDecl(b []byte, name, input string, s Shader) []byte {
 	b = append(b, "float "...)
 	b = append(b, name...)
 	b = append(b, '=')
@@ -467,7 +467,7 @@ func AppendFloatDecl(b []byte, name string, v float32) []byte {
 	b = append(b, "float "...)
 	b = append(b, name...)
 	b = append(b, '=')
-	b = AppendFloat(b, v, '-', '.')
+	b = AppendFloat(b, '-', '.', v)
 	b = append(b, ';', '\n')
 	return b
 }
@@ -480,7 +480,7 @@ func AppendMat4Decl(b []byte, name string, m44 ms3.Mat4) []byte {
 	for i := 0; i < 4; i++ {
 		for j := 0; j < 4; j++ {
 			v := arr[j*4+i] // Column major access, as per OpenGL standard.
-			b = AppendFloat(b, v, '-', '.')
+			b = AppendFloat(b, '-', '.', v)
 			last := i == 3 && j == 3
 			if !last {
 				b = append(b, ',')
@@ -491,7 +491,7 @@ func AppendMat4Decl(b []byte, name string, m44 ms3.Mat4) []byte {
 	return b
 }
 
-func AppendFloat(b []byte, v float32, neg, decimal byte) []byte {
+func AppendFloat(b []byte, neg, decimal byte, v float32) []byte {
 	start := len(b)
 	b = strconv.AppendFloat(b, float64(v), 'f', decimalDigits, 32)
 	idx := bytes.IndexByte(b[start:], '.')
@@ -511,7 +511,7 @@ func AppendFloat(b []byte, v float32, neg, decimal byte) []byte {
 
 func AppendFloats(b []byte, sep, neg, decimal byte, s ...float32) []byte {
 	for i, v := range s {
-		b = AppendFloat(b, v, neg, decimal)
+		b = AppendFloat(b, neg, decimal, v)
 		if sep != 0 && i != len(s)-1 {
 			b = append(b, sep)
 		}

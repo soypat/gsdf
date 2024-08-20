@@ -126,7 +126,7 @@ float sawt = (z + pitch/2.)/pitch;
 float saw = pitch*(sawt - floor(sawt)) - 0.5*pitch;
 vec2 p2 = vec2(saw ,y);
 `...)
-	b = glbuild.AppendDistanceDecl(b, s.thread, "d2", "p2")
+	b = glbuild.AppendDistanceDecl(b, "d2", "p2", s.thread)
 	b = append(b, `float d3 = abs(p.z) - L;
 return max(d2, d3);`...)
 	return b
