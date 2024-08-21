@@ -1,5 +1,10 @@
 # gsdf
-Offshoot from [this project](https://github.com/soypat/sdf/pull/13). Is WIP.
+Offshoot from [this project](https://github.com/soypat/sdf/pull/13). 
+
+![circle](https://github.com/user-attachments/assets/91c99f47-0c52-4cb1-83e7-452b03b69dff)
+![iso-screw](https://github.com/user-attachments/assets/6bc987b9-d522-42a4-89df-71a20c3ae7ff)
+
+
 
 ## Features
 
@@ -18,6 +23,7 @@ Offshoot from [this project](https://github.com/soypat/sdf/pull/13). Is WIP.
 - `gleval`: SDF evaluation interfaces and facilities, both CPU and GPU bound.
 - `glrender`: Triangle rendering logic which consumes gleval. STL generation.
 - `forge`: Composed shape generation such as `threads` package for generating screw threads. Engineering applications.
+
 
 ## Part design - NPT Flange example.
 This was converted from the [original example](https://github.com/soypat/sdf/blob/main/examples/npt-flange/flange.go). See [README](https://github.com/soypat/sdf/tree/main/examples) for images.
@@ -88,3 +94,5 @@ Below is the 3D scene code. Omits rendering pipeline.
 	union = gsdf.Scale(union, 25.4)
 	renderSDF(union)
 ```
+
+![array-triangles](https://github.com/user-attachments/assets/6a479889-2836-464c-b8ea-82109a5aad13)
