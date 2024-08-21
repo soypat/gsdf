@@ -1,6 +1,8 @@
 package glrender
 
 import (
+	"image"
+	"image/png"
 	"os"
 	"testing"
 
@@ -8,7 +10,27 @@ import (
 	"github.com/soypat/glgl/math/ms3"
 	"github.com/soypat/gsdf"
 	"github.com/soypat/gsdf/glbuild"
+	"github.com/soypat/gsdf/gleval"
 )
+
+func TestRenderImage(t *testing.T) {
+	img := image.NewRGBA(image.Rect(0, 0, 256, 256))
+	renderer, err := NewImageRendererSDF2(256, nil)
+	if err != nil {
+		panic(err)
+	}
+	s, _ := gsdf.NewCircle(0.5)
+	sdf, err := gleval.NewCPUSDF2(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = renderer.Render(sdf, img, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fp, _ := os.Create("out.png")
+	png.Encode(fp, img)
+}
 
 func TestIcube(t *testing.T) {
 	const tol = 1e-4

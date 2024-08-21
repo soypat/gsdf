@@ -43,6 +43,9 @@ local
 *.gz
 *.tar
 
+# image outputs
+*.png
+
 # GPU shaders
 *.glsl
 # 3D triangle files.

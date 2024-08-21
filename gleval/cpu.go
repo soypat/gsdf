@@ -9,10 +9,10 @@ import (
 	"github.com/soypat/glgl/math/ms3"
 )
 
-// NewCPUSDF3 checks if the shader implements CPU evaluation and returns a [gleval.SDF3]
+// NewCPUSDF2 checks if the shader implements CPU evaluation and returns a [*SDF3CPU]
 // ready for evaluation, taking care of the buffers for evaluating the SDF correctly.
 //
-// The returned [gleval.SDF3] should only require a [gleval.VecPool] as a userData argument,
+// The returned [SDF3] should only require a [VecPool] as a userData argument,
 // this is automatically taken care of if a nil userData is passed in.
 func NewCPUSDF3(root bounder3) (*SDF3CPU, error) {
 	sdf, err := AssertSDF3(root)
@@ -25,6 +25,29 @@ func NewCPUSDF3(root bounder3) (*SDF3CPU, error) {
 	// Do a test evaluation with 1 value.
 	bb := sdfcpu.Bounds()
 	err = sdfcpu.Evaluate([]ms3.Vec{bb.Min}, []float32{0}, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return &sdfcpu, nil
+}
+
+// NewCPUSDF2 checks if the shader implements CPU evaluation and returns a [SDF2CPU]
+// ready for evaluation, taking care of the buffers for evaluating the SDF correctly.
+//
+// The returned [SDF2] should only require a [gleval.VecPool] as a userData argument,
+// this is automatically taken care of if a nil userData is passed in.
+func NewCPUSDF2(root bounder2) (*SDF2CPU, error) {
+	sdf, err := AssertSDF2(root)
+	if err != nil {
+		return nil, fmt.Errorf("top level SDF cannot be CPU evaluated: %s", err.Error())
+	}
+	sdfcpu := SDF2CPU{
+		SDF: sdf,
+	}
+	// Do a test evaluation with 1 value.
+	bb := sdfcpu.Bounds()
+	err = sdfcpu.Evaluate([]ms2.Vec{bb.Min}, []float32{0}, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -68,7 +91,7 @@ func (sdf *SDF3CPU) Evaluate(pos []ms3.Vec, dist []float32, userData any) error 
 	err2 := sdf.vp.AssertAllReleased()
 	if err != nil {
 		if err2 != nil {
-			return fmt.Errorf("VecPool leak:(%s) SDF error:(%s)", err2, err)
+			return fmt.Errorf("VecPool leak:(%s) SDF3 error:(%s)", err2, err)
 		}
 		return err
 	}
@@ -88,6 +111,45 @@ func (sdf *SDF3CPU) Evaluations() uint64 { return sdf.evals }
 
 // VecPool method exposes the SDF3CPU's VecPool in case user wishes to use their own userData in evaluations.
 func (sdf *SDF3CPU) VecPool() *VecPool { return &sdf.vp }
+
+type SDF2CPU struct {
+	SDF   SDF2
+	vp    VecPool
+	evals uint64
+}
+
+// Evaluate performs CPU evaluation of the underlying SDF2.
+func (sdf *SDF2CPU) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {
+	if userData == nil {
+		userData = &sdf.vp
+	} else if len(pos) != len(dist) {
+		return errors.New("position and distance buffer length mismatch")
+	}
+	err := sdf.SDF.Evaluate(pos, dist, userData)
+	err2 := sdf.vp.AssertAllReleased()
+	if err != nil {
+		if err2 != nil {
+			return fmt.Errorf("VecPool leak:(%s) SDF2 error:(%s)", err2, err)
+		}
+		return err
+	}
+	if err2 != nil {
+		return err2
+	}
+	sdf.evals += uint64(len(pos))
+	return nil
+}
+
+// Bounds returns the bounds of the underlying SDF.
+func (sdf *SDF2CPU) Bounds() ms2.Box {
+	return sdf.SDF.Bounds()
+}
+
+// Evaluations returns total evaluations performed succesfully during sdf's lifetime.
+func (sdf *SDF2CPU) Evaluations() uint64 { return sdf.evals }
+
+// VecPool method exposes the SDF2CPU's VecPool in case user wishes to use their own userData in evaluations.
+func (sdf *SDF2CPU) VecPool() *VecPool { return &sdf.vp }
 
 // GetVecPool asserts the userData as a VecPool. If assert fails then
 // an error is returned with information on what went wrong.
