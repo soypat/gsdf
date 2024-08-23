@@ -54,7 +54,7 @@ func (ir *ImageRendererSDF2) Render(sdf gleval.SDF2, img setImage, userData any)
 	imgBB := img.Bounds()
 	dxi := imgBB.Dx()
 	dyi := imgBB.Dy()
-	if len(ir.dist) < dyi {
+	if len(ir.dist) < dxi {
 		return fmt.Errorf("require evaluation buffer (%d) to be at least of length of image rows (%d)", len(ir.dist), dxi)
 	}
 	bb := sdf.Bounds()
@@ -63,9 +63,9 @@ func (ir *ImageRendererSDF2) Render(sdf gleval.SDF2, img setImage, userData any)
 	dy := sz.Y / float32(dyi)
 	bb.Min = ms2.Add(bb.Min, ms2.Vec{X: dx / 2, Y: dy / 2}) // Offset to center image.
 	// Keep track of next index to start reading.
-	for i := 0; i < dxi; i++ {
-		x := float32(i)*dx + bb.Min.X
-		err := ir.renderRow(sdf, i, x, bb.Min.Y, dy, imgBB, img, userData)
+	for j := 0; j < dyi; j++ {
+		y := float32(j)*dy + bb.Min.Y
+		err := ir.renderRow(sdf, j, y, bb.Min.X, dy, imgBB, img, userData)
 		if err != nil {
 			return err
 		}
@@ -73,20 +73,21 @@ func (ir *ImageRendererSDF2) Render(sdf gleval.SDF2, img setImage, userData any)
 	return nil
 }
 
-func (ir *ImageRendererSDF2) renderRow(sdf gleval.SDF2, row int, x, ymin, dy float32, imgBB image.Rectangle, img setImage, userData any) error {
-	dyi := imgBB.Dy()
-	for j := 0; j < dyi; j++ {
-		y := float32(j)*dy + ymin
-		ir.pos[j] = ms2.Vec{X: x, Y: y}
+func (ir *ImageRendererSDF2) renderRow(sdf gleval.SDF2, row int, y, xmin, dx float32, imgBB image.Rectangle, img setImage, userData any) error {
+	dxi := imgBB.Dx()
+	for i := 0; i < dxi; i++ {
+		x := float32(i)*dx + xmin
+		ir.pos[i] = ms2.Vec{X: x, Y: y}
 	}
-	err := sdf.Evaluate(ir.pos[:dyi], ir.dist[:dyi], userData)
+	err := sdf.Evaluate(ir.pos[:dxi], ir.dist[:dxi], userData)
 	if err != nil {
 		return err
 	}
 	conv := ir.conv
-	for j := 0; j < dyi; j++ {
-		d := ir.dist[j]
-		img.Set(row+imgBB.Min.X, j+imgBB.Min.Y, conv(d))
+	row += imgBB.Min.Y
+	for i := 0; i < dxi; i++ {
+		d := ir.dist[i]
+		img.Set(imgBB.Min.X+i, row, conv(d))
 	}
 	return nil
 }
