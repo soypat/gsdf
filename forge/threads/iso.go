@@ -1,10 +1,15 @@
 package threads
 
 import (
-	math "github.com/chewxy/math32"
+	"github.com/chewxy/math32"
 	"github.com/soypat/glgl/math/ms2"
 	"github.com/soypat/gsdf"
 	"github.com/soypat/gsdf/glbuild"
+)
+
+const (
+	sqrt2d2 = math32.Sqrt2 / 2
+	sqrt3   = 1.7320508075688772935274463415058723669428052538103806280558069794
 )
 
 // ISO is a standardized thread.
@@ -15,7 +20,8 @@ type ISO struct {
 	D float32
 	// P is the thread pitch [mm].
 	P float32
-	// Is external or internal thread. Ext set to true means external thread.
+	// Is external or internal thread. Ext set to true means external thread
+	// which is for screws. Internal threads refer to tapped holes.
 	Ext bool
 }
 
@@ -28,14 +34,19 @@ func (iso ISO) ThreadParams() Parameters {
 
 func (iso ISO) Thread() (glbuild.Shader2D, error) {
 	radius := iso.D / 2
-	theta := 30.0 * math.Pi / 180.
-	h := iso.P / (2.0 * math.Tan(theta))
+	// Trig functions for 30 degrees, the thread angle of ISO.
+	const (
+		cosTheta = sqrt3 / 2
+		sinTheta = 0.5
+		tanTheta = sinTheta / cosTheta
+	)
+	h := iso.P / (2.0 * tanTheta)
 	rMajor := radius
 	r0 := rMajor - (7.0/8.0)*h
 	var poly ms2.PolygonBuilder
 	if iso.Ext {
 		// External threeading.
-		rRoot := (iso.P / 8.0) / math.Cos(theta)
+		rRoot := (iso.P / 8.0) / cosTheta
 		xOfs := (1.0 / 16.0) * iso.P
 		poly.AddXY(iso.P, 0)
 		poly.AddXY(iso.P, r0+h)
@@ -48,7 +59,7 @@ func (iso ISO) Thread() (glbuild.Shader2D, error) {
 	} else {
 		// Internal threading.
 		rMinor := r0 + (1.0/4.0)*h
-		rCrest := (iso.P / 16.0) / math.Cos(theta)
+		rCrest := (iso.P / 16.0) / cosTheta
 		xOfs := (1.0 / 8.0) * iso.P
 		poly.AddXY(iso.P, 0)
 		poly.AddXY(iso.P, rMinor)
