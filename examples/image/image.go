@@ -18,19 +18,20 @@ import (
 )
 
 const size = 256
+const dim = 20
 
 func main() {
-	img := image.NewRGBA(image.Rect(0, 0, 2*size, 2*size/3))
-	renderer, err := glrender.NewImageRendererSDF2(2*size, colorConversion)
+	img := image.NewRGBA(image.Rect(0, 0, 2*size, size))
+	renderer, err := glrender.NewImageRendererSDF2(4096, colorConversion)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	s, _ := gsdf.NewCircle(0.5)
+	s, _ := gsdf.NewCircle(dim)
 	poly, _ := gsdf.NewPolygon([]ms2.Vec{
-		{X: 0.5, Y: 0},
-		{X: 1.5, Y: 0.5},
-		{X: 1.5, Y: -0.5},
+		{X: dim, Y: 0},
+		{X: 3 * dim, Y: dim},
+		{X: 3 * dim, Y: -dim},
 	})
 	s = gsdf.Union2D(s, poly)
 	fmt.Println(s.Bounds())
@@ -53,6 +54,7 @@ func main() {
 }
 
 func colorConversion(d float32) color.Color {
+	d /= dim * 2
 	var one = ms3.Vec{1, 1, 1}
 	var c ms3.Vec
 	if d > 0 {

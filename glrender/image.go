@@ -25,8 +25,31 @@ type ImageRendererSDF2 struct {
 
 // NewImageRendererSDF2 instances a new [ImageRendererSDF2] to render images from 2D SDFs. A nil float->color conversion
 // function results in a simple black-white color scheme where black is the interior of the SDF (negative distance).
+//
+// Below is Inigo Quilez's famous color conversion for debugging SDF's:
+//
+//	func colorConversion(d float32) color.Color {
+//		// d /= bb.Size().Max()/4 // Normalize distances using bounding box dimensions to get consistent visuals.
+//		var one = ms3.Vec{1, 1, 1}
+//		var c ms3.Vec
+//		if d > 0 {
+//			c = ms3.Vec{0.9, 0.6, 0.3}
+//		} else {
+//			c = ms3.Vec{0.65, 0.85, 1.0}
+//		}
+//		c = ms3.Scale(1-math32.Exp(-6*math32.Abs(d)), c)
+//		c = ms3.Scale(0.8+0.2*math32.Cos(150*d), c)
+//		max := 1 - ms1.SmoothStep(0, 0.01, math32.Abs(d))
+//		c = ms3.InterpElem(c, one, ms3.Vec{max, max, max})
+//		return color.RGBA{
+//			R: uint8(c.X * 255),
+//			G: uint8(c.Y * 255),
+//			B: uint8(c.Z * 255),
+//			A: 255,
+//		}
+//	}
 func NewImageRendererSDF2(evalBufferSize int, conversion func(float32) color.Color) (*ImageRendererSDF2, error) {
-	if evalBufferSize <= 64 {
+	if evalBufferSize < 4096 {
 		return nil, errors.New("too small evaluation buffer size")
 	}
 	if conversion == nil {
@@ -65,7 +88,7 @@ func (ir *ImageRendererSDF2) Render(sdf gleval.SDF2, img setImage, userData any)
 	// Keep track of next index to start reading.
 	for j := 0; j < dyi; j++ {
 		y := float32(j)*dy + bb.Min.Y
-		err := ir.renderRow(sdf, j, y, bb.Min.X, dy, imgBB, img, userData)
+		err := ir.renderRow(sdf, j, y, bb.Min.X, dx, imgBB, img, userData)
 		if err != nil {
 			return err
 		}
