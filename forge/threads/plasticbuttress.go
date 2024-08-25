@@ -1,7 +1,6 @@
 package threads
 
 import (
-	math "github.com/chewxy/math32"
 	"github.com/soypat/glgl/math/ms2"
 	"github.com/soypat/gsdf"
 	"github.com/soypat/gsdf/glbuild"
@@ -25,8 +24,10 @@ func (butt PlasticButtress) ThreadParams() Parameters {
 // radius is radius of thread. pitch is thread-to-thread distance.
 func (butt PlasticButtress) Thread() (glbuild.Shader2D, error) {
 	radius := butt.D / 2
-	t0 := math.Tan(45.0 * math.Pi / 180)
-	t1 := math.Tan(7.0 * math.Pi / 180)
+	const (
+		t0 = 1.0                // math.Tan(45.0 * math.Pi / 180)
+		t1 = 0.1227845609029046 // math.Tan(7.0 * math.Pi / 180)
+	)
 	const threadEngage = 0.6 // thread engagement
 
 	h0 := butt.P / (t0 + t1)

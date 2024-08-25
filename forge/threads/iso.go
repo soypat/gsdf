@@ -8,6 +8,8 @@ import (
 )
 
 const (
+	cosd30  = sqrt3 / 2 // math.Cos(30*math.Pi/180)
+	sind30  = 0.5       // math.Sin(30*math.Pi/180)
 	sqrt2d2 = math32.Sqrt2 / 2
 	sqrt3   = 1.7320508075688772935274463415058723669428052538103806280558069794
 )
@@ -36,9 +38,7 @@ func (iso ISO) Thread() (glbuild.Shader2D, error) {
 	radius := iso.D / 2
 	// Trig functions for 30 degrees, the thread angle of ISO.
 	const (
-		cosTheta = sqrt3 / 2
-		sinTheta = 0.5
-		tanTheta = sinTheta / cosTheta
+		tanTheta = sind30 / cosd30
 	)
 	h := iso.P / (2.0 * tanTheta)
 	rMajor := radius
@@ -46,7 +46,7 @@ func (iso ISO) Thread() (glbuild.Shader2D, error) {
 	var poly ms2.PolygonBuilder
 	if iso.Ext {
 		// External threeading.
-		rRoot := (iso.P / 8.0) / cosTheta
+		rRoot := (iso.P / 8.0) / cosd30
 		xOfs := (1.0 / 16.0) * iso.P
 		poly.AddXY(iso.P, 0)
 		poly.AddXY(iso.P, r0+h)
@@ -59,7 +59,7 @@ func (iso ISO) Thread() (glbuild.Shader2D, error) {
 	} else {
 		// Internal threading.
 		rMinor := r0 + (1.0/4.0)*h
-		rCrest := (iso.P / 16.0) / cosTheta
+		rCrest := (iso.P / 16.0) / cosd30
 		xOfs := (1.0 / 8.0) * iso.P
 		poly.AddXY(iso.P, 0)
 		poly.AddXY(iso.P, rMinor)

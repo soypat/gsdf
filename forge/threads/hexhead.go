@@ -10,8 +10,9 @@ import (
 // Hex Heads for nuts and bolts.
 
 // HexHead3D returns the rounded hex head for a nut or bolt.
-// - round rounding control (t)top, (b)bottom, (tb)top/bottom
-func HexHead(radius float32, height float32, round string) (s glbuild.Shader3D, err error) {
+// Ability to round positive side and/or negative side of hex head
+// provided. By convention the negative side is the top of the hex in this package.
+func HexHead(radius float32, height float32, roundNeg, roundPos bool) (s glbuild.Shader3D, err error) {
 	// basic hex body
 	cornerRound := radius * 0.08
 	var poly ms2.PolygonBuilder
@@ -28,18 +29,18 @@ func HexHead(radius float32, height float32, round string) (s glbuild.Shader3D, 
 	hex3d, _ := gsdf.Extrude(hex2d, height)
 
 	// round out the top and/or bottom as required
-	if round != "" {
+	if roundPos || roundNeg {
 		topRound := radius * 1.6
-		d := radius * math.Cos(30.0*math.Pi/180.0)
+		d := radius * cosd30
 		sphere, err := gsdf.NewSphere(topRound)
 		if err != nil {
 			return nil, err
 		}
 		zOfs := math.Sqrt(topRound*topRound-d*d) - height/2
-		if round == "t" || round == "tb" {
+		if roundNeg {
 			hex3d = gsdf.Intersection(hex3d, gsdf.Translate(sphere, 0, 0, -zOfs))
 		}
-		if round == "b" || round == "tb" {
+		if roundPos {
 			hex3d = gsdf.Intersection(hex3d, gsdf.Translate(sphere, 0, 0, zOfs))
 		}
 	}

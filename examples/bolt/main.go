@@ -17,6 +17,11 @@ import (
 	"github.com/soypat/gsdf/glrender"
 )
 
+const visualization = "bolt.glsl"
+const stl = "bolt.stl"
+
+var useGPU = false
+
 func init() {
 	flag.BoolVar(&useGPU, "gpu", useGPU, "Enable GPU usage")
 	flag.Parse()
@@ -26,9 +31,21 @@ func init() {
 	}
 }
 
-var useGPU = false
-
-const visualization = "nptflange.glsl"
+// scene generates the 3D object for rendering.
+func scene() (gleval.SDF3, error) {
+	const L, shank = 5, 3
+	threader := threads.ISO{D: 3, P: 0.5, Ext: true}
+	M3, err := threads.Bolt(threads.BoltParams{
+		Thread:      threader,
+		Style:       threads.NutHex,
+		TotalLength: L + shank,
+		ShankLength: shank,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return makeSDF(M3)
+}
 
 func main() {
 	if useGPU {
@@ -62,7 +79,7 @@ func main() {
 	elapsed := time.Since(start)
 	evals := sdf.(interface{ Evaluations() uint64 }).Evaluations()
 
-	fp, err := os.Create("nptflange.stl")
+	fp, err := os.Create(stl)
 	if err != nil {
 		fmt.Println("error creating file:", err)
 		os.Exit(1)
@@ -77,44 +94,6 @@ func main() {
 	}
 	w.Flush()
 	fmt.Println("SDF created in ", elapsedScene, "evaluated sdf", evals, "times, rendered", len(triangles), "triangles in", elapsed, "wrote file in", time.Since(start))
-}
-
-func scene() (gleval.SDF3, error) {
-	const (
-		tlen             = 18. / 25.4
-		internalDiameter = 1.5 / 2.
-		flangeH          = 7. / 25.4
-		flangeD          = 60. / 25.4
-	)
-	var (
-		npt    threads.NPT
-		flange glbuild.Shader3D
-		err    error
-	)
-	err = npt.SetFromNominal(1.0 / 2.0)
-	if err != nil {
-		return nil, err
-	}
-
-	pipe, _ := threads.Nut(threads.NutParams{
-		Thread: npt,
-		Style:  threads.NutCircular,
-	})
-
-	// Base plate which goes bolted to joint.
-	flange, _ = gsdf.NewCylinder(flangeD/2, flangeH, flangeH/8)
-
-	// Join threaded section with flange.
-	flange = gsdf.Translate(flange, 0, 0, -tlen/2)
-	union := gsdf.SmoothUnion(pipe, flange, 0.2)
-
-	// Make through-hole in flange bottom. Holes usually done at the end
-	// to avoid smoothing effects covering up desired negative space.
-	hole, _ := gsdf.NewCylinder(internalDiameter/2, 4*flangeH, 0)
-	union = gsdf.Difference(union, hole)
-	// Convert from imperial inches units to millimeter:
-	union = gsdf.Scale(union, 25.4)
-	return makeSDF(union)
 }
 
 func makeSDF(s glbuild.Shader3D) (gleval.SDF3, error) {

@@ -30,15 +30,15 @@ func (c NutStyle) String() (str string) {
 	return str
 }
 
-// NutParms defines the parameters for a nut.
-type NutParms struct {
+// NutParams defines the parameters for a nut.
+type NutParams struct {
 	Thread    Threader
 	Style     NutStyle
 	Tolerance float32 // add to internal thread radius
 }
 
 // Nut returns a simple nut suitable for 3d printing.
-func Nut(k NutParms) (s glbuild.Shader3D, err error) {
+func Nut(k NutParams) (s glbuild.Shader3D, err error) {
 	switch {
 	case k.Thread == nil:
 		err = errors.New("nil threader")
@@ -58,14 +58,14 @@ func Nut(k NutParms) (s glbuild.Shader3D, err error) {
 		return nil, errors.New("bad hex nut dimensions")
 	}
 	switch k.Style {
-	case NutHex: // TODO error handling
-		nut, err = HexHead(nr, nh, "tb")
+	case NutHex:
+		nut, err = HexHead(nr, nh, true, true)
 	case NutKnurl:
 		nut, err = KnurledHead(nr, nh, nr*0.25)
 	case NutCircular:
 		nut, err = gsdf.NewCylinder(nr*1.1, nh, 0)
 	default:
-		err = errors.New("passed argument CylinderStyle not defined for Nut")
+		err = errors.New("passed argument NutStyle not defined for Nut")
 	}
 	if err != nil {
 		return nil, err

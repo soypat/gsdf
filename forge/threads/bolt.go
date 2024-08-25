@@ -8,8 +8,8 @@ import (
 	"github.com/soypat/gsdf/glbuild"
 )
 
-// BoltParms defines the parameters for a bolt.
-type BoltParms struct {
+// BoltParams defines the parameters for a bolt.
+type BoltParams struct {
 	Thread      Threader
 	Style       NutStyle // head style "hex" or "knurl"
 	Tolerance   float32  // subtract from external thread radius
@@ -18,7 +18,7 @@ type BoltParms struct {
 }
 
 // Bolt returns a simple bolt suitable for 3d printing.
-func Bolt(k BoltParms) (s glbuild.Shader3D, err error) {
+func Bolt(k BoltParams) (s glbuild.Shader3D, err error) {
 	switch {
 	case k.Thread == nil:
 		err = errors.New("nil Threader")
@@ -26,8 +26,8 @@ func Bolt(k BoltParms) (s glbuild.Shader3D, err error) {
 		err = errors.New("total length < 0")
 	case k.ShankLength >= k.TotalLength:
 		err = errors.New("shank length must be less than total length")
-	case k.ShankLength < 0:
-		err = errors.New("shank length < 0")
+	case k.ShankLength <= 0:
+		err = errors.New("shank length <= 0")
 	case k.Tolerance < 0:
 		err = errors.New("tolerance < 0")
 	}
@@ -45,42 +45,30 @@ func Bolt(k BoltParms) (s glbuild.Shader3D, err error) {
 	}
 	switch k.Style {
 	case NutHex:
-		head, _ = HexHead(hr, hh, "b")
+		head, _ = HexHead(hr, hh, false, true) // Round top side only.
 	case NutKnurl:
 		head, _ = KnurledHead(hr, hh, hr*0.25)
 	default:
 		return nil, errors.New("unknown style for bolt: " + k.Style.String())
 	}
-
-	// shank
-	shankLength := k.ShankLength + hh/2
-	shankOffset := shankLength / 2
-	shank, err := gsdf.NewCylinder(param.Radius, shankLength, hh*0.08)
+	screwLen := k.TotalLength - k.ShankLength
+	screw, err := Screw(screwLen, k.Thread)
 	if err != nil {
 		return nil, err
 	}
-	shank = gsdf.Translate(shank, 0, 0, shankOffset)
-
-	// external thread
-	threadLength := k.TotalLength - k.ShankLength
-	if threadLength < 0 {
-		threadLength = 0
+	shank, err := gsdf.NewCylinder(param.Radius, k.ShankLength, hh*0.08)
+	if err != nil {
+		return nil, err
 	}
-	var thread glbuild.Shader3D
-	if threadLength != 0 {
-		thread, err = Screw(threadLength, k.Thread)
-		if err != nil {
-			return nil, err
-		}
-		// chamfer the thread
-		thread, err = chamferedCylinder(thread, 0, 0.5)
-		if err != nil {
-			return nil, err
-		}
-		threadOffset := threadLength/2 + shankLength
-		thread = gsdf.Translate(thread, 0, 0, threadOffset)
-	}
-	return gsdf.Union(gsdf.Union(head, shank), thread), nil
+	shankOff := k.ShankLength/2 + hh/2
+	shank = gsdf.Translate(shank, 0, 0, shankOff)
+	screw = gsdf.Translate(screw, 0, 0, shankOff+screwLen/2)
+	// Does not work:
+	// screw, err = chamferedCylinder(screw, 0, 0.5)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	return gsdf.Union(screw, gsdf.SmoothUnion(shank, head, hh*0.12)), nil
 }
 
 // chamferedCylinder intersects a chamfered cylinder with an SDF3.

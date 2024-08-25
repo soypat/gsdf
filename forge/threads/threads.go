@@ -30,17 +30,17 @@ type Threader interface {
 }
 
 type Parameters struct {
-	Name   string  // name of screw thread
-	Radius float32 // nominal major radius of screw
-	Pitch  float32 // thread to thread distance of screw
-	Starts int     // number of threads
-	Taper  float32 // thread taper (radians)
-	HexF2F float32 // hex head flat to flat distance
+	Name   string  // name of screw thread.
+	Radius float32 // nominal major radius of screw.
+	Pitch  float32 // thread to thread distance of screw.
+	Starts int     // number of threads.
+	Taper  float32 // thread taper (radians).
+	HexF2F float32 // hex head flat to flat distance. F2F = 2*cosd(30)*radius.
 }
 
 // HexRadius returns the hex head radius.
 func (t Parameters) HexRadius() float32 {
-	return t.HexF2F / (2.0 * math.Cos(30*math.Pi/180))
+	return t.HexF2F / (2.0 * cosd30)
 }
 
 // HexHeight returns the hex head height (empirical).
@@ -52,18 +52,18 @@ func (t Parameters) HexHeight() float32 {
 // Face to face distance taken from ASME B16.11 Plug Manufacturer (mm)
 // var imperialF2FTable = []float32{11.2, 15.7, 17.5, 22.4, 26.9, 35.1, 44.5, 50.8, 63.5, 76.2, 88.9, 117.3}
 
-type ScrewParameters struct {
+type ScrewParams struct {
 	Length float32
 	Taper  float32
 }
 
 // screw is a 3d screw form.
 type screw struct {
-	thread glbuild.Shader2D // 2D thread profile
-	pitch  float32          // thread to thread distance
-	lead   float32          // distance per turn (starts * pitch)
-	length float32          // total length of screw
-	taper  float32          // thread taper angle
+	thread     glbuild.Shader2D // 2D thread profile
+	pitch      float32          // thread to thread distance
+	lead       float32          // distance per turn (starts * pitch)
+	lengthDiv2 float32          // total length of screw
+	taper      float32          // thread taper angle
 	// starts int     // number of thread starts
 }
 
@@ -85,11 +85,11 @@ func Screw(length float32, thread Threader) (glbuild.Shader3D, error) {
 	}
 	params := thread.ThreadParams()
 	s := screw{
-		thread: tsdf,
-		pitch:  params.Pitch,
-		lead:   -params.Pitch * float32(params.Starts),
-		length: length / 2,
-		taper:  params.Taper,
+		thread:     tsdf,
+		pitch:      params.Pitch,
+		lead:       -params.Pitch * float32(params.Starts),
+		lengthDiv2: length / 2,
+		taper:      params.Taper,
 	}
 	return &s, nil
 }
@@ -104,7 +104,7 @@ func (s *screw) ForEach2DChild(userData any, fn func(any, *glbuild.Shader2D) err
 
 func (s *screw) AppendShaderName(b []byte) []byte {
 	b = append(b, "screw_"...)
-	b = glbuild.AppendFloats(b, 0, 'n', 'd', s.pitch, s.lead, s.length, s.taper)
+	b = glbuild.AppendFloats(b, 0, 'n', 'd', s.pitch, s.lead, s.lengthDiv2*2, s.taper)
 	b = s.thread.AppendShaderName(b)
 	return b
 }
@@ -113,7 +113,7 @@ func (s *screw) AppendShaderBody(b []byte) []byte {
 	b = glbuild.AppendFloatDecl(b, "lead", s.lead)
 	b = glbuild.AppendFloatDecl(b, "pitch", s.pitch)
 	b = glbuild.AppendFloatDecl(b, "taper", s.taper)
-	b = glbuild.AppendFloatDecl(b, "L", s.length)
+	b = glbuild.AppendFloatDecl(b, "L", s.lengthDiv2)
 	b = append(b, `
 #define Pi 3.1415926535897932384626433832795
 float y = length(p.xy);
@@ -147,14 +147,13 @@ func (s *screw) Evaluate(pos []ms3.Vec, dist []float32, userData any) error {
 	taper := s.taper
 	lead := s.lead
 	pitch := s.pitch
+	atanTaper := math.Tan(taper)
 	for i, p := range pos {
 		// map the 3d point back to the xy space of the profile
 		p0 := ms2.Vec{}
 		// the distance from the 3d z-axis maps to the 2d y-axis
 		p0.Y = math.Hypot(p.X, p.Y)
-		if taper != 0 {
-			p0.Y += p.Z * math.Atan(taper)
-		}
+		p0.Y += p.Z * atanTaper
 		// the x/y angle and the z-height map to the 2d x-axis
 		// ie: the position along thread pitch
 		theta := math.Atan2(p.Y, p.X)
@@ -167,7 +166,7 @@ func (s *screw) Evaluate(pos []ms3.Vec, dist []float32, userData any) error {
 	if err != nil {
 		return err
 	}
-	L := s.length
+	L := s.lengthDiv2
 	for i, p := range pos {
 		d0 := dist[i]
 		d1 := math.Abs(p.Z) - L    // Region for screw length.
@@ -179,7 +178,7 @@ func (s *screw) Evaluate(pos []ms3.Vec, dist []float32, userData any) error {
 // BoundingBox returns the bounding box for a 3d screw form.
 func (s *screw) Bounds() ms3.Box {
 	r := s.radius()
-	return ms3.Box{Min: ms3.Vec{X: -r, Y: -r, Z: -s.length}, Max: ms3.Vec{X: r, Y: r, Z: s.length}}
+	return ms3.Box{Min: ms3.Vec{X: -r, Y: -r, Z: -s.lengthDiv2}, Max: ms3.Vec{X: r, Y: r, Z: s.lengthDiv2}}
 }
 
 func (s *screw) radius() float32 {
@@ -187,7 +186,7 @@ func (s *screw) radius() float32 {
 	// The max-y axis of the sdf2 bounding box is the radius of the thread.
 	r := s.thread.Bounds().Max.Y
 	// add the taper increment
-	r += s.length * math.Tan(s.taper)
+	r += s.lengthDiv2 * math.Tan(s.taper)
 	return r
 }
 
@@ -234,7 +233,7 @@ func metricf2f(radius float32) float32 {
 	default:
 		estF2F = 3.5 * radius
 	}
-	if math.Abs(radius-56/2) < 1 {
+	if math.Abs(radius-56./2) < 1 {
 		estF2F = 86
 	}
 	for i := len(metricF2FTable) - 1; i >= 0; i-- {
