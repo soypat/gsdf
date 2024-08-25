@@ -10,6 +10,7 @@ import (
 	"time"
 
 	math "github.com/chewxy/math32"
+	"github.com/soypat/glgl/math/ms3"
 	"github.com/soypat/gsdf"
 	"github.com/soypat/gsdf/glbuild"
 	"github.com/soypat/gsdf/gleval"
@@ -76,17 +77,18 @@ func Render(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 
 	if cfg.VisualOutput != nil {
 		watch = stopwatch()
-		const sceneSize = 0.5
+		const sceneSize = 1.4
 		// We include the bounding box in the visualization.
 		bb := s.Bounds()
-		envelope, err := gsdf.NewBoundsBoxFrame(bb)
+		envelope, err := gsdf.NewBoundsBoxFrame(bb.Add(ms3.Vec{100, 100, 100}))
 		if err != nil {
 			return err
 		}
 		visual := gsdf.Union(s, envelope)
 		// Scale size and translate to center so visualization is in camera range.
 		center := bb.Center()
-		visual = gsdf.Translate(visual, center.X, center.Y, center.Z)
+		sz := bb.Size()
+		visual = gsdf.Translate(visual, center.X, center.Y, center.Z-sz.Z)
 		visual = gsdf.Scale(visual, sceneSize/bb.Diagonal())
 		_, err = glbuild.NewDefaultProgrammer().WriteFragVisualizerSDF3(cfg.VisualOutput, visual)
 		if err != nil {

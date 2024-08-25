@@ -2,8 +2,7 @@
 Offshoot from [this project](https://github.com/soypat/sdf/pull/13). 
 
 ![circle](https://github.com/user-attachments/assets/91c99f47-0c52-4cb1-83e7-452b03b69dff)
-![iso-screw](https://github.com/user-attachments/assets/6bc987b9-d522-42a4-89df-71a20c3ae7ff)
-
+![bolt-example](https://github.com/user-attachments/assets/8da50871-2415-423f-beb3-0d78ad67c79e)
 
 
 ## Features
@@ -92,7 +91,18 @@ Below is the 3D scene code. Omits rendering pipeline.
 	union = gsdf.Difference(union, hole)
 	// Convert from imperial inches units to millimeter:
 	union = gsdf.Scale(union, 25.4)
-	renderSDF(union)
+
+	stl, _ := os.Create("for3dprinting.stl")
+	err = gsdfaux.Render(object, gsdfaux.RenderConfig{
+		STLOutput:    stl,
+		Resolution:   union.Bounds().Diagonal() / 200,
+		UseGPU:       true,
+	})
 ```
 
+![npt-flange-example](https://github.com/user-attachments/assets/32a00926-0a1e-47f0-8b6c-dda940240265)
+
+## More examples
+![fibonacci-showerhead](https://github.com/user-attachments/assets/a72c366c-6ee0-43ba-9128-087a76524ff9)
+![iso-screw](https://github.com/user-attachments/assets/6bc987b9-d522-42a4-89df-71a20c3ae7ff)
 ![array-triangles](https://github.com/user-attachments/assets/6a479889-2836-464c-b8ea-82109a5aad13)
