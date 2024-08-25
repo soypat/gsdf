@@ -2,6 +2,7 @@ package gsdf
 
 import (
 	"github.com/chewxy/math32"
+	"github.com/soypat/glgl/math/ms1"
 	"github.com/soypat/glgl/math/ms2"
 	"github.com/soypat/glgl/math/ms3"
 	"github.com/soypat/gsdf/gleval"
@@ -637,7 +638,7 @@ func (p *poly2D) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {
 			v2 := verts[jv]
 			e := ms2.Sub(v2, v1)
 			w := ms2.Sub(p, v1)
-			b := ms2.Sub(w, ms2.Scale(ms3.Clamp(ms2.Dot(w, e)/ms2.Norm2(e), 0, 1), e))
+			b := ms2.Sub(w, ms2.Scale(ms1.Clamp(ms2.Dot(w, e)/ms2.Norm2(e), 0, 1), e))
 			d = math32.Min(d, ms2.Norm2(b))
 			// winding number from http://geomalgorithms.com/a03-_inclusion.html
 			b1 := p.Y >= v1.Y

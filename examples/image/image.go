@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"image"
 	"image/color"
 	"image/png"
@@ -8,6 +9,7 @@ import (
 	"os"
 
 	"github.com/chewxy/math32"
+	"github.com/soypat/glgl/math/ms1"
 	"github.com/soypat/glgl/math/ms2"
 	"github.com/soypat/glgl/math/ms3"
 	"github.com/soypat/gsdf"
@@ -18,11 +20,12 @@ import (
 const size = 256
 
 func main() {
-	img := image.NewRGBA(image.Rect(0, 0, 2*size, size))
-	renderer, err := glrender.NewImageRendererSDF2(size, colorConversion)
+	img := image.NewRGBA(image.Rect(0, 0, 2*size, 2*size/3))
+	renderer, err := glrender.NewImageRendererSDF2(2*size, colorConversion)
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	s, _ := gsdf.NewCircle(0.5)
 	poly, _ := gsdf.NewPolygon([]ms2.Vec{
 		{X: 0.5, Y: 0},
@@ -30,6 +33,7 @@ func main() {
 		{X: 1.5, Y: -0.5},
 	})
 	s = gsdf.Union2D(s, poly)
+	fmt.Println(s.Bounds())
 	sdf, err := gleval.NewCPUSDF2(s)
 	if err != nil {
 		log.Fatal(err)
@@ -58,7 +62,7 @@ func colorConversion(d float32) color.Color {
 	}
 	c = ms3.Scale(1-math32.Exp(-6*math32.Abs(d)), c)
 	c = ms3.Scale(0.8+0.2*math32.Cos(150*d), c)
-	max := 1 - smoothstep(0, 0.01, math32.Abs(d))
+	max := 1 - ms1.SmoothStep(0, 0.01, math32.Abs(d))
 	c = ms3.InterpElem(c, one, ms3.Vec{max, max, max})
 	return color.RGBA{
 		R: uint8(c.X * 255),
@@ -66,10 +70,4 @@ func colorConversion(d float32) color.Color {
 		B: uint8(c.Z * 255),
 		A: 255,
 	}
-}
-
-// smoothstep — perform Hermite interpolation between two values
-func smoothstep(edge0, edge1, x float32) float32 {
-	t := ms3.Clamp((x-edge0)/(edge1-edge0), 0, 1)
-	return t * t * (3 - 2*t)
 }
