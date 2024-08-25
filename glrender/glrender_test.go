@@ -89,7 +89,7 @@ func levelsVisual(filename string, startCube icube, targetLvl int, origin ms3.Ve
 		s = gsdf.Union(s, bb)
 	}
 	s = gsdf.Scale(s, 0.5/s.Bounds().Size().Max())
-	glbuild.RewriteNames3D(&s, 8)
+	glbuild.ShortenNames3D(&s, 8)
 	prog := glbuild.NewDefaultProgrammer()
 	fp, err := os.Create(filename)
 	if err != nil {

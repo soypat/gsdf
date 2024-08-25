@@ -97,7 +97,7 @@ func main() {
 }
 
 func makeSDF(s glbuild.Shader3D) (gleval.SDF3, error) {
-	err := glbuild.RewriteNames3D(&s, 32) // Shorten names to not crash GL tokenizer.
+	err := glbuild.ShortenNames3D(&s, 32) // Shorten names to not crash GL tokenizer.
 	if err != nil {
 		return nil, err
 	}

@@ -185,9 +185,9 @@ func (p *Programmer) writeShaders(w io.Writer, nodes []Shader) (n int, err error
 	for i := len(nodes) - 1; i >= 0; i-- {
 		scratch := p.scratch // Scratch buffer is renewed if capacity is increased.
 		node := nodes[i]
-		name := node.AppendShaderName(scratch[:0])
-		nameHash := hash(name, 0)
-		body := node.AppendShaderBody(scratch[len(name):len(name)])
+		var name, body []byte
+		p.scratch, name, body = AppendShaderSource(p.scratch[:0], node)
+		nameHash := hash(scratch, 0)
 		bodyHash := hash(body, nameHash) // Body hash mixes name as well.
 		gotBodyHash, nameConflict := p.names[nameHash]
 		if nameConflict {
@@ -199,9 +199,7 @@ func (p *Programmer) writeShaders(w io.Writer, nodes []Shader) (n int, err error
 		} else {
 			p.names[nameHash] = bodyHash // Not found, add it.
 		}
-		_, is3D := node.(Shader3D)
-		var ngot int
-		ngot, p.scratch, err = writeShaderBytes(w, name, body, body[len(body):], is3D)
+		ngot, err := w.Write(p.scratch)
 		n += ngot
 		if err != nil {
 			return n, err
@@ -210,7 +208,7 @@ func (p *Programmer) writeShaders(w io.Writer, nodes []Shader) (n int, err error
 	return n, err
 }
 
-func RewriteNames3D(root *Shader3D, maxRewriteLen int) error {
+func ShortenNames3D(root *Shader3D, maxRewriteLen int) error {
 	scratch := make([]byte, 1024)
 	var h uint64 = 0xff51afd7ed558ccd
 	// makeNewName creates a name from scratch
@@ -288,8 +286,6 @@ func WriteShaders(w io.Writer, nodes []Shader, scratch []byte) (n int, newscratc
 	return n, scratch, nil
 }
 
-// WriteShader writes the GL code of a single shader to the writer. scratch is an auxiliary buffer to prevent allocations. If scratch's
-// capacity is grown during the writing the buffer with augmented capacity is returned. If not the same input scratch is returned.
 func WriteShader(w io.Writer, s Shader, scratch []byte) (int, []byte, error) {
 	scratch = scratch[:0]
 	scratch = append(scratch, "float "...)
@@ -305,19 +301,25 @@ func WriteShader(w io.Writer, s Shader, scratch []byte) (int, []byte, error) {
 	return n, scratch, err
 }
 
-func writeShaderBytes(w io.Writer, name, body, scratch []byte, is3D bool) (int, []byte, error) {
-	scratch = scratch[:0]
-	scratch = append(scratch, "float "...)
-	scratch = append(scratch, name...)
+// AppendShaderSource appends the GL code of a single shader to the dst byte buffer.  If dst's
+// capacity is grown during the writing the buffer with augmented capacity is returned. If not the same input dst is returned.
+// name and body byte slices pointing to the result buffer are also returned for convenience.
+func AppendShaderSource(dst []byte, s Shader) (result, name, body []byte) {
+	dst = append(dst, "float "...)
+	nameStart := len(dst)
+	dst = s.AppendShaderName(dst)
+	nameEnd := len(dst)
+	_, is3D := s.(Shader3D)
 	if is3D {
-		scratch = append(scratch, "(vec3 p) {\n"...)
+		dst = append(dst, "(vec3 p){\n"...)
 	} else {
-		scratch = append(scratch, "(vec2 p) {\n"...)
+		dst = append(dst, "(vec2 p){\n"...)
 	}
-	scratch = append(scratch, body...)
-	scratch = append(scratch, "\n}\n\n"...)
-	n, err := w.Write(scratch)
-	return n, scratch, err
+	bodyStart := len(dst)
+	dst = s.AppendShaderBody(dst)
+	bodyEnd := len(dst)
+	dst = append(dst, "\n}\n"...)
+	return dst, dst[nameStart:nameEnd], dst[bodyStart:bodyEnd]
 }
 
 // AppendAllNodes BFS iterates over all of root's descendants and appends all nodes

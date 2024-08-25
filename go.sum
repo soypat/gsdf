@@ -1,5 +1,3 @@
-github.com/chewxy/math32 v1.10.1 h1:LFpeY0SLJXeaiej/eIp2L40VYfscTvKh/FSEZ68uMkU=
-github.com/chewxy/math32 v1.10.1/go.mod h1:dOB2rcuFrCn6UHrze36WSLVPKtzPMRAQvBvUwkSsLqs=
 github.com/chewxy/math32 v1.11.0 h1:8sek2JWqeaKkVnHa7bPVqCEOUPbARo4SGxs6toKyAOo=
 github.com/chewxy/math32 v1.11.0/go.mod h1:dOB2rcuFrCn6UHrze36WSLVPKtzPMRAQvBvUwkSsLqs=
 github.com/go-gl/gl v0.0.0-20231021071112-07e5d0ea2e71 h1:5BVwOaUSBTlVZowGO6VZGw2H/zl9nrd3eCZfYV+NfQA=
@@ -8,17 +6,7 @@ github.com/go-gl/glfw v0.0.0-20221017161538-93cebf72946b h1:2hdUMUOJuLQkhaPAwoyO
 github.com/go-gl/glfw v0.0.0-20221017161538-93cebf72946b/go.mod h1:wyvWpaEu9B/VQiV1jsPs7Mha9I7yto/HqIBw197ZAzk=
 github.com/go-gl/glfw/v3.3/glfw v0.0.0-20221017161538-93cebf72946b h1:GgabKamyOYguHqHjSkDACcgoPIz3w0Dis/zJ1wyHHHU=
 github.com/go-gl/glfw/v3.3/glfw v0.0.0-20221017161538-93cebf72946b/go.mod h1:tQ2UAYgL5IevRw8kRxooKSPJfGvJ9fJQFa0TUsXzTg8=
-github.com/soypat/glgl v0.0.0-20240811035753-f615f56436f0 h1:9CU+IDi7gSeBRWxekqmbFHLzooDZBqu7tgiuuKehJWE=
-github.com/soypat/glgl v0.0.0-20240811035753-f615f56436f0/go.mod h1:jcTX7fb8Y1WYrBfHyqZtzZyXzEQaOVp/z+ngMn9IQuk=
-github.com/soypat/glgl v0.0.0-20240816031826-41aea5d4ce11 h1:fM68EXUFrx6EmIQOUz6PV4X5Jnrx0FhSzrzY9h2Ut24=
-github.com/soypat/glgl v0.0.0-20240816031826-41aea5d4ce11/go.mod h1:jcTX7fb8Y1WYrBfHyqZtzZyXzEQaOVp/z+ngMn9IQuk=
-github.com/soypat/glgl v0.0.0-20240817151124-b984688a7f05 h1:xNPZV7iwDmhYLze/1Bhd4j4cuWFYxMS6bAEQYPN6d94=
-github.com/soypat/glgl v0.0.0-20240817151124-b984688a7f05/go.mod h1:jcTX7fb8Y1WYrBfHyqZtzZyXzEQaOVp/z+ngMn9IQuk=
-github.com/soypat/glgl v0.0.0-20240821031013-9607f2ffacee h1:luwfg9/gH5kpWZqfGdhR8vAYi9k2r0qjvjpnNDkmKNw=
-github.com/soypat/glgl v0.0.0-20240821031013-9607f2ffacee/go.mod h1:ltzeLFgrGFBm2SBy10lH5IonqEdg9IkL30yam6QHMRs=
-github.com/soypat/glgl v0.0.0-20240825041639-98d4487881f0 h1:oVNVjxXhSXbUtzwc5b5+cFDAPvScsObeyKqyuS1DfvA=
-github.com/soypat/glgl v0.0.0-20240825041639-98d4487881f0/go.mod h1:ltzeLFgrGFBm2SBy10lH5IonqEdg9IkL30yam6QHMRs=
-github.com/soypat/glgl v0.0.0-20240825041925-833aecd78384 h1:jGggOQSCvlavvZDsDSCRuv/+bt1i8bX6E3hKJ7J5lfY=
-github.com/soypat/glgl v0.0.0-20240825041925-833aecd78384/go.mod h1:ltzeLFgrGFBm2SBy10lH5IonqEdg9IkL30yam6QHMRs=
+github.com/soypat/glgl v0.0.0-20240825114214-5f981c176edb h1:pcHDn+P2dG5wf0f65OVwbUl0b0auu+RsKNjWsGO2KhI=
+github.com/soypat/glgl v0.0.0-20240825114214-5f981c176edb/go.mod h1:ltzeLFgrGFBm2SBy10lH5IonqEdg9IkL30yam6QHMRs=
 golang.org/x/exp v0.0.0-20221230185412-738e83a70c30 h1:m9O6OTJ627iFnN2JIWfdqlZCzneRO6EEBsHXI25P8ws=
 golang.org/x/exp v0.0.0-20221230185412-738e83a70c30/go.mod h1:CxIveKay+FTh1D0yPZemJVgC/95VzuuOLq5Qi4xnoYc=

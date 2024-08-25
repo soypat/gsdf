@@ -1,6 +1,8 @@
 package threads
 
 import (
+	"errors"
+
 	math "github.com/chewxy/math32"
 	"github.com/soypat/glgl/math/ms2"
 	"github.com/soypat/gsdf"
@@ -47,25 +49,21 @@ func (k KnurlParams) ThreadParams() Parameters {
 
 // Knurl returns a knurled cylinder.
 func Knurl(k KnurlParams) (s glbuild.Shader3D, err error) {
-	// TODO fix error handling.
-	if k.Length <= 0 {
-		panic("Length <= 0")
+	switch {
+	case k.Length <= 0:
+		return nil, errors.New("zero or negative Knurl length")
+	case k.Radius <= 0:
+		return nil, errors.New("zero or negative Knurl radius")
+	case k.Pitch <= 0:
+		return nil, errors.New("zero or negative Knurl pitch")
+	case k.Height <= 0:
+		return nil, errors.New("zero or negative Knurl height")
+	case k.Theta < 0:
+		return nil, errors.New("zero Knurl helix angle")
+	case k.Theta >= math.Pi/2:
+		return nil, errors.New("too large Knurl helix angle")
 	}
-	if k.Radius <= 0 {
-		panic("Radius <= 0")
-	}
-	if k.Pitch <= 0 {
-		panic("Pitch <= 0")
-	}
-	if k.Height <= 0 {
-		panic("Height <= 0")
-	}
-	if k.Theta < 0 {
-		panic("Theta < 0")
-	}
-	if k.Theta >= 90.*math.Pi/180. {
-		panic("Theta >= 90")
-	}
+
 	// Work out the number of starts using the desired helix angle.
 	k.starts = int(2 * math.Pi * k.Radius * math.Tan(k.Theta) / k.Pitch)
 	// create the left/right hand spirals
