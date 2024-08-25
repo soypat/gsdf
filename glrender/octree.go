@@ -39,6 +39,8 @@ type Octree struct {
 	posbuf []ms3.Vec
 	// distbuf is set to the calculated distances for posbuf. length==capacity always.
 	distbuf []float32
+	// pruned statistics: quantity of minimum resolution cubes pruned from octree and their calculations omitted (x8).
+	pruned uint64
 }
 
 // NewOctreeRenderer instantiates a new Octree renderer for rendering triangles from an [gleval.SDF3].
@@ -72,6 +74,12 @@ func makeICube(bb ms3.Box, minResolution float32) (icube, ms3.Vec, error) {
 		return icube{}, ms3.Vec{}, errors.New("resolution not fine enough for marching cubes")
 	}
 	return icube{lvl: levels}, bb.Min, nil
+}
+
+// TotalPruned returns the amount of minimum resolution cubes pruned throughout the rendering of the current SDF3.
+// This number is reset on a call to Reset. The amount of SDF evaluations omitted is roughly equivalent to 8*TotalPruned.
+func (oc *Octree) TotalPruned() uint64 {
+	return oc.pruned
 }
 
 // Reset switched the underlying SDF3 for a new one with a new cube resolution. It reuses
@@ -113,13 +121,20 @@ func (oc *Octree) Reset(s gleval.SDF3, cubeResolution float32) error {
 		oc.cubes = make([]icube, 0, minCubesSize)
 	}
 
-	oc.bounds = bb
-	oc.cubes = oc.cubes[:1]
+	*oc = Octree{
+		s:          s,
+		origin:     origin,
+		bounds:     bb,
+		resolution: cubeResolution,
+		cubes:      oc.cubes[:1],
+		prunecubes: oc.prunecubes[:0],
+		levels:     levels,
+		// Reuse distbuf and posbuf.
+		distbuf: oc.distbuf,
+		posbuf:  oc.posbuf[:0],
+	}
+
 	oc.cubes[0] = icube{lvl: levels} // Start cube.
-	oc.s = s
-	oc.resolution = cubeResolution
-	oc.levels = levels
-	oc.origin = origin
 	return nil
 }
 
@@ -238,6 +253,8 @@ func (oc *Octree) prune() error {
 			// Cube not empty, do not discard.
 			prune[runningIdx] = p
 			runningIdx++
+		} else {
+			oc.pruned += pow8(p.lvl - 1)
 		}
 	}
 	oc.prunecubes = prune[:runningIdx]
@@ -401,4 +418,38 @@ func (oc *Octree) debugVisual(filename string, lvlDescent int, merge glbuild.Sha
 		return err
 	}
 	return nil
+}
+
+var _pow8 = []uint64{
+	0:  1,
+	1:  8,
+	2:  8 * 8,
+	3:  8 * 8 * 8,
+	4:  8 * 8 * 8 * 8,
+	5:  8 * 8 * 8 * 8 * 8,
+	6:  8 * 8 * 8 * 8 * 8 * 8,
+	7:  8 * 8 * 8 * 8 * 8 * 8 * 8,
+	8:  8 * 8 * 8 * 8 * 8 * 8 * 8 * 8,
+	9:  8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8,
+	10: 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8,
+	11: 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8,
+	12: 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8,
+	13: 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8,
+	14: 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8,
+	15: 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8,
+	16: 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8,
+	17: 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8,
+	18: 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8,
+	19: 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8,
+	20: 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8,
+	21: 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8,
+	// 22: 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8 * 8, // overflows
+}
+
+// pow8 returns 8**y.
+func pow8(y int) uint64 {
+	if y < len(_pow8) {
+		return _pow8[y]
+	}
+	panic("overflow pow8")
 }

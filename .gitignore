@@ -42,6 +42,10 @@ local
 *.zip
 *.gz
 *.tar
+*.prof
+*.pprof
+*.cpuprof
+*.heapprof
 
 # image outputs
 *.png

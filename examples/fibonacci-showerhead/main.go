@@ -1,11 +1,10 @@
 package main
 
 import (
-	"bytes"
+	"flag"
 	"fmt"
 	"log"
 	"runtime"
-	"time"
 
 	"os"
 
@@ -14,52 +13,78 @@ import (
 	"github.com/soypat/gsdf"
 	"github.com/soypat/gsdf/forge/threads"
 	"github.com/soypat/gsdf/glbuild"
-	"github.com/soypat/gsdf/gleval"
-	"github.com/soypat/gsdf/glrender"
+	"github.com/soypat/gsdf/gsdfaux"
 )
 
-// Showerhead parameters as defined by showerhead design.
 const (
-	threadExtDiameter = 65.
-	threadedLength    = 5.
-	threadTurns       = 3.
-	threadPitch       = threadedLength / threadTurns
-)
-
-// Constructuive parameters defined by our design.
-const (
-	showerheadBaseThick = 2.5
-	showerheadWall      = 4.
-	threadheight        = 5.
-)
-
-var (
-	showerThread = threads.PlasticButtress{
-		D: threadExtDiameter,
-		P: threadPitch,
-	}
+	stl           = "showerhead.stl"
+	visualization = "showerhead.glsl"
 )
 
 func init() {
 	runtime.LockOSThread() // In case we wish to use OpenGL.
 }
 
-func main() {
-	watch := stopwatch()
+func run() error {
+	useGPU := flag.Bool("gpu", false, "Enable GPU usage")
+	flag.Parse()
 	object, err := scene()
 	if err != nil {
-		log.Fatalf("creating 3D object: %s", err)
+		return err
 	}
-	fmt.Println("created object in", watch())
-	useGPU := true
-	err = render(object, useGPU)
+	fpstl, err := os.Create(stl)
+	if err != nil {
+		return err
+	}
+	defer fpstl.Close()
+	fpvis, err := os.Create(visualization)
+	if err != nil {
+		return err
+	}
+	defer fpvis.Close()
+
+	err = gsdfaux.Render(object, gsdfaux.RenderConfig{
+		STLOutput:    fpstl,
+		VisualOutput: fpvis,
+		Resolution:   object.Bounds().Diagonal() / 200,
+		UseGPU:       *useGPU,
+	})
+
+	return err
+}
+
+func main() {
+	err := run()
 	if err != nil {
 		log.Fatal(err)
 	}
+	fmt.Println("showerhead example done")
 }
 
 // scene returns the showerhead object.
 func scene() (glbuild.Shader3D, error) {
+
+	// Showerhead parameters as defined by showerhead geometry.
+	const (
+		threadExtDiameter = 65.
+		threadedLength    = 5.
+		threadTurns       = 3.
+		threadPitch       = threadedLength / threadTurns
+	)
+
+	// Constructuive parameters defined by our design.
+	const (
+		showerheadBaseThick = 2.5
+		showerheadWall      = 4.
+		threadheight        = 5.
+	)
+
+	var (
+		showerThread = threads.PlasticButtress{
+			D: threadExtDiameter,
+			P: threadPitch,
+		}
+	)
 	// Object accumulates the showerhead sdf.
 	var object glbuild.Shader3D
 
@@ -94,64 +119,6 @@ func scene() (glbuild.Shader3D, error) {
 	return object, nil
 }
 
-func render(s glbuild.Shader3D, useGPU bool) (err error) {
-	err = glbuild.ShortenNames3D(&s, 6)
-	if err != nil {
-		return fmt.Errorf("shortening shader names: %s", err)
-	}
-	bb := s.Bounds()
-	var sdf gleval.SDF3
-	watch := stopwatch()
-	if useGPU {
-		fmt.Println("using GPU")
-		{
-			terminate, err := gleval.Init1x1GLFW()
-			if err != nil {
-				return err
-			}
-			defer terminate()
-		}
-		source := new(bytes.Buffer)
-		_, err = glbuild.NewDefaultProgrammer().WriteComputeSDF3(source, s)
-		if err != nil {
-			return err
-		}
-		sdf, err = gleval.NewComputeGPUSDF3(source, bb)
-	} else {
-		sdf, err = gleval.NewCPUSDF3(s)
-	}
-
-	if err != nil || sdf == nil {
-		return fmt.Errorf("instantiating SDF: %s", err)
-	}
-
-	fmt.Println("instantiating evaluation SDF took", watch())
-	const size = 1 << 12
-	renderer, err := glrender.NewOctreeRenderer(sdf, bb.Size().Max()/350, size)
-	if err != nil {
-		return err
-	}
-
-	fp, err := os.Create("showerhead.stl")
-	if err != nil {
-		return fmt.Errorf("creating file: %s", err)
-	}
-	watch = stopwatch()
-	triangles, err := glrender.RenderAll(renderer)
-	if err != nil {
-		return fmt.Errorf("rendering triangles: %s", err)
-	}
-	e := sdf.(interface{ Evaluations() uint64 })
-	fmt.Println("evaluated SDF", e.Evaluations(), "times and rendered", len(triangles), "triangles in", watch())
-	watch = stopwatch()
-	_, err = glrender.WriteBinarySTL(fp, triangles)
-	if err != nil {
-		return fmt.Errorf("writing STL file: %s", err)
-	}
-	fmt.Println("wrote STL file in", watch())
-	return nil
-}
-
 func fibonacci(n int) ms2.Vec {
 	// Angle of divergence is very sensitive- 137.3 to 137.5 varies pattern greatly.
 	const angleOfDivergence = 137.3
@@ -161,11 +128,4 @@ func fibonacci(n int) ms2.Vec {
 	r := spacing * math.Sqrt(nf)
 	sa, ca := math.Sincos(a)
 	return ms2.Vec{X: r * ca, Y: r * sa}
-}
-
-func stopwatch() func() time.Duration {
-	start := time.Now()
-	return func() time.Duration {
-		return time.Since(start)
-	}
 }
