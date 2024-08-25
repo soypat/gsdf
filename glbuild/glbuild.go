@@ -183,11 +183,10 @@ func (p *Programmer) WriteFragVisualizerSDF3(w io.Writer, obj Shader3D) (n int, 
 func (p *Programmer) writeShaders(w io.Writer, nodes []Shader) (n int, err error) {
 	clear(p.names)
 	for i := len(nodes) - 1; i >= 0; i-- {
-		scratch := p.scratch // Scratch buffer is renewed if capacity is increased.
 		node := nodes[i]
 		var name, body []byte
 		p.scratch, name, body = AppendShaderSource(p.scratch[:0], node)
-		nameHash := hash(scratch, 0)
+		nameHash := hash(name, 0)
 		bodyHash := hash(body, nameHash) // Body hash mixes name as well.
 		gotBodyHash, nameConflict := p.names[nameHash]
 		if nameConflict {
