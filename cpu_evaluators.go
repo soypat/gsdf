@@ -482,7 +482,7 @@ func (t *transform) Evaluate(pos []ms3.Vec, dist []float32, userData any) error 
 	}
 	transformed := vp.V3.Acquire(len(pos))
 	defer vp.V3.Release(transformed)
-	Tinv := t.invT
+	Tinv := t.tInv
 	for i, p := range pos {
 		transformed[i] = Tinv.MulPosition(p)
 	}

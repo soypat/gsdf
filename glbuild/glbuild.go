@@ -549,6 +549,18 @@ func (xyz XYZBits) AppendMapped(b []byte, Map [3]byte) []byte {
 	return b
 }
 
+func (xyz XYZBits) AppendMapped_XYZ(b []byte) []byte {
+	return xyz.AppendMapped(b, [3]byte{'X', 'Y', 'Z'})
+}
+
+func (xyz XYZBits) AppendMapped_xyz(b []byte) []byte {
+	return xyz.AppendMapped(b, [3]byte{'x', 'y', 'z'})
+}
+
+func (xyz XYZBits) AppendMapped_rgb(b []byte) []byte {
+	return xyz.AppendMapped(b, [3]byte{'r', 'g', 'b'})
+}
+
 func b2i(b bool) int {
 	if b {
 		return 1

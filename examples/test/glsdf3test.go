@@ -106,7 +106,7 @@ var SmoothBinaryOps = []func(a, b glbuild.Shader3D, k float32) glbuild.Shader3D{
 }
 
 var OtherUnaryRandomizedOps = []func(a glbuild.Shader3D, rng *rand.Rand) glbuild.Shader3D{
-	// randomRotation,
+	randomRotation,
 	randomShell,
 	randomElongate,
 	randomRound,

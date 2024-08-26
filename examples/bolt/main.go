@@ -35,7 +35,7 @@ func scene() (glbuild.Shader3D, error) {
 	if err != nil {
 		return nil, err
 	}
-	M3, _ = gsdf.Rotate(M3, math.Pi/2, ms3.Vec{Y: 1})
+	M3, _ = gsdf.Rotate(M3, 2.5*math.Pi/2, ms3.Vec{X: 1, Z: 0.1})
 	return M3, nil
 }
 

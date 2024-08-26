@@ -10,7 +10,6 @@ import (
 	"time"
 
 	math "github.com/chewxy/math32"
-	"github.com/soypat/glgl/math/ms3"
 	"github.com/soypat/gsdf"
 	"github.com/soypat/gsdf/glbuild"
 	"github.com/soypat/gsdf/gleval"
@@ -80,7 +79,7 @@ func Render(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 		const sceneSize = 1.4
 		// We include the bounding box in the visualization.
 		bb := s.Bounds()
-		envelope, err := gsdf.NewBoundsBoxFrame(bb.Add(ms3.Vec{100, 100, 100}))
+		envelope, err := gsdf.NewBoundsBoxFrame(bb)
 		if err != nil {
 			return err
 		}

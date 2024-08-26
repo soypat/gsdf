@@ -237,7 +237,7 @@ func (s *symmetry) ForEachChild(userData any, fn func(userData any, s *glbuild.S
 
 func (s *symmetry) AppendShaderName(b []byte) []byte {
 	b = append(b, "symmetry"...)
-	b = s.xyz.AppendMapped(b, [3]byte{'X', 'Y', 'Z'})
+	b = s.xyz.AppendMapped_XYZ(b)
 	b = append(b, '_')
 	b = s.s.AppendShaderName(b)
 	return b
@@ -245,9 +245,9 @@ func (s *symmetry) AppendShaderName(b []byte) []byte {
 
 func (s *symmetry) AppendShaderBody(b []byte) []byte {
 	b = append(b, "p."...)
-	b = s.xyz.AppendMapped(b, [3]byte{'x', 'y', 'z'})
+	b = s.xyz.AppendMapped_xyz(b)
 	b = append(b, "=abs(p."...)
-	b = s.xyz.AppendMapped(b, [3]byte{'x', 'y', 'z'})
+	b = s.xyz.AppendMapped_xyz(b)
 	b = append(b, ");\n return "...)
 	b = s.s.AppendShaderName(b)
 	b = append(b, "(p);"...)
@@ -261,16 +261,22 @@ func Transform(s glbuild.Shader3D, m ms3.Mat4) (glbuild.Shader3D, error) {
 	if math32.Abs(det) < 1e-8 {
 		return nil, errors.New("singular Mat4")
 	}
-	return &transform{s: s, invT: m.Inverse()}, nil
+	return &transform{s: s, t: m, tInv: m.Inverse()}, nil
 }
 
 type transform struct {
-	s    glbuild.Shader3D
-	invT ms3.Mat4
+	s glbuild.Shader3D
+	// Transformation matrix. Transforms points. We use it
+	// to transform the bounding box.
+	t ms3.Mat4 // The actual transformation matrix,
+	// Inverse transformation matrix needed for SDF.
+	// The SDF receives points which we must evaluate in
+	// transformed coordinates, so we must work backwards, thus inverse.
+	tInv ms3.Mat4
 }
 
 func (u *transform) Bounds() ms3.Box {
-	return u.invT.MulBox(u.s.Bounds())
+	return u.t.MulBox(u.s.Bounds())
 }
 
 func (s *transform) ForEachChild(userData any, fn func(userData any, s *glbuild.Shader3D) error) error {
@@ -280,7 +286,7 @@ func (s *transform) ForEachChild(userData any, fn func(userData any, s *glbuild.
 func (s *transform) AppendShaderName(b []byte) []byte {
 	b = append(b, "transform"...)
 	// Hash floats so that name is not too long.
-	values := s.invT.Array()
+	values := s.t.Array()
 	b = glbuild.AppendFloat(b, 'p', 'n', hashf(values[:]))
 	b = append(b, '_')
 	b = s.s.AppendShaderName(b)
@@ -288,7 +294,7 @@ func (s *transform) AppendShaderName(b []byte) []byte {
 }
 
 func (r *transform) AppendShaderBody(b []byte) []byte {
-	b = glbuild.AppendMat4Decl(b, "invT", r.invT)
+	b = glbuild.AppendMat4Decl(b, "invT", r.tInv)
 	b = append(b, "return "...)
 	b = r.s.AppendShaderName(b)
 	b = append(b, "(((invT) * vec4(p,0.0)).xyz);"...)
