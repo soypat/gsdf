@@ -1,5 +1,8 @@
 # gsdf
-Offshoot from [this project](https://github.com/soypat/sdf/pull/13). 
+`gsdf` is a CAD 3D design library for Go that uses SDFs for shape definition. Rendering can be done on GPU or CPU
+for visualization or 3D printing file outputs.
+
+All images and shapes in readme were generated using this library.
 
 ![circle](https://github.com/user-attachments/assets/91c99f47-0c52-4cb1-83e7-452b03b69dff)
 ![bolt-example](https://github.com/user-attachments/assets/8da50871-2415-423f-beb3-0d78ad67c79e)
@@ -15,7 +18,7 @@ Offshoot from [this project](https://github.com/soypat/sdf/pull/13).
 - Extremely coherent API design.
 - TinyGo supported for CPU evaluation :)
 
-## Package layour/structure
+## Package layout/structure
 
 - `gsdf`: Top level package defines exact SDFs primitives and operations for use on CPU or GPU workloads. Consumes `glbuild` interfaces and logic to build shaders.
 - `glbuild`: Automatic shader generation interfaces and logic.
