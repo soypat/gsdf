@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"image"
 	"image/color"
 	"image/png"
@@ -13,6 +12,7 @@ import (
 	"github.com/soypat/glgl/math/ms2"
 	"github.com/soypat/glgl/math/ms3"
 	"github.com/soypat/gsdf"
+	"github.com/soypat/gsdf/glbuild"
 	"github.com/soypat/gsdf/gleval"
 	"github.com/soypat/gsdf/glrender"
 )
@@ -20,21 +20,34 @@ import (
 const size = 256
 const dim = 20
 
+func scene() (glbuild.Shader2D, error) {
+	s, err := gsdf.NewCircle(dim)
+	if err != nil {
+		return nil, err
+	}
+	poly, err := gsdf.NewPolygon([]ms2.Vec{
+		{X: dim, Y: 0},
+		{X: 3 * dim, Y: dim},
+		{X: 3 * dim, Y: -dim},
+	})
+	if err != nil {
+		return nil, err
+	}
+	s = gsdf.Union2D(s, poly)
+	return s, nil
+}
+
 func main() {
 	img := image.NewRGBA(image.Rect(0, 0, 2*size, size))
 	renderer, err := glrender.NewImageRendererSDF2(4096, colorConversion)
 	if err != nil {
 		log.Fatal(err)
 	}
+	s, err := scene()
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	s, _ := gsdf.NewCircle(dim)
-	poly, _ := gsdf.NewPolygon([]ms2.Vec{
-		{X: dim, Y: 0},
-		{X: 3 * dim, Y: dim},
-		{X: 3 * dim, Y: -dim},
-	})
-	s = gsdf.Union2D(s, poly)
-	fmt.Println(s.Bounds())
 	sdf, err := gleval.NewCPUSDF2(s)
 	if err != nil {
 		log.Fatal(err)

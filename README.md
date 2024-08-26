@@ -22,7 +22,7 @@ Offshoot from [this project](https://github.com/soypat/sdf/pull/13).
 - `gleval`: SDF evaluation interfaces and facilities, both CPU and GPU bound.
 - `glrender`: Triangle rendering logic which consumes gleval. STL generation.
 - `forge`: Composed shape generation such as `threads` package for generating screw threads. Engineering applications.
-
+- `gsdfaux`: High level helper functions to get users started up with `gsdf`. See [examples](./examples).
 
 ## Part design - NPT Flange example.
 This was converted from the [original example](https://github.com/soypat/sdf/blob/main/examples/npt-flange/flange.go). See [README](https://github.com/soypat/sdf/tree/main/examples) for images.
@@ -95,7 +95,7 @@ Below is the 3D scene code. Omits rendering pipeline.
 	stl, _ := os.Create("for3dprinting.stl")
 	err = gsdfaux.Render(object, gsdfaux.RenderConfig{
 		STLOutput:    stl,
-		Resolution:   union.Bounds().Diagonal() / 200,
+		Resolution:   union.Bounds().Diagonal() / 200, 
 		UseGPU:       true,
 	})
 ```

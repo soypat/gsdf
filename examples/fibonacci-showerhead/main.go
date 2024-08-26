@@ -25,45 +25,8 @@ func init() {
 	runtime.LockOSThread() // In case we wish to use OpenGL.
 }
 
-func run() error {
-	useGPU := flag.Bool("gpu", false, "Enable GPU usage")
-	flag.Parse()
-	object, err := scene()
-	if err != nil {
-		return err
-	}
-	fpstl, err := os.Create(stl)
-	if err != nil {
-		return err
-	}
-	defer fpstl.Close()
-	fpvis, err := os.Create(visualization)
-	if err != nil {
-		return err
-	}
-	defer fpvis.Close()
-
-	err = gsdfaux.Render(object, gsdfaux.RenderConfig{
-		STLOutput:    fpstl,
-		VisualOutput: fpvis,
-		Resolution:   object.Bounds().Diagonal() / 200,
-		UseGPU:       *useGPU,
-	})
-
-	return err
-}
-
-func main() {
-	err := run()
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Println("showerhead example done")
-}
-
 // scene returns the showerhead object.
 func scene() (glbuild.Shader3D, error) {
-
 	// Showerhead parameters as defined by showerhead geometry.
 	const (
 		threadExtDiameter = 65.
@@ -117,6 +80,42 @@ func scene() (glbuild.Shader3D, error) {
 
 	object = gsdf.Union(object, base)
 	return object, nil
+}
+
+func run() error {
+	useGPU := flag.Bool("gpu", false, "Enable GPU usage")
+	flag.Parse()
+	object, err := scene()
+	if err != nil {
+		return err
+	}
+	fpstl, err := os.Create(stl)
+	if err != nil {
+		return err
+	}
+	defer fpstl.Close()
+	fpvis, err := os.Create(visualization)
+	if err != nil {
+		return err
+	}
+	defer fpvis.Close()
+
+	err = gsdfaux.Render(object, gsdfaux.RenderConfig{
+		STLOutput:    fpstl,
+		VisualOutput: fpvis,
+		Resolution:   object.Bounds().Diagonal() / 200,
+		UseGPU:       *useGPU,
+	})
+
+	return err
+}
+
+func main() {
+	err := run()
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println("showerhead example done")
 }
 
 func fibonacci(n int) ms2.Vec {

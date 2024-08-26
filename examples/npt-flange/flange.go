@@ -13,47 +13,11 @@ import (
 	"github.com/soypat/gsdf/gsdfaux"
 )
 
-func init() {
-	runtime.LockOSThread() // For when using GPU this is required.
-}
-
 const visualization = "nptflange.glsl"
 const stl = "nptflange.stl"
 
-func run() error {
-	useGPU := flag.Bool("gpu", false, "Enable GPU rendering")
-	flag.Parse()
-	s, err := scene()
-	if err != nil {
-		return err
-	}
-
-	fpstl, err := os.Create(stl)
-	if err != nil {
-		return err
-	}
-	defer fpstl.Close()
-	fpvis, err := os.Create(visualization)
-	if err != nil {
-		return err
-	}
-	defer fpvis.Close()
-
-	err = gsdfaux.Render(s, gsdfaux.RenderConfig{
-		STLOutput:    fpstl,
-		VisualOutput: fpvis,
-		Resolution:   s.Bounds().Diagonal() / 200,
-		UseGPU:       *useGPU,
-	})
-	return err
-}
-
-func main() {
-	err := run()
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Println("finished npt-flange example")
+func init() {
+	runtime.LockOSThread() // For when using GPU this is required.
 }
 
 func scene() (glbuild.Shader3D, error) {
@@ -92,4 +56,40 @@ func scene() (glbuild.Shader3D, error) {
 	// Convert from imperial inches units to millimeter:
 	union = gsdf.Scale(union, 25.4)
 	return union, nil
+}
+
+func run() error {
+	useGPU := flag.Bool("gpu", false, "Enable GPU rendering")
+	flag.Parse()
+	s, err := scene()
+	if err != nil {
+		return err
+	}
+
+	fpstl, err := os.Create(stl)
+	if err != nil {
+		return err
+	}
+	defer fpstl.Close()
+	fpvis, err := os.Create(visualization)
+	if err != nil {
+		return err
+	}
+	defer fpvis.Close()
+
+	err = gsdfaux.Render(s, gsdfaux.RenderConfig{
+		STLOutput:    fpstl,
+		VisualOutput: fpvis,
+		Resolution:   s.Bounds().Diagonal() / 200,
+		UseGPU:       *useGPU,
+	})
+	return err
+}
+
+func main() {
+	err := run()
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println("finished npt-flange example")
 }
