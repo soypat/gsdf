@@ -96,7 +96,7 @@ Below is the 3D scene code. Omits rendering pipeline.
 	union = gsdf.Scale(union, 25.4)
 
 	stl, _ := os.Create("for3dprinting.stl")
-	err = gsdfaux.Render(object, gsdfaux.RenderConfig{
+	err = gsdfaux.Render(union, gsdfaux.RenderConfig{
 		STLOutput:    stl,
 		Resolution:   union.Bounds().Diagonal() / 200, 
 		UseGPU:       true,
