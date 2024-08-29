@@ -4,12 +4,18 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"image"
+	"image/color"
+	"image/png"
 	"io"
 	"os"
 
 	"time"
 
+	"github.com/chewxy/math32"
 	math "github.com/chewxy/math32"
+	"github.com/soypat/glgl/math/ms1"
+	"github.com/soypat/glgl/math/ms3"
 	"github.com/soypat/gsdf"
 	"github.com/soypat/gsdf/glbuild"
 	"github.com/soypat/gsdf/gleval"
@@ -130,5 +136,70 @@ func stopwatch() func() time.Duration {
 	start := time.Now()
 	return func() time.Duration {
 		return time.Since(start)
+	}
+}
+
+// RenderPNGFile renders a 2D SDF as an image and saves result to a PNG file with said filename.
+// The image width is sized automatically from the image height argument to preserve SDF aspect ratio.
+// If a nil color conversion function is passed then one is automatically chosen.
+func RenderPNGFile(filename string, s glbuild.Shader2D, picHeight int, colorConversion func(float32) color.Color) error {
+	bb := s.Bounds()
+	sz := bb.Size()
+	if colorConversion == nil {
+		colorConversion = ColorConversionInigoQuilez(bb.Diagonal() / 3)
+	}
+	pixPerUnit := float64(picHeight) / float64(sz.Y)
+	picWidth := int(pixPerUnit * float64(sz.X))
+	img := image.NewRGBA(image.Rect(0, 0, picWidth, picHeight))
+	renderer, err := glrender.NewImageRendererSDF2(max(4096, picWidth), colorConversion)
+	if err != nil {
+		return err
+	}
+	sdf, err := gleval.NewCPUSDF2(s)
+	if err != nil {
+		return err
+	}
+	err = renderer.Render(sdf, img, nil)
+	if err != nil {
+		return err
+	}
+	fp, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	defer fp.Close()
+	err = png.Encode(fp, img)
+	if err != nil {
+		return err
+	}
+	fp.Sync()
+	return nil
+}
+
+// ColorConversionInigoQuilez creates a new color conversion using [Inigo Quilez]'s style.
+// A good value for characteristic distance is the bounding box diagonal divided by 3.
+//
+// [Inigo Quilez]: https://iquilezles.org/articles/distfunctions2d/
+func ColorConversionInigoQuilez(characteristicDistance float32) func(float32) color.Color {
+	inv := 1. / characteristicDistance
+	return func(d float32) color.Color {
+		d *= inv
+		var one = ms3.Vec{X: 1, Y: 1, Z: 1}
+		var c ms3.Vec
+		if d > 0 {
+			c = ms3.Vec{X: 0.9, Y: 0.6, Z: 0.3}
+		} else {
+			c = ms3.Vec{X: 0.65, Y: 0.85, Z: 1.0}
+		}
+		c = ms3.Scale(1-math32.Exp(-6*math32.Abs(d)), c)
+		c = ms3.Scale(0.8+0.2*math32.Cos(150*d), c)
+		max := 1 - ms1.SmoothStep(0, 0.01, math32.Abs(d))
+		c = ms3.InterpElem(c, one, ms3.Vec{X: max, Y: max, Z: max})
+		return color.RGBA{
+			R: uint8(c.X * 255),
+			G: uint8(c.Y * 255),
+			B: uint8(c.Z * 255),
+			A: 255,
+		}
 	}
 }
