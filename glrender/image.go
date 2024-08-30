@@ -89,7 +89,7 @@ func (ir *ImageRendererSDF2) Render(sdf gleval.SDF2, img setImage, userData any)
 	for j := 0; j < dyi; j++ {
 		// y is inverted in the image interface, maximum index (maxI, maxJ) represents upper left corner.
 		// See [image.At] method so we must invert y here.
-		y := bb.Max.Y - (float32(j)*dy + bb.Min.Y)
+		y := bb.Max.Y - float32(j)*dy
 		err := ir.renderRow(sdf, j, y, bb.Min.X, dx, imgBB, img, userData)
 		if err != nil {
 			return err
