@@ -87,7 +87,9 @@ func (ir *ImageRendererSDF2) Render(sdf gleval.SDF2, img setImage, userData any)
 	bb.Min = ms2.Add(bb.Min, ms2.Vec{X: dx / 2, Y: dy / 2}) // Offset to center image.
 	// Keep track of next index to start reading.
 	for j := 0; j < dyi; j++ {
-		y := float32(j)*dy + bb.Min.Y
+		// y is inverted in the image interface, maximum index (maxI, maxJ) represents upper left corner.
+		// See [image.At] method so we must invert y here.
+		y := bb.Max.Y - (float32(j)*dy + bb.Min.Y)
 		err := ir.renderRow(sdf, j, y, bb.Min.X, dx, imgBB, img, userData)
 		if err != nil {
 			return err

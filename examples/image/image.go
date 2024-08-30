@@ -31,11 +31,12 @@ func scene() (glbuild.Shader2D, error) {
 }
 
 func main() {
+	useGPU := false
 	s, err := scene()
 	if err != nil {
 		log.Fatal(err)
 	}
-	err = gsdfaux.RenderPNGFile(filename, s, 1080, nil)
+	err = gsdfaux.RenderPNGFile(filename, s, 1080, useGPU, nil)
 	if err != nil {
 		log.Fatal(err)
 	}

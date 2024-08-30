@@ -659,3 +659,38 @@ func (s *offset2D) AppendShaderBody(b []byte) []byte {
 	b = append(b, ')', ';')
 	return b
 }
+
+// Translate2D moves the SDF s in the given direction.
+func Translate2D(s glbuild.Shader2D, dirX, dirY float32) glbuild.Shader2D {
+	return &translate2D{s: s, p: ms2.Vec{X: dirX, Y: dirY}}
+}
+
+type translate2D struct {
+	s glbuild.Shader2D
+	p ms2.Vec
+}
+
+func (u *translate2D) Bounds() ms2.Box {
+	return u.s.Bounds().Add(u.p)
+}
+
+func (s *translate2D) ForEach2DChild(userData any, fn func(userData any, s *glbuild.Shader2D) error) error {
+	return fn(userData, &s.s)
+}
+
+func (s *translate2D) AppendShaderName(b []byte) []byte {
+	b = append(b, "translate2D"...)
+	arr := s.p.Array()
+	b = glbuild.AppendFloats(b, 0, 'n', 'p', arr[:]...)
+	b = append(b, '_')
+	b = s.s.AppendShaderName(b)
+	return b
+}
+
+func (s *translate2D) AppendShaderBody(b []byte) []byte {
+	b = glbuild.AppendVec2Decl(b, "t", s.p)
+	b = append(b, "return "...)
+	b = s.s.AppendShaderName(b)
+	b = append(b, "(p-t);"...)
+	return b
+}

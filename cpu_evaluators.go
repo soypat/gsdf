@@ -807,3 +807,21 @@ func (r *offset2D) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {
 	}
 	return nil
 }
+
+func (t *translate2D) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {
+	sdf, err := gleval.AssertSDF2(t.s)
+	if err != nil {
+		return err
+	}
+	vp, err := gleval.GetVecPool(userData)
+	if err != nil {
+		return err
+	}
+	transformed := vp.V2.Acquire(len(pos))
+	defer vp.V2.Release(transformed)
+	T := t.p
+	for i, p := range pos {
+		transformed[i] = ms2.Sub(p, T)
+	}
+	return sdf.Evaluate(transformed, dist, userData)
+}

@@ -142,7 +142,10 @@ func stopwatch() func() time.Duration {
 // RenderPNGFile renders a 2D SDF as an image and saves result to a PNG file with said filename.
 // The image width is sized automatically from the image height argument to preserve SDF aspect ratio.
 // If a nil color conversion function is passed then one is automatically chosen.
-func RenderPNGFile(filename string, s glbuild.Shader2D, picHeight int, colorConversion func(float32) color.Color) error {
+func RenderPNGFile(filename string, s glbuild.Shader2D, picHeight int, useGPU bool, colorConversion func(float32) color.Color) error {
+	if useGPU {
+		return errors.New("TODO: implement GPU rendering for RenderPNGFile")
+	}
 	bb := s.Bounds()
 	sz := bb.Size()
 	if colorConversion == nil {
@@ -155,6 +158,7 @@ func RenderPNGFile(filename string, s glbuild.Shader2D, picHeight int, colorConv
 	if err != nil {
 		return err
 	}
+
 	sdf, err := gleval.NewCPUSDF2(s)
 	if err != nil {
 		return err
