@@ -633,7 +633,11 @@ type offset2D struct {
 }
 
 func (u *offset2D) Bounds() ms2.Box {
+	// TODO: this does not seem right. Removing if statement breaks gasket example STL.
 	bb := u.s.Bounds()
+	if u.f > 0 {
+		return bb
+	}
 	bb.Max = ms2.AddScalar(-u.f, bb.Max)
 	bb.Min = ms2.AddScalar(u.f, bb.Min)
 	return bb
@@ -692,5 +696,53 @@ func (s *translate2D) AppendShaderBody(b []byte) []byte {
 	b = append(b, "return "...)
 	b = s.s.AppendShaderName(b)
 	b = append(b, "(p-t);"...)
+	return b
+}
+
+// Symmetry reflects the SDF around one or more cartesian planes.
+func Symmetry2D(s glbuild.Shader2D, mirrorX, mirrorY bool) glbuild.Shader2D {
+	if !mirrorX && !mirrorY {
+		panic("ineffective symmetry")
+	}
+
+	return &symmetry2D{s: s, xy: glbuild.NewXYZBits(mirrorX, mirrorY, false)}
+}
+
+type symmetry2D struct {
+	s  glbuild.Shader2D
+	xy glbuild.XYZBits
+}
+
+func (u *symmetry2D) Bounds() ms2.Box {
+	box := u.s.Bounds()
+	if u.xy.X() {
+		box.Min.X = minf(box.Min.X, -box.Max.X)
+	}
+	if u.xy.Y() {
+		box.Min.Y = minf(box.Min.Y, -box.Max.Y)
+	}
+	return box
+}
+
+func (s *symmetry2D) ForEach2DChild(userData any, fn func(userData any, s *glbuild.Shader2D) error) error {
+	return fn(userData, &s.s)
+}
+
+func (s *symmetry2D) AppendShaderName(b []byte) []byte {
+	b = append(b, "symmetry2D"...)
+	b = s.xy.AppendMapped_XYZ(b)
+	b = append(b, '_')
+	b = s.s.AppendShaderName(b)
+	return b
+}
+
+func (s *symmetry2D) AppendShaderBody(b []byte) []byte {
+	b = append(b, "p."...)
+	b = s.xy.AppendMapped_xyz(b)
+	b = append(b, "=abs(p."...)
+	b = s.xy.AppendMapped_xyz(b)
+	b = append(b, ");\n return "...)
+	b = s.s.AppendShaderName(b)
+	b = append(b, "(p);"...)
 	return b
 }

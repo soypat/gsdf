@@ -825,3 +825,31 @@ func (t *translate2D) Evaluate(pos []ms2.Vec, dist []float32, userData any) erro
 	}
 	return sdf.Evaluate(transformed, dist, userData)
 }
+
+func (s *symmetry2D) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {
+	sdf, err := gleval.AssertSDF2(s.s)
+	if err != nil {
+		return err
+	}
+	vp, err := gleval.GetVecPool(userData)
+	if err != nil {
+		return err
+	}
+	transformed := vp.V2.Acquire(len(pos))
+	copy(transformed, pos)
+	defer vp.V2.Release(transformed)
+	xb, yb := s.xy.X(), s.xy.Y()
+	for i, p := range transformed {
+		if xb {
+			transformed[i].X = absf(p.X)
+		}
+		if yb {
+			transformed[i].Y = absf(p.Y)
+		}
+	}
+	err = sdf.Evaluate(transformed, dist, userData)
+	if err != nil {
+		return err
+	}
+	return nil
+}
