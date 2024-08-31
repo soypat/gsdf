@@ -138,7 +138,7 @@ func (oc *Octree) Reset(s gleval.SDF3, cubeResolution float32) error {
 	return nil
 }
 
-func (oc *Octree) ReadTriangles(dst []ms3.Triangle) (n int, err error) {
+func (oc *Octree) ReadTriangles(dst []ms3.Triangle, userData any) (n int, err error) {
 	if len(dst) < 5 {
 		return 0, io.ErrShortBuffer
 	}

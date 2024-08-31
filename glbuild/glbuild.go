@@ -614,6 +614,15 @@ func (c3 *CachedShader3D) ForEach2DChild(userData any, fn func(userData any, s *
 	return err
 }
 
+// Evaluate implements the gleval.SDF3 interface.
+func (c3 *CachedShader3D) Evaluate(pos []ms3.Vec, dist []float32, userData any) error {
+	sdf, ok := c3.Shader.(sdf3)
+	if !ok {
+		return fmt.Errorf("%T does not implement gleval.SDF3", c3.Shader)
+	}
+	return sdf.Evaluate(pos, dist, userData)
+}
+
 var _ Shader2D = (*CachedShader2D)(nil) // Interface implementation compile-time check.
 
 // CachedShader2D implements the Shader2D interface with results it caches for another Shader2D on a call to RefreshCache.
@@ -648,6 +657,15 @@ func (c2 *CachedShader2D) AppendShaderName(b []byte) []byte {
 // AppendShaderBody returns the cached Shader function body. Implements [Shader]. Update by calling RefreshCache.
 func (c2 *CachedShader2D) AppendShaderBody(b []byte) []byte {
 	return append(b, c2.data[c2.bodyOffset:]...)
+}
+
+// Evaluate implements the gleval.SDF2 interface.
+func (c2 *CachedShader2D) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {
+	sdf, ok := c2.Shader.(sdf2)
+	if !ok {
+		return fmt.Errorf("%T does not implement gleval.SDF2", c2.Shader)
+	}
+	return sdf.Evaluate(pos, dist, userData)
 }
 
 type nameOverloadShader3D struct {

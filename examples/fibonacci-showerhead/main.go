@@ -101,10 +101,11 @@ func run() error {
 	defer fpvis.Close()
 
 	err = gsdfaux.Render(object, gsdfaux.RenderConfig{
-		STLOutput:    fpstl,
-		VisualOutput: fpvis,
-		Resolution:   object.Bounds().Diagonal() / 200,
-		UseGPU:       *useGPU,
+		STLOutput:     fpstl,
+		VisualOutput:  fpvis,
+		Resolution:    object.Bounds().Diagonal() / 200,
+		UseGPU:        *useGPU,
+		EnableCaching: !*useGPU, // Has many unions, part can likely benefit from caching when using CPU.
 	})
 
 	return err

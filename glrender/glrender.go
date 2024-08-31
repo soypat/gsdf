@@ -9,19 +9,19 @@ import (
 const sqrt3 = 1.73205080757
 
 type Renderer interface {
-	ReadTriangles(dst []ms3.Triangle) (n int, err error)
+	ReadTriangles(dst []ms3.Triangle, userData any) (n int, err error)
 }
 
 // RenderAll reads the full contents of a Renderer and returns the slice read.
 // It does not return error on io.EOF, like the io.RenderAll implementation.
-func RenderAll(r Renderer) ([]ms3.Triangle, error) {
+func RenderAll(r Renderer, userData any) ([]ms3.Triangle, error) {
 	const startSize = 4096
 	var err error
 	var nt int
 	result := make([]ms3.Triangle, 0, startSize)
 	buf := make([]ms3.Triangle, startSize)
 	for {
-		nt, err = r.ReadTriangles(buf)
+		nt, err = r.ReadTriangles(buf, userData)
 		if err == nil || err == io.EOF {
 			result = append(result, buf[:nt]...)
 		}

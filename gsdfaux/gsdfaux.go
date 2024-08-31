@@ -28,6 +28,9 @@ type RenderConfig struct {
 	Resolution   float32
 	UseGPU       bool
 	Silent       bool
+	// EnableCaching uses [gleval.BlockCachedSDF3] to omit potential evaluations.
+	// Can cut down on times for very complex SDFs, mainly when using CPU.
+	EnableCaching bool
 }
 
 // Render is an auxiliary function to aid users in getting setup in using gsdf quickly.
@@ -72,7 +75,19 @@ func Render(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 	if err != nil || sdf == nil {
 		return fmt.Errorf("instantiating SDF: %s", err)
 	}
-
+	if cfg.EnableCaching {
+		var cache gleval.BlockCachedSDF3
+		cacheRes := cfg.Resolution / 2
+		err = cache.Reset(sdf, ms3.Vec{X: cacheRes, Y: cacheRes, Z: cacheRes})
+		if err != nil {
+			return err
+		}
+		sdf = &cache
+		defer func() {
+			pcnt := percentUint64(cache.CacheHits(), cache.Evaluations())
+			log("SDF caching omitted", pcnt, "percent of", cache.Evaluations(), "SDF evaluations")
+		}()
+	}
 	log("instantiating evaluation SDF took", watch())
 	const size = 1 << 12
 	renderer, err := glrender.NewOctreeRenderer(sdf, cfg.Resolution, size)
@@ -107,14 +122,16 @@ func Render(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 	}
 
 	if cfg.STLOutput != nil {
+		maybeVP, _ := gleval.GetVecPool(sdf)
 		watch = stopwatch()
-		triangles, err := glrender.RenderAll(renderer)
+		triangles, err := glrender.RenderAll(renderer, maybeVP)
 		if err != nil {
 			return fmt.Errorf("rendering triangles: %s", err)
 		}
+
 		e := sdf.(interface{ Evaluations() uint64 })
 		omitted := 8 * renderer.TotalPruned()
-		percentOmit := math.Trunc(10000*float32(omitted)/float32(e.Evaluations()+omitted)) / 100
+		percentOmit := percentUint64(omitted, e.Evaluations()+omitted)
 		log("evaluated SDF", e.Evaluations(), "times and rendered", len(triangles), "triangles in", watch(), "with", percentOmit, "percent evaluations omitted")
 
 		watch = stopwatch()
@@ -206,4 +223,8 @@ func ColorConversionInigoQuilez(characteristicDistance float32) func(float32) co
 			A: 255,
 		}
 	}
+}
+
+func percentUint64(num, denom uint64) float32 {
+	return math.Trunc(10000*float32(num)/float32(denom)) / 100
 }

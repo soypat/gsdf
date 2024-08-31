@@ -3,7 +3,9 @@ package gleval
 import (
 	"errors"
 	"fmt"
+	"slices"
 
+	"github.com/chewxy/math32"
 	"github.com/soypat/glgl/math/ms2"
 	"github.com/soypat/glgl/math/ms3"
 )
@@ -95,4 +97,179 @@ func NormalsCentralDiff(s SDF3, pos []ms3.Vec, normals []ms3.Vec, step float32, 
 		}
 	}
 	return nil
+}
+
+type BlockCachedSDF3 struct {
+	sdf     SDF3
+	mul     ms3.Vec
+	m       map[[3]int]float32
+	posbuf  []ms3.Vec
+	distbuf []float32
+	idxbuf  []int
+	hits    uint64
+	evals   uint64
+}
+
+// Reset resets the SDF3 and reuses the underlying buffers for future SDF evaluations. It also resets statistics such as evaluations and cache hits.
+func (c3 *BlockCachedSDF3) Reset(sdf SDF3, res ms3.Vec) error {
+	if res.X <= 0 || res.Y <= 0 || res.Z <= 0 {
+		return errors.New("invalid resolution for BlockCachedSDF3")
+	}
+	if c3.m == nil {
+		c3.m = make(map[[3]int]float32)
+	} else {
+		clear(c3.m)
+	}
+	// bb := sdf.Bounds()
+	// Ncells := ms3.DivElem(bb.Size(), res)
+	*c3 = BlockCachedSDF3{
+		sdf:     sdf,
+		mul:     ms3.DivElem(ms3.Vec{X: 1, Y: 1, Z: 1}, res),
+		m:       c3.m,
+		posbuf:  c3.posbuf[:0],
+		distbuf: c3.distbuf[:0],
+		idxbuf:  c3.idxbuf[:0],
+	}
+	return nil
+}
+
+// CacheHits returns total amount of cached evalutions done throughout the SDF's lifetime.
+func (c3 *BlockCachedSDF3) CacheHits() uint64 {
+	return c3.hits
+}
+
+// Evaluations returns total evaluations performed succesfully during sdf's lifetime, including cached.
+func (c3 *BlockCachedSDF3) Evaluations() uint64 {
+	return c3.evals
+}
+
+// Evaluate implements the [SDF3] interface with cached evaluation.
+func (c3 *BlockCachedSDF3) Evaluate(pos []ms3.Vec, dist []float32, userData any) error {
+	bb := c3.sdf.Bounds()
+	seekPos := c3.posbuf[:0]
+	idx := c3.idxbuf[:0]
+	mul := c3.mul
+	for i, p := range pos {
+		tp := ms3.MulElem(mul, ms3.Sub(p, bb.Min))
+		k := [3]int{
+			int(tp.X),
+			int(tp.Y),
+			int(tp.Z),
+		}
+		d, cached := c3.m[k]
+		if cached {
+			dist[i] = d
+		} else {
+			seekPos = append(seekPos, p)
+			idx = append(idx, i)
+		}
+	}
+	if len(idx) > 0 {
+		// Renew buffers in case they were grown.
+		c3.idxbuf = idx
+		c3.posbuf = seekPos
+		c3.distbuf = slices.Grow(c3.distbuf[:0], len(seekPos))
+		seekDist := c3.distbuf[:len(seekPos)]
+		err := c3.sdf.Evaluate(seekPos, seekDist, userData)
+		if err != nil {
+			return err
+		}
+		// Add new entries to cache.
+		for i, p := range seekPos {
+			tp := ms3.MulElem(mul, ms3.Sub(p, bb.Min))
+			k := [3]int{
+				int(tp.X),
+				int(tp.Y),
+				int(tp.Z),
+			}
+			c3.m[k] = seekDist[i]
+		}
+		// Fill original buffer with new distances.
+		for i, d := range seekDist {
+			dist[idx[i]] = d
+		}
+	}
+	c3.evals += uint64(len(dist))
+	c3.hits += uint64(len(dist) - len(seekPos))
+	return nil
+}
+
+// Bounds returns the SDF's bounding box such that all of the shape is contained within.
+func (c3 *BlockCachedSDF3) Bounds() ms3.Box {
+	return c3.sdf.Bounds()
+}
+
+type cachedExactSDF3 struct {
+	SDF     SDF3
+	m       map[[3]uint32]float32
+	posbuf  []ms3.Vec
+	distbuf []float32
+	idxbuf  []int
+	hits    uint64
+	evals   uint64
+}
+
+// CacheHits returns total amount of cached evalutions done throughout the SDF's lifetime.
+func (c3 *cachedExactSDF3) CacheHits() uint64 {
+	return c3.hits
+}
+
+// Evaluations returns total evaluations performed succesfully during sdf's lifetime, including cached.
+func (c3 *cachedExactSDF3) Evaluations() uint64 {
+	return c3.evals
+}
+
+// Evaluate implements the [SDF3] interface with cached evaluation.
+func (c3 *cachedExactSDF3) Evaluate(pos []ms3.Vec, dist []float32, userData any) error {
+	if c3.m == nil {
+		c3.m = make(map[[3]uint32]float32)
+	}
+	seekPos := c3.posbuf[:0]
+	idx := c3.idxbuf[:0]
+	for i, p := range pos {
+		k := [3]uint32{
+			math32.Float32bits(p.X),
+			math32.Float32bits(p.Y),
+			math32.Float32bits(p.Z),
+		}
+		d, cached := c3.m[k]
+		if cached {
+			dist[i] = d
+		} else {
+			seekPos = append(seekPos, p)
+			idx = append(idx, i)
+		}
+	}
+	if len(idx) > 0 {
+		// Renew buffers in case they were grown.
+		c3.idxbuf = idx
+		c3.posbuf = seekPos
+		c3.distbuf = slices.Grow(c3.distbuf[:0], len(seekPos))
+		seekDist := c3.distbuf[:len(seekPos)]
+		err := c3.SDF.Evaluate(seekPos, seekDist, userData)
+		if err != nil {
+			return err
+		}
+		// Add new entries to cache.
+		for i, p := range seekPos {
+			k := [3]uint32{
+				math32.Float32bits(p.X),
+				math32.Float32bits(p.Y),
+				math32.Float32bits(p.Z),
+			}
+			c3.m[k] = seekDist[i]
+		}
+		// Fill original buffer with new distances.
+		for i, d := range seekDist {
+			dist[idx[i]] = d
+		}
+	}
+	c3.evals += uint64(len(dist))
+	c3.hits += uint64(len(dist) - len(seekPos))
+	return nil
+}
+
+// Bounds returns the SDF's bounding box such that all of the shape is contained within.
+func (c3 *cachedExactSDF3) Bounds() ms3.Box {
+	return c3.SDF.Bounds()
 }
