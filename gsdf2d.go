@@ -343,24 +343,25 @@ func Revolve(s glbuild.Shader2D, axisOffset float32) (glbuild.Shader3D, error) {
 	} else if axisOffset < 0 {
 		return nil, errors.New("negative axis offset")
 	}
-	return &revolution{s: s, off: axisOffset}, nil
+	return &revolution{s2d: s, off: axisOffset}, nil
 }
 
 type revolution struct {
-	s   glbuild.Shader2D
+	s2d glbuild.Shader2D
 	off float32
 }
 
 func (r *revolution) Bounds() ms3.Box {
-	b2 := r.s.Bounds()
+	b2 := r.s2d.Bounds()
+	radius := math32.Max(0, b2.Max.X-r.off)
 	return ms3.Box{
-		Min: ms3.Vec{X: b2.Min.X, Y: b2.Min.Y, Z: -r.off},
-		Max: ms3.Vec{X: b2.Max.X, Y: b2.Max.Y, Z: r.off}, // TODO
+		Min: ms3.Vec{X: -radius, Y: b2.Min.Y, Z: -radius},
+		Max: ms3.Vec{X: radius, Y: b2.Max.Y, Z: radius}, // TODO
 	}
 }
 
 func (r *revolution) ForEach2DChild(userData any, fn func(userData any, s *glbuild.Shader2D) error) error {
-	return fn(userData, &r.s)
+	return fn(userData, &r.s2d)
 }
 func (r *revolution) ForEachChild(userData any, fn func(userData any, s *glbuild.Shader3D) error) error {
 	return nil
@@ -368,14 +369,14 @@ func (r *revolution) ForEachChild(userData any, fn func(userData any, s *glbuild
 
 func (r *revolution) AppendShaderName(b []byte) []byte {
 	b = append(b, "revolution_"...)
-	b = r.s.AppendShaderName(b)
+	b = r.s2d.AppendShaderName(b)
 	return b
 }
 
 func (r *revolution) AppendShaderBody(b []byte) []byte {
 	b = glbuild.AppendFloatDecl(b, "w", r.off)
 	b = append(b, "vec2 q = vec2( length(p.xz) - w, p.y );\n"...)
-	b = glbuild.AppendDistanceDecl(b, "d", "q", r.s)
+	b = glbuild.AppendDistanceDecl(b, "d", "q", r.s2d)
 	b = append(b, "return d;"...)
 	return b
 }

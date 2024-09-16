@@ -25,7 +25,7 @@ func init() {
 	runtime.LockOSThread() // In case we wish to use OpenGL.
 }
 
-// scene returns the showerhead object.
+// scene returns the gasket object.
 func scene() (glbuild.Shader3D, error) {
 	// Sistema Food Storage Container geometry definitions.
 	// The problem we are trying to solve is how the container is not airtight

@@ -526,7 +526,7 @@ func (e *revolution) Evaluate(pos []ms3.Vec, dist []float32, userData any) error
 	if err != nil {
 		return err
 	}
-	sdf, err := gleval.AssertSDF2(e.s)
+	sdf, err := gleval.AssertSDF2(e.s2d)
 	if err != nil {
 		return err
 	}
