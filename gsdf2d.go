@@ -231,6 +231,11 @@ func NewPolygon(vertices []ms2.Vec) (glbuild.Shader2D, error) {
 	if len(vertices) < 3 {
 		return nil, errors.New("polygon needs at least 3 vertices")
 	}
+	for i := range vertices {
+		if math32.IsNaN(vertices[i].X) || math32.IsNaN(vertices[i].Y) {
+			return nil, errors.New("NaN value in vertices")
+		}
+	}
 	return &poly2D{vert: vertices}, nil
 }
 

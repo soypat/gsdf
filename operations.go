@@ -642,8 +642,8 @@ func circularArray(s glbuild.Shader3D, angle float32, n int) (glbuild.Shader3D, 
 	} else if s == nil {
 		return nil, errors.New("nil argument to circarray")
 	}
+	// return &circarray{s: s, n: n, angle: angle}, nil
 	return nil, errors.New("TODO")
-	return &circarray{s: s, n: n, angle: angle}, nil
 }
 
 type circarray struct {

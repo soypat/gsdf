@@ -358,7 +358,7 @@ func test_stl_generation() error {
 		return err
 	}
 	renderStart := time.Now()
-	triangles, err := glrender.RenderAll(renderer)
+	triangles, err := glrender.RenderAll(renderer, nil)
 	elapsed := time.Since(renderStart)
 	if err != nil {
 		return err
