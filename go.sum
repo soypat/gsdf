@@ -8,5 +8,7 @@ github.com/go-gl/glfw/v3.3/glfw v0.0.0-20221017161538-93cebf72946b h1:GgabKamyOY
 github.com/go-gl/glfw/v3.3/glfw v0.0.0-20221017161538-93cebf72946b/go.mod h1:tQ2UAYgL5IevRw8kRxooKSPJfGvJ9fJQFa0TUsXzTg8=
 github.com/soypat/glgl v0.0.0-20240919181848-3ab2abb89c6d h1:ZGFeC6bqQoyQXdYCFitm+4y1FuS1JY6zh5zzBG0OoDQ=
 github.com/soypat/glgl v0.0.0-20240919181848-3ab2abb89c6d/go.mod h1:1LcEp6XHSMCI91WlJHzl/aW4Bp5v6yQOiYFyjrlk350=
+github.com/soypat/glgl v0.0.0-20240919182556-c8a0c61170b5 h1:1XUEnlRfPTa5DEfZRl9Mhr2UzxQ23cBwNNw0FS1xjXY=
+github.com/soypat/glgl v0.0.0-20240919182556-c8a0c61170b5/go.mod h1:1LcEp6XHSMCI91WlJHzl/aW4Bp5v6yQOiYFyjrlk350=
 golang.org/x/exp v0.0.0-20221230185412-738e83a70c30 h1:m9O6OTJ627iFnN2JIWfdqlZCzneRO6EEBsHXI25P8ws=
 golang.org/x/exp v0.0.0-20221230185412-738e83a70c30/go.mod h1:CxIveKay+FTh1D0yPZemJVgC/95VzuuOLq5Qi4xnoYc=
