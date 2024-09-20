@@ -141,6 +141,7 @@ type equilateralTri2d struct {
 	hTri float32
 }
 
+// NewEquilateralTriangle creates an equilater triangle with a given height with it's centroid located at the origin.
 func NewEquilateralTriangle(triangleHeight float32) (glbuild.Shader2D, error) {
 	if triangleHeight > 0 && !math32.IsInf(triangleHeight, 1) {
 		return &equilateralTri2d{hTri: triangleHeight}, nil
@@ -645,7 +646,7 @@ func (s *xor2D) AppendShaderBody(b []byte) []byte {
 	return b
 }
 
-// Array is the domain repetition operation. It repeats domain centered around (x,y)=(0,0)
+// Array is the domain repetition operation. It repeats domain centered around (x,y)=(0,0).
 func Array2D(s glbuild.Shader2D, spacingX, spacingY float32, nx, ny int) (glbuild.Shader2D, error) {
 	if nx <= 0 || ny <= 0 {
 		return nil, errors.New("invalid array repeat param")
