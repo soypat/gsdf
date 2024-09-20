@@ -923,3 +923,40 @@ func (s *symmetry2D) AppendShaderBody(b []byte) []byte {
 	b = append(b, "(p);"...)
 	return b
 }
+
+// Annulus makes a 2D shape annular by emptying it's center. It is the equivalent of the 3D Shell operation but in 2D.
+func Annulus(s glbuild.Shader2D, sub float32) (glbuild.Shader2D, error) {
+	if s == nil {
+		return nil, errors.New("nil argument to Annulus")
+	} else if sub <= 0 {
+		return nil, errors.New("invalid annular parameter")
+	}
+	return &annulus2D{s: s, r: sub}, nil
+}
+
+type annulus2D struct {
+	s glbuild.Shader2D
+	r float32
+}
+
+func (u *annulus2D) Bounds() ms2.Box {
+	return u.s.Bounds()
+}
+
+func (s *annulus2D) ForEach2DChild(userData any, fn func(userData any, s *glbuild.Shader2D) error) error {
+	return fn(userData, &s.s)
+}
+
+func (s *annulus2D) AppendShaderName(b []byte) []byte {
+	b = append(b, "annulus"...)
+	b = append(b, '_')
+	b = s.s.AppendShaderName(b)
+	return b
+}
+
+func (s *annulus2D) AppendShaderBody(b []byte) []byte {
+	b = glbuild.AppendFloatDecl(b, "r", s.r)
+	b = glbuild.AppendDistanceDecl(b, "d", "p", s.s)
+	b = append(b, "return abs(d)-r;"...)
+	return b
+}

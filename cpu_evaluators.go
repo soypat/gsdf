@@ -883,3 +883,19 @@ func (s *symmetry2D) Evaluate(pos []ms2.Vec, dist []float32, userData any) error
 	}
 	return nil
 }
+
+func (s *annulus2D) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {
+	sdf, err := gleval.AssertSDF2(s.s)
+	if err != nil {
+		return err
+	}
+	err = sdf.Evaluate(pos, dist, userData)
+	if err != nil {
+		return err
+	}
+	r := s.r
+	for i, d := range dist {
+		dist[i] = math32.Abs(d) - r
+	}
+	return nil
+}

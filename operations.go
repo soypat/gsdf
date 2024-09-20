@@ -387,7 +387,7 @@ func (s *offset) AppendShaderBody(b []byte) []byte {
 	return b
 }
 
-// Array is the domain repetition operation. It repeats domain centered around (x,y,z)=(0,0,0)
+// Array is the domain repetition operation. It repeats domain centered around the origin (x,y,z)=(0,0,0).
 func Array(s glbuild.Shader3D, spacingX, spacingY, spacingZ float32, nx, ny, nz int) (glbuild.Shader3D, error) {
 	if nx <= 0 || ny <= 0 || nz <= 0 {
 		return nil, errors.New("invalid array repeat param")
@@ -434,7 +434,7 @@ func (s *array) AppendShaderBody(b []byte) []byte {
 	// o is neighbor offset direction (which neighboring tile is closest in 3 directions)
 	// s is scaling factors in 3 directions.
 	// rid is the neighboring tile index, which is then corrected for limited repetition using clamp.
-	body := fmt.Sprintf(`
+	b = fmt.Appendf(b, `
 vec3 s = vec3(%f,%f,%f);
 vec3 n = vec3(%d.,%d.,%d.);
 vec3 minlim = vec3(0.,0.,0.);
@@ -453,9 +453,7 @@ for( int i=0; i<2; i++ )
 }
 return d;`, s.d.X, s.d.Y, s.d.Z,
 		s.nx-1, s.ny-1, s.nz-1,
-		largenum, sdf,
-	)
-	b = append(b, body...)
+		largenum, sdf)
 	return b
 }
 
