@@ -197,13 +197,18 @@ func RenderPNGFile(filename string, s glbuild.Shader2D, picHeight int, useGPU bo
 	return nil
 }
 
+var red = color.RGBA{R: 255, A: 255}
+
 // ColorConversionInigoQuilez creates a new color conversion using [Inigo Quilez]'s style.
-// A good value for characteristic distance is the bounding box diagonal divided by 3.
+// A good value for characteristic distance is the bounding box diagonal divided by 3. Returns red for NaN values/
 //
 // [Inigo Quilez]: https://iquilezles.org/articles/distfunctions2d/
 func ColorConversionInigoQuilez(characteristicDistance float32) func(float32) color.Color {
 	inv := 1. / characteristicDistance
 	return func(d float32) color.Color {
+		if math.IsNaN(d) {
+			return red
+		}
 		d *= inv
 		var one = ms3.Vec{X: 1, Y: 1, Z: 1}
 		var c ms3.Vec

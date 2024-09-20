@@ -28,6 +28,7 @@ type sphere struct {
 	r float32
 }
 
+// NewSphere creates a sphere centered at the origin of radius r.
 func NewSphere(r float32) (glbuild.Shader3D, error) {
 	valid := r > 0
 	if !valid {
@@ -60,6 +61,7 @@ func (s *sphere) Bounds() ms3.Box {
 	}
 }
 
+// NewBox creates a box centered at the origin with x,y,z dimensions and a rounding parameter to round edges.
 func NewBox(x, y, z, round float32) (glbuild.Shader3D, error) {
 	if round < 0 || round > x/2 || round > y/2 || round > z/2 {
 		return nil, errors.New("invalid box rounding value")
@@ -98,6 +100,8 @@ func (s *box) Bounds() ms3.Box {
 	return ms3.NewCenteredBox(ms3.Vec{}, s.dims)
 }
 
+// NewCylinder creates a cylinder centered at the origin with given radius and height.
+// The cylinder's axis points in z direction.
 func NewCylinder(r, h, rounding float32) (glbuild.Shader3D, error) {
 	okRounding := rounding >= 0 && rounding < r && rounding < h/2
 	if !okRounding {
@@ -152,6 +156,8 @@ func (c *cylinder) args() (r, h, round float32) {
 	return c.r, (c.h - 2*c.round) / 2, c.round
 }
 
+// NewHexagonalPrism creates a hexagonal prism given a face-to-face dimension and height.
+// The hexagon's length is in the z axis.
 func NewHexagonalPrism(face2Face, h float32) (glbuild.Shader3D, error) {
 	if face2Face <= 0 || h <= 0 {
 		return nil, errors.New("invalid hexagonal prism parameter")
@@ -196,6 +202,8 @@ return min(max(d.x,d.y),0.0) + length(max(d,0.0));`...)
 	return b
 }
 
+// NewTriangularPrism creates a 3D triangular prism with a given triangle cross-sectional height (2D)
+// and a extrude length. The prism's extrude axis is in the z axis direction.
 func NewTriangularPrism(triHeight, extrudeLength float32) (glbuild.Shader3D, error) {
 	if extrudeLength > 0 && !math32.IsInf(extrudeLength, 1) {
 		tri, err := NewEquilateralTriangle(triHeight)
@@ -208,16 +216,21 @@ func NewTriangularPrism(triHeight, extrudeLength float32) (glbuild.Shader3D, err
 }
 
 type torus struct {
-	rRing, rGreater float32
+	rLesser, rGreater float32
 }
 
-func NewTorus(greaterRadius, ringRadius float32) (glbuild.Shader3D, error) {
-	if greaterRadius < 2*ringRadius {
-		return nil, errors.New("too large torus ring radius")
-	} else if greaterRadius <= 0 || ringRadius <= 0 {
+// NewTorus creates a 3D torus given 2 radii to define the radius
+// across (greaterRadius) and the "solid" radius (lesserRadius).
+// If the radius were cut and stretched straight to form a cylinder the lesser
+// radius would be the radius of the cylinder.
+// The torus' axis is in the z axis.
+func NewTorus(greaterRadius, lesserRadius float32) (glbuild.Shader3D, error) {
+	if greaterRadius < 2*lesserRadius {
+		return nil, errors.New("too large torus lesser radius")
+	} else if greaterRadius <= 0 || lesserRadius <= 0 {
 		return nil, errors.New("invalid torus parameter")
 	}
-	return &torus{rRing: ringRadius, rGreater: greaterRadius}, nil
+	return &torus{rLesser: lesserRadius, rGreater: greaterRadius}, nil
 }
 
 func (s *torus) ForEachChild(userData any, fn func(userData any, s *glbuild.Shader3D) error) error {
@@ -226,14 +239,14 @@ func (s *torus) ForEachChild(userData any, fn func(userData any, s *glbuild.Shad
 
 func (s *torus) AppendShaderName(b []byte) []byte {
 	b = append(b, "torus"...)
-	b = glbuild.AppendFloat(b, 'n', 'p', s.rRing)
+	b = glbuild.AppendFloat(b, 'n', 'p', s.rLesser)
 	b = glbuild.AppendFloat(b, 'n', 'p', s.rGreater)
 	return b
 }
 
 func (s *torus) AppendShaderBody(b []byte) []byte {
 	b = glbuild.AppendFloatDecl(b, "t1", s.rGreater) // Counteract rounding effect.
-	b = glbuild.AppendFloatDecl(b, "t2", s.rRing)
+	b = glbuild.AppendFloatDecl(b, "t2", s.rLesser)
 	b = append(b, `p = p.xzy;
 vec2 t = vec2(t1, t2);
 vec2 q = vec2(length(p.xz)-t.x,p.y);
@@ -242,13 +255,14 @@ return length(q)-t.y;`...)
 }
 
 func (s *torus) Bounds() ms3.Box {
-	R := s.rRing + s.rGreater
+	R := s.rLesser + s.rGreater
 	return ms3.Box{
-		Min: ms3.Vec{X: -R, Y: -R, Z: -s.rRing},
-		Max: ms3.Vec{X: R, Y: R, Z: s.rRing},
+		Min: ms3.Vec{X: -R, Y: -R, Z: -s.rLesser},
+		Max: ms3.Vec{X: R, Y: R, Z: s.rLesser},
 	}
 }
 
+// NewBoxFrame creates a framed box with the frame being composed of square beams of thickness e.
 func NewBoxFrame(dimX, dimY, dimZ, e float32) (glbuild.Shader3D, error) {
 	e /= 2
 	if dimX <= 0 || dimY <= 0 || dimZ <= 0 || e <= 0 {

@@ -310,7 +310,7 @@ func Rotate(s glbuild.Shader3D, radians float32, axis ms3.Vec) (glbuild.Shader3D
 	return Transform(s, T)
 }
 
-// Translate moves the SDF s in the given direction.
+// Translate moves the SDF s in the given direction (dirX, dirY, dirZ) and returns the result.
 func Translate(s glbuild.Shader3D, dirX, dirY, dirZ float32) glbuild.Shader3D {
 	return &translate{s: s, p: ms3.Vec{X: dirX, Y: dirY, Z: dirZ}}
 }

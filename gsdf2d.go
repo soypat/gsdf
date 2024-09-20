@@ -12,10 +12,103 @@ import (
 	"github.com/soypat/gsdf/glbuild"
 )
 
+// NewLine2D creates a straight line between (x0,y0) and (x1,y1) with a given thickness.
+func NewLine2D(x0, y0, x1, y1, thick float32) (glbuild.Shader2D, error) {
+	hasNaN := math32.IsNaN(x0) || math32.IsNaN(y0) || math32.IsNaN(x1) || math32.IsNaN(y1) || math32.IsNaN(thick)
+	if hasNaN {
+		return nil, errors.New("NaN argument to NewLine2D")
+	} else if thick < 0 {
+		return nil, errors.New("negative thickness to NewLine2D")
+	}
+	return &line2D{a: ms2.Vec{X: x0, Y: y0}, b: ms2.Vec{X: x1, Y: y1}, thick: thick}, nil
+}
+
+type line2D struct {
+	thick float32
+	a, b  ms2.Vec
+}
+
+func (l *line2D) Bounds() ms2.Box {
+	b := ms2.Box{Min: l.a, Max: l.b}.Canon()
+	b.Max = ms2.AddScalar(l.thick, b.Max)
+	b.Min = ms2.AddScalar(-l.thick, b.Min)
+	return b
+}
+
+func (l *line2D) AppendShaderName(b []byte) []byte {
+	b = append(b, "line"...)
+	b = glbuild.AppendFloats(b, 0, 'n', 'p', l.a.X, l.a.Y, l.b.X, l.b.Y, l.thick)
+	return b
+}
+
+func (l *line2D) AppendShaderBody(b []byte) []byte {
+	b = glbuild.AppendVec2Decl(b, "a", l.a)
+	b = glbuild.AppendVec2Decl(b, "ba", ms2.Sub(l.b, l.a))
+	b = glbuild.AppendFloatDecl(b, "t", l.thick/2)
+	b = append(b, `vec2 pa=p-a;
+float h=clamp( dot(pa,ba)/dot(ba,ba), 0.0, 1.0); 
+return length(pa-ba*h)-t;`...)
+	return b
+}
+
+func (l *line2D) ForEach2DChild(userData any, fn func(userData any, s *glbuild.Shader2D) error) error {
+	return nil
+}
+
+// NewArc returns a 2D arc centered at the origin (x,y)=(0,0) for a given radius and arc angle and thickness of the arc.
+// The arc begins opening at (x,y)=(0,r) in both positive and negative x direction.
+func NewArc(radius, arcAngle, thick float32) (glbuild.Shader2D, error) {
+	ok := radius > 0 && arcAngle > 0 && thick >= 0
+	if !ok {
+		return nil, errors.New("invalid argument to NewArc2D")
+	} else if arcAngle > 2*math.Pi {
+		return nil, errors.New("arc angle exceeds full circle")
+	} else if 2*math.Pi-arcAngle < 0.5e-6 {
+		arcAngle = 2*math.Pi - 1e-7 // Condition the arc to be closed.
+	}
+	return &arc2D{radius: radius, angle: arcAngle, thick: thick}, nil
+}
+
+type arc2D struct {
+	radius float32
+	angle  float32
+	thick  float32
+}
+
+func (a *arc2D) Bounds() ms2.Box {
+	r := a.radius + a.thick
+	rcos := a.radius*math32.Cos(a.angle/2) - a.thick
+	return ms2.Box{
+		Min: ms2.Vec{X: -r, Y: rcos},
+		Max: ms2.Vec{X: r, Y: r},
+	}
+}
+
+func (a *arc2D) AppendShaderName(b []byte) []byte {
+	b = append(b, "arc"...)
+	b = glbuild.AppendFloats(b, 0, 'n', 'p', a.radius, a.angle, a.thick)
+	return b
+}
+
+func (a *arc2D) AppendShaderBody(b []byte) []byte {
+	s, c := math32.Sincos(a.angle / 2)
+	b = glbuild.AppendFloatDecl(b, "r", a.radius)
+	b = glbuild.AppendFloatDecl(b, "t", a.thick/2)
+	b = glbuild.AppendVec2Decl(b, "sc", ms2.Vec{X: s, Y: c})
+	b = append(b, `p.x=abs(p.x);
+return ((sc.y*p.x>sc.x*p.y) ? length(p-sc*r) : abs(length(p)-r))-t;`...)
+	return b
+}
+
+func (a *arc2D) ForEach2DChild(userData any, fn func(userData any, s *glbuild.Shader2D) error) error {
+	return nil
+}
+
 type circle2D struct {
 	r float32
 }
 
+// NewCircle creates a circle of a radius centered at the origin (x,y)=(0,0).
 func NewCircle(radius float32) (glbuild.Shader2D, error) {
 	if radius > 0 && !math32.IsInf(radius, 1) {
 		return &circle2D{r: radius}, nil
@@ -91,6 +184,7 @@ type rect2D struct {
 	d ms2.Vec
 }
 
+// NewRectangle creates a rectangle centered at (x,y)=(0,0) with given x and y dimensions.
 func NewRectangle(x, y float32) (glbuild.Shader2D, error) {
 	if x > 0 && y > 0 && !math32.IsInf(x, 1) && !math32.IsInf(y, 1) {
 		return &rect2D{d: ms2.Vec{X: x, Y: y}}, nil
@@ -125,6 +219,7 @@ type hex2D struct {
 	side float32
 }
 
+// NewHexagon creates a regular hexagon centered at (x,y)=(0,0) with sides of length `side`.
 func NewHexagon(side float32) (glbuild.Shader2D, error) {
 	if side > 0 && !math32.IsInf(side, 1) {
 		return &hex2D{side: side}, nil
@@ -161,6 +256,7 @@ type ellipse2D struct {
 	a, b float32
 }
 
+// NewEllipse creates a 2D ellipse SDF with a and b ellipse parameters.
 func NewEllipse(a, b float32) (glbuild.Shader2D, error) {
 	if a > 0 && b > 0 && !math32.IsInf(a, 1) && !math32.IsInf(b, 1) {
 		return &ellipse2D{a: a, b: b}, nil
@@ -227,6 +323,7 @@ type poly2D struct {
 	vert []ms2.Vec
 }
 
+// NewPolygon creates a polygon from a set of vertices. The polygon can be self-intersecting.
 func NewPolygon(vertices []ms2.Vec) (glbuild.Shader2D, error) {
 	if len(vertices) < 3 {
 		return nil, errors.New("polygon needs at least 3 vertices")
@@ -705,7 +802,7 @@ func (s *translate2D) AppendShaderBody(b []byte) []byte {
 	return b
 }
 
-// Symmetry reflects the SDF around one or more cartesian planes.
+// Symmetry reflects the SDF around x or y (or both) axis.
 func Symmetry2D(s glbuild.Shader2D, mirrorX, mirrorY bool) glbuild.Shader2D {
 	if !mirrorX && !mirrorY {
 		panic("ineffective symmetry")

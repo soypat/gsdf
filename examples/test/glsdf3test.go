@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math"
 	"math/rand"
 	"os"
 	"reflect"
@@ -77,6 +78,8 @@ var npt threads.NPT
 var _ = npt.SetFromNominal(1.0 / 2.0)
 
 var PremadePrimitives2D = []glbuild.Shader2D{
+	mustShader2D(gsdf.NewLine2D(-2.3, 1, 13, 12, .1)),
+	mustShader2D(gsdf.NewArc(2.3, math.Pi/3, 0.1)),
 	mustShader2D(gsdf.NewCircle(1)),
 	mustShader2D(gsdf.NewHexagon(1)),
 	mustShader2D(gsdf.NewPolygon([]ms2.Vec{

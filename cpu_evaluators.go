@@ -49,7 +49,7 @@ func (bf *boxframe) Evaluate(pos []ms3.Vec, dist []float32, userData any) error 
 
 func (t *torus) Evaluate(pos []ms3.Vec, dist []float32, userData any) error {
 	t1 := t.rGreater
-	t2 := t.rRing
+	t2 := t.rLesser
 	for i, p := range pos {
 		p = ms3.Vec{X: p.X, Y: p.Z, Z: p.Y}
 		q := ms2.Vec{X: hypotf(p.X, p.Z) - t1, Y: p.Y}
@@ -536,6 +536,36 @@ func (e *revolution) Evaluate(pos []ms3.Vec, dist []float32, userData any) error
 		pos2[i] = ms2.Vec{X: math32.Hypot(p.X, p.Z) - o, Y: p.Y}
 	}
 	return sdf.Evaluate(pos2, dist, userData)
+}
+
+func (l *line2D) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {
+	a := l.a
+	ba := ms2.Sub(l.b, l.a)
+	dotba := ms2.Dot(ba, ba)
+	t := l.thick / 2
+	for i, p := range pos {
+		pa := ms2.Sub(p, a)
+		h := ms1.Clamp(ms2.Dot(pa, ba)/dotba, 0, 1)
+		dist[i] = ms2.Norm(ms2.Sub(pa, ms2.Scale(h, ba))) - t
+	}
+	return nil
+}
+
+func (a *arc2D) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {
+	r := a.radius
+	t := a.thick / 2
+	s, c := math32.Sincos(a.angle / 2)
+	sc := ms2.Vec{X: s, Y: c}
+	scr := ms2.Scale(r, sc)
+	for i, p := range pos {
+		p.X = math32.Abs(p.X)
+		if sc.Y*p.X > sc.X*p.Y {
+			dist[i] = ms2.Norm(ms2.Sub(p, scr)) - t
+		} else {
+			dist[i] = math32.Abs(ms2.Norm(p)-r) - t
+		}
+	}
+	return nil
 }
 
 func (c *circle2D) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {
