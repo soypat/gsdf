@@ -14,6 +14,9 @@ const (
 	sqrt2d2   = math32.Sqrt2 / 2
 	sqrt3     = 1.7320508075688772935274463415058723669428052538103806280558069794
 	largenum  = 1e20
+	// epstol is used to check for badly conditioned denominators
+	// such as lengths used for normalization or transformation matrix determinants.
+	epstol = 6e-7
 )
 
 // These interfaces are implemented by all SDF interfaces such as SDF3/2 and Shader3D/2D.

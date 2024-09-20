@@ -258,7 +258,7 @@ func (s *symmetry) AppendShaderBody(b []byte) []byte {
 // inverting the argument matrix.
 func Transform(s glbuild.Shader3D, m ms3.Mat4) (glbuild.Shader3D, error) {
 	det := m.Determinant()
-	if math32.Abs(det) < 1e-8 {
+	if math32.Abs(det) < epstol {
 		return nil, errors.New("singular Mat4")
 	}
 	return &transform{s: s, t: m, tInv: m.Inverse()}, nil

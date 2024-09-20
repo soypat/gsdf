@@ -20,7 +20,15 @@ func NewLine2D(x0, y0, x1, y1, thick float32) (glbuild.Shader2D, error) {
 	} else if thick < 0 {
 		return nil, errors.New("negative thickness to NewLine2D")
 	}
-	return &line2D{a: ms2.Vec{X: x0, Y: y0}, b: ms2.Vec{X: x1, Y: y1}, thick: thick}, nil
+	a, b := ms2.Vec{X: x0, Y: y0}, ms2.Vec{X: x1, Y: y1}
+	lineLen := ms2.Norm(ms2.Sub(a, b))
+	if lineLen < thick*1e-6 || lineLen < epstol {
+		if thick == 0 {
+			return nil, errors.New("infimal line")
+		}
+		return NewCircle(thick / 2)
+	}
+	return &line2D{a: a, b: b, thick: thick}, nil
 }
 
 type line2D struct {
@@ -63,7 +71,7 @@ func NewArc(radius, arcAngle, thick float32) (glbuild.Shader2D, error) {
 		return nil, errors.New("invalid argument to NewArc2D")
 	} else if arcAngle > 2*math.Pi {
 		return nil, errors.New("arc angle exceeds full circle")
-	} else if 2*math.Pi-arcAngle < 0.5e-6 {
+	} else if 2*math.Pi-arcAngle < epstol {
 		arcAngle = 2*math.Pi - 1e-7 // Condition the arc to be closed.
 	}
 	return &arc2D{radius: radius, angle: arcAngle, thick: thick}, nil
@@ -113,7 +121,7 @@ func NewCircle(radius float32) (glbuild.Shader2D, error) {
 	if radius > 0 && !math32.IsInf(radius, 1) {
 		return &circle2D{r: radius}, nil
 	}
-	return nil, errors.New("bad circle radius")
+	return nil, errors.New("bad circle radius: " + strconv.FormatFloat(float64(radius), 'g', 6, 32))
 }
 
 func (c *circle2D) Bounds() ms2.Box {
@@ -326,13 +334,22 @@ type poly2D struct {
 
 // NewPolygon creates a polygon from a set of vertices. The polygon can be self-intersecting.
 func NewPolygon(vertices []ms2.Vec) (glbuild.Shader2D, error) {
+	prevIdx := len(vertices) - 1
+	if vertices[0] == vertices[prevIdx] {
+		vertices = vertices[:prevIdx] // Discard last vertex if equal to first (this algorithm closes automatically).
+		prevIdx--
+	}
 	if len(vertices) < 3 {
-		return nil, errors.New("polygon needs at least 3 vertices")
+		return nil, errors.New("polygon needs at least 3 distinct vertices")
 	}
 	for i := range vertices {
 		if math32.IsNaN(vertices[i].X) || math32.IsNaN(vertices[i].Y) {
 			return nil, errors.New("NaN value in vertices")
 		}
+		if vertices[i] == vertices[prevIdx] {
+			return nil, errors.New("found two consecutive equal vertices in polygon")
+		}
+		prevIdx = i
 	}
 	return &poly2D{vert: vertices}, nil
 }
@@ -800,6 +817,62 @@ func (s *translate2D) AppendShaderBody(b []byte) []byte {
 	b = append(b, "return "...)
 	b = s.s.AppendShaderName(b)
 	b = append(b, "(p-t);"...)
+	return b
+}
+
+// Rotate2D returns the argument shape rotated around the origin by theta (radians).
+func Rotate2D(s glbuild.Shader2D, theta float32) (glbuild.Shader2D, error) {
+	m := ms2.RotationMat2(theta)
+	det := m.Determinant()
+	if math32.Abs(det) < epstol {
+		return nil, errors.New("badly conditioned rotation")
+	}
+	return &rotation2D{
+		s:    s,
+		t:    m,
+		tInv: m.Inverse(),
+	}, nil
+}
+
+type rotation2D struct {
+	s    glbuild.Shader2D
+	t    ms2.Mat2
+	tInv ms2.Mat2
+}
+
+func (u *rotation2D) Bounds() ms2.Box {
+	bb := u.s.Bounds()
+	verts := bb.Vertices()
+	v1 := ms2.MulMatVec(u.t, verts[0])
+	bb.Max = v1
+	bb.Min = v1
+	for _, v := range verts[1:] {
+		v = ms2.MulMatVec(u.t, v)
+		bb.Max = ms2.MaxElem(bb.Max, v)
+		bb.Min = ms2.MinElem(bb.Min, v)
+	}
+	return bb
+}
+
+func (s *rotation2D) ForEach2DChild(userData any, fn func(userData any, s *glbuild.Shader2D) error) error {
+	return fn(userData, &s.s)
+}
+
+func (s *rotation2D) AppendShaderName(b []byte) []byte {
+	b = append(b, "rotation2D"...)
+	// Hash floats so that name is not too long.
+	values := s.t.Array()
+	b = glbuild.AppendFloat(b, 'p', 'n', hashf(values[:]))
+	b = append(b, '_')
+	b = s.s.AppendShaderName(b)
+	return b
+}
+
+func (r *rotation2D) AppendShaderBody(b []byte) []byte {
+	b = glbuild.AppendMat2Decl(b, "invT", r.tInv)
+	b = append(b, "return "...)
+	b = r.s.AppendShaderName(b)
+	b = append(b, "(invT * p);"...)
 	return b
 }
 

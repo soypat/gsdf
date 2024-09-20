@@ -473,16 +473,33 @@ func AppendFloatDecl(b []byte, name string, v float32) []byte {
 	return b
 }
 
+func AppendMat2Decl(b []byte, name string, m22 ms2.Mat2) []byte {
+	arr := m22.Array()
+	return appendMatDecl(b, "mat2", name, 2, 2, arr[:])
+}
+
+func AppendMat3Decl(b []byte, name string, m33 ms3.Mat3) []byte {
+	arr := m33.Array()
+	return appendMatDecl(b, "mat3", name, 3, 3, arr[:])
+}
+
 func AppendMat4Decl(b []byte, name string, m44 ms3.Mat4) []byte {
 	arr := m44.Array()
-	b = append(b, "mat4 "...)
+	return appendMatDecl(b, "mat4", name, 4, 4, arr[:])
+}
+
+func appendMatDecl(b []byte, typename, name string, row, col int, arr []float32) []byte {
+	b = append(b, typename...)
+	b = append(b, ' ')
 	b = append(b, name...)
-	b = append(b, "=mat4("...)
-	for i := 0; i < 4; i++ {
-		for j := 0; j < 4; j++ {
-			v := arr[j*4+i] // Column major access, as per OpenGL standard.
+	b = append(b, '=')
+	b = append(b, typename...)
+	b = append(b, '(')
+	for i := 0; i < row; i++ {
+		for j := 0; j < col; j++ {
+			v := arr[j*row+i] // Column major access, as per OpenGL standard.
 			b = AppendFloat(b, '-', '.', v)
-			last := i == 3 && j == 3
+			last := i == row-1 && j == col-1
 			if !last {
 				b = append(b, ',')
 			}
