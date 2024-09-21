@@ -12,6 +12,89 @@ import (
 	"github.com/soypat/gsdf/glbuild"
 )
 
+// OpUnion2D is the result of [Union2D]. This type is exported for special reasons, see [OpUnion] documentation.
+type OpUnion2D struct {
+	joined []glbuild.Shader2D
+}
+
+// Union joins the shapes of several 2D SDFs into one. Is exact.
+// Union aggregates nested Union results into its own.
+func Union2D(shaders ...glbuild.Shader2D) glbuild.Shader2D {
+	if len(shaders) < 2 {
+		panic("need at least 2 arguments to Union2D")
+	}
+	var U OpUnion2D
+	for i, s := range shaders {
+		if s == nil {
+			panic(fmt.Sprintf("nil %d argument to Union2D", i))
+		}
+		if subU, ok := s.(*OpUnion2D); ok {
+			// Discard nested union elements and join their elements.
+			// Results in much smaller and readable GLSL code.
+			U.joined = append(U.joined, subU.joined...)
+		} else {
+			U.joined = append(U.joined, s)
+		}
+	}
+	return &U
+}
+
+// Bounds returns the union of all joined SDFs. Implements [glbuild.Shader2D] and [gleval.SDF2].
+func (u *OpUnion2D) Bounds() ms2.Box {
+	u.mustValidate()
+	bb := u.joined[0].Bounds()
+	for _, bb2 := range u.joined[1:] {
+		bb = bb.Union(bb2.Bounds())
+	}
+	return bb
+}
+
+// ForEachChild implements [glbuild.Shader2D].
+func (u *OpUnion2D) ForEach2DChild(userData any, fn func(userData any, s *glbuild.Shader2D) error) error {
+	u.mustValidate()
+	for i := range u.joined {
+		err := fn(userData, &u.joined[i])
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// AppendShaderName implements [glbuild.Shader].
+func (u *OpUnion2D) AppendShaderName(b []byte) []byte {
+	u.mustValidate()
+	b = append(b, "union_"...)
+	// startNames := len(b)
+	for i := range u.joined {
+		b = u.joined[i].AppendShaderName(b)
+		if i < len(u.joined)-1 {
+			b = append(b, '_')
+		}
+	}
+
+	return b
+}
+
+// AppendShaderBody implements [glbuild.Shader].
+func (u *OpUnion2D) AppendShaderBody(b []byte) []byte {
+	u.mustValidate()
+	b = glbuild.AppendDistanceDecl(b, "d", "p", u.joined[0])
+	for i := range u.joined[1:] {
+		b = append(b, "d=min(d,"...)
+		b = u.joined[i+1].AppendShaderName(b)
+		b = append(b, "(p));\n"...)
+	}
+	b = append(b, "return d;"...)
+	return b
+}
+
+func (u *OpUnion2D) mustValidate() {
+	if len(u.joined) < 2 {
+		panic("OpUnion2D must have at least 2 elements. Please prefer using gsdf.Union2D over gsdf.OpUnion2D")
+	}
+}
+
 // NewLine2D creates a straight line between (x0,y0) and (x1,y1) with a given thickness.
 func NewLine2D(x0, y0, x1, y1, thick float32) (glbuild.Shader2D, error) {
 	hasNaN := math32.IsNaN(x0) || math32.IsNaN(y0) || math32.IsNaN(x1) || math32.IsNaN(y1) || math32.IsNaN(thick)
@@ -498,47 +581,6 @@ func (r *revolution) AppendShaderBody(b []byte) []byte {
 	b = append(b, "vec2 q = vec2( length(p.xz) - w, p.y );\n"...)
 	b = glbuild.AppendDistanceDecl(b, "d", "q", r.s2d)
 	b = append(b, "return d;"...)
-	return b
-}
-
-// Union2D joins the shapes of two SDFs into one. Is exact.
-func Union2D(s1, s2 glbuild.Shader2D) glbuild.Shader2D {
-	if s1 == nil || s2 == nil {
-		panic("nil argument to Union2D")
-	}
-	return &union2D{s1: s1, s2: s2}
-}
-
-type union2D struct {
-	s1, s2 glbuild.Shader2D
-}
-
-func (u *union2D) Bounds() ms2.Box {
-	return u.s1.Bounds().Union(u.s2.Bounds())
-}
-
-func (s *union2D) ForEach2DChild(userData any, fn func(userData any, s *glbuild.Shader2D) error) error {
-	err := fn(userData, &s.s1)
-	if err != nil {
-		return err
-	}
-	return fn(userData, &s.s2)
-}
-
-func (s *union2D) AppendShaderName(b []byte) []byte {
-	b = append(b, "union2D_"...)
-	b = s.s1.AppendShaderName(b)
-	b = append(b, '_')
-	b = s.s2.AppendShaderName(b)
-	return b
-}
-
-func (s *union2D) AppendShaderBody(b []byte) []byte {
-	b = append(b, "return min("...)
-	b = s.s1.AppendShaderName(b)
-	b = append(b, "(p),"...)
-	b = s.s2.AppendShaderName(b)
-	b = append(b, "(p));"...)
 	return b
 }
 

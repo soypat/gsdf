@@ -51,7 +51,7 @@ func Union(shaders ...glbuild.Shader3D) glbuild.Shader3D {
 	return &U
 }
 
-// Bounds returns the union of all joined SDFs. Implements [glbuild.Shader3D].
+// Bounds returns the union of all joined SDFs. Implements [glbuild.Shader3D] and [gleval.SDF3].
 func (u *OpUnion) Bounds() ms3.Box {
 	u.mustValidate()
 	bb := u.joined[0].Bounds()
@@ -84,7 +84,6 @@ func (u *OpUnion) AppendShaderName(b []byte) []byte {
 			b = append(b, '_')
 		}
 	}
-
 	return b
 }
 

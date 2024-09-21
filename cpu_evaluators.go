@@ -111,7 +111,7 @@ func evaluateSDF2(obj bounder2, pos []ms2.Vec, dist []float32, userData any) err
 	return sdf.Evaluate(pos, dist, userData)
 }
 
-// Evaluate implements [gleval.SDF].
+// Evaluate implements [gleval.SDF3].
 func (u *OpUnion) Evaluate(pos []ms3.Vec, dist []float32, userData any) error {
 	u.mustValidate()
 	vp, err := gleval.GetVecPool(userData)
@@ -695,24 +695,29 @@ func (p *poly2D) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {
 	return nil
 }
 
-func (u *union2D) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {
+// Evaluate implements [gleval.SDF2].
+func (u *OpUnion2D) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {
+	// Same algorithm as UnionOp.Evaluate. see that method for commentary.
+	u.mustValidate()
 	vp, err := gleval.GetVecPool(userData)
 	if err != nil {
 		return err
 	}
-	d1 := dist
-	d2 := vp.Float.Acquire(len(dist))
-	defer vp.Float.Release(d2)
-	err = evaluateSDF2(u.s1, pos, d1, userData)
-	if err != nil {
-		return err
+	auxDist := vp.Float.Acquire(len(dist))
+	defer vp.Float.Release(auxDist)
+	distCalc, distAccum := dist, auxDist
+	if len(u.joined)%2 != 0 {
+		distCalc, distAccum = distAccum, distCalc
 	}
-	err = evaluateSDF2(u.s2, pos, d2, userData)
-	if err != nil {
-		return err
-	}
-	for i := range dist {
-		dist[i] = minf(d1[i], d2[i])
+	for i := range u.joined {
+		err = evaluateSDF2(u.joined[i], pos, distCalc, userData)
+		if err != nil {
+			return err
+		}
+		for i, d := range distAccum {
+			distAccum[i] = math32.Min(d, distCalc[i])
+		}
+		distCalc, distAccum = distAccum, distCalc
 	}
 	return nil
 }

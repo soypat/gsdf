@@ -96,7 +96,7 @@ var BinaryOps = []func(a, b glbuild.Shader3D) glbuild.Shader3D{
 }
 
 var BinaryOps2D = []func(a, b glbuild.Shader2D) glbuild.Shader2D{
-	gsdf.Union2D,
+	union2DBinary,
 	gsdf.Difference2D,
 	gsdf.Intersection2D,
 	gsdf.Xor2D,
@@ -823,4 +823,7 @@ func getBaseTypename(a any) string {
 
 func unionBinary(s1, s2 glbuild.Shader3D) glbuild.Shader3D {
 	return gsdf.Union(s1, s2)
+}
+func union2DBinary(s1, s2 glbuild.Shader2D) glbuild.Shader2D {
+	return gsdf.Union2D(s1, s2)
 }
