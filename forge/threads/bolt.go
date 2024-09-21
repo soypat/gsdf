@@ -68,7 +68,7 @@ func Bolt(k BoltParams) (s glbuild.Shader3D, err error) {
 	// if err != nil {
 	// 	return nil, err
 	// }
-	return gsdf.Union(screw, gsdf.SmoothUnion(shank, head, hh*0.12)), nil
+	return gsdf.Union(screw, gsdf.SmoothUnion(hh*0.12, shank, head)), nil
 }
 
 // chamferedCylinder intersects a chamfered cylinder with an SDF3.

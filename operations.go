@@ -10,45 +10,101 @@ import (
 	"github.com/soypat/gsdf/glbuild"
 )
 
-// Union joins the shapes of two SDFs into one. Is exact.
-func Union(s1, s2 glbuild.Shader3D) glbuild.Shader3D {
-	if s1 == nil || s2 == nil {
-		panic("nil object")
+// OpUnion is the result of the [Union] operation. Prefer using [Union] to using this type directly.
+//
+// Normally primitives and results of operations in this package are
+// not exported since their concrete type provides relatively little value.
+// The result of Union is the exception to the rule since it is the
+// most common operation to perform on SDFs and can provide
+// several benefits to users seeking to optimize their SDFs
+// creatively such as creating sectioned SDFs where conditional evaluation
+// may be performed depending on the bounding boxes of the SDFs being evaluated.
+//
+// By exporting OpUnion users can traverse a [glbuild.Shader3D] tree looking for
+// OpUnion elements and checking how heavy their computation cost is and
+// evaluating if sectioning their bounding box is effective.
+type OpUnion struct {
+	// joined contains 2 or more 3D SDFs.
+	// OpUnion methods will panic if joined less than 2 elements.
+	joined []glbuild.Shader3D
+}
+
+// Union joins the shapes of several 3D SDFs into one. Is exact.
+// Union aggregates nested Union results into its own. To prevent this behaviour use [OpUnion] directly.
+func Union(shaders ...glbuild.Shader3D) glbuild.Shader3D {
+	if len(shaders) < 2 {
+		panic("need at least 2 arguments to Union")
 	}
-	return &union{s1: s1, s2: s2}
-}
-
-type union struct {
-	s1, s2 glbuild.Shader3D
-}
-
-func (u *union) Bounds() ms3.Box {
-	return u.s1.Bounds().Union(u.s2.Bounds())
-}
-
-func (s *union) ForEachChild(userData any, fn func(userData any, s *glbuild.Shader3D) error) error {
-	err := fn(userData, &s.s1)
-	if err != nil {
-		return err
+	var U OpUnion
+	for i, s := range shaders {
+		if s == nil {
+			panic(fmt.Sprintf("nil %d argument to Union", i))
+		}
+		if subU, ok := s.(*OpUnion); ok {
+			// Discard nested union elements and join their elements.
+			// Results in much smaller and readable GLSL code.
+			U.joined = append(U.joined, subU.joined...)
+		} else {
+			U.joined = append(U.joined, s)
+		}
 	}
-	return fn(userData, &s.s2)
+	return &U
 }
 
-func (s *union) AppendShaderName(b []byte) []byte {
+// Bounds returns the union of all joined SDFs. Implements [glbuild.Shader3D].
+func (u *OpUnion) Bounds() ms3.Box {
+	u.mustValidate()
+	bb := u.joined[0].Bounds()
+	for _, bb2 := range u.joined[1:] {
+		bb = bb.Union(bb2.Bounds())
+	}
+	return bb
+}
+
+// ForEachChild implements [glbuild.Shader3D].
+func (u *OpUnion) ForEachChild(userData any, fn func(userData any, s *glbuild.Shader3D) error) error {
+	u.mustValidate()
+	for i := range u.joined {
+		err := fn(userData, &u.joined[i])
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// AppendShaderName implements [glbuild.Shader].
+func (u *OpUnion) AppendShaderName(b []byte) []byte {
+	u.mustValidate()
 	b = append(b, "union_"...)
-	b = s.s1.AppendShaderName(b)
-	b = append(b, '_')
-	b = s.s2.AppendShaderName(b)
+	// startNames := len(b)
+	for i := range u.joined {
+		b = u.joined[i].AppendShaderName(b)
+		if i < len(u.joined)-1 {
+			b = append(b, '_')
+		}
+	}
+
 	return b
 }
 
-func (s *union) AppendShaderBody(b []byte) []byte {
-	b = append(b, "return min("...)
-	b = s.s1.AppendShaderName(b)
-	b = append(b, "(p),"...)
-	b = s.s2.AppendShaderName(b)
-	b = append(b, "(p));"...)
+// AppendShaderBody implements [glbuild.Shader].
+func (u *OpUnion) AppendShaderBody(b []byte) []byte {
+	u.mustValidate()
+	b = glbuild.AppendDistanceDecl(b, "d", "p", u.joined[0])
+	for i := range u.joined[1:] {
+		b = append(b, "d=min(d,"...)
+		b = u.joined[i+1].AppendShaderName(b)
+		b = append(b, "(p));\n"...)
+	}
+	b = append(b, "return d;"...)
 	return b
+}
+
+func (u *OpUnion) mustValidate() {
+	if len(u.joined) < 2 {
+		panic("OpUnion must have at least 2 elements. please prefer using gsdf.Union over gsdf.OpUnion")
+	}
 }
 
 // Difference is the SDF difference of a-b. Does not produce a true SDF.
@@ -458,16 +514,28 @@ return d;`, s.d.X, s.d.Y, s.d.Z,
 }
 
 // SmoothUnion joins the shapes of two shaders into one with a smoothing blend.
-func SmoothUnion(s1, s2 glbuild.Shader3D, k float32) glbuild.Shader3D {
+func SmoothUnion(k float32, s1, s2 glbuild.Shader3D) glbuild.Shader3D {
 	if s1 == nil || s2 == nil {
 		panic("nil object")
 	}
-	return &smoothUnion{union: union{s1: s1, s2: s2}, k: k}
+	return &smoothUnion{s1: s1, s2: s2, k: k}
 }
 
 type smoothUnion struct {
-	union
-	k float32
+	s1, s2 glbuild.Shader3D
+	k      float32
+}
+
+func (s *smoothUnion) Bounds() ms3.Box {
+	return s.s1.Bounds().Union(s.s2.Bounds())
+}
+
+func (s *smoothUnion) ForEachChild(userData any, fn func(any, *glbuild.Shader3D) error) error {
+	err := fn(userData, &s.s1)
+	if err != nil {
+		return err
+	}
+	return fn(userData, &s.s2)
 }
 
 func (s *smoothUnion) AppendShaderName(b []byte) []byte {
@@ -490,7 +558,7 @@ return mix( d2, d1, h ) - k*h*(1.0-h);`...)
 }
 
 // SmoothDifference performs the difference of two SDFs with a smoothing parameter.
-func SmoothDifference(s1, s2 glbuild.Shader3D, k float32) glbuild.Shader3D {
+func SmoothDifference(k float32, s1, s2 glbuild.Shader3D) glbuild.Shader3D {
 	if s1 == nil || s2 == nil {
 		panic("nil object")
 	}
@@ -522,7 +590,7 @@ return mix( d1, -d2, h ) + k*h*(1.0-h);`...)
 }
 
 // SmoothIntersect performs the intesection of two SDFs with a smoothing parameter.
-func SmoothIntersect(s1, s2 glbuild.Shader3D, k float32) glbuild.Shader3D {
+func SmoothIntersect(k float32, s1, s2 glbuild.Shader3D) glbuild.Shader3D {
 	if s1 == nil || s2 == nil {
 		panic("nil object")
 	}

@@ -89,7 +89,7 @@ var PremadePrimitives2D = []glbuild.Shader2D{
 	// mustShader2D(gsdf.NewEllipse(1, 2)), // Ellipse seems to be very sensitive to position.
 }
 var BinaryOps = []func(a, b glbuild.Shader3D) glbuild.Shader3D{
-	gsdf.Union,
+	unionBinary,
 	gsdf.Difference,
 	gsdf.Intersection,
 	gsdf.Xor,
@@ -102,7 +102,7 @@ var BinaryOps2D = []func(a, b glbuild.Shader2D) glbuild.Shader2D{
 	gsdf.Xor2D,
 }
 
-var SmoothBinaryOps = []func(a, b glbuild.Shader3D, k float32) glbuild.Shader3D{
+var SmoothBinaryOps = []func(k float32, a, b glbuild.Shader3D) glbuild.Shader3D{
 	gsdf.SmoothUnion,
 	gsdf.SmoothDifference,
 	gsdf.SmoothIntersect,
@@ -239,7 +239,7 @@ func test_sdf_gpu_cpu() error {
 		log.Printf("begin evaluating %s\n", getFnName(op))
 		p1 := PremadePrimitives[3]
 		p2 := PremadePrimitives[1]
-		obj := op(p1, p2, .1)
+		obj := op(.1, p1, p2)
 		bounds := obj.Bounds()
 		pos := appendMeshgrid(scratchPos[:0], bounds, nx, ny, nz)
 		distCPU := scratchDistCPU[:len(pos)]
@@ -819,4 +819,8 @@ func getBaseTypename(a any) string {
 	s := fmt.Sprintf("%T", a)
 	pointIdx := strings.LastIndexByte(s, '.')
 	return s[pointIdx+1:]
+}
+
+func unionBinary(s1, s2 glbuild.Shader3D) glbuild.Shader3D {
+	return gsdf.Union(s1, s2)
 }

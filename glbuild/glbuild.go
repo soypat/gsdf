@@ -433,20 +433,20 @@ func forEachNode(root Shader, fn3 func(any, *Shader3D) error, fn2 func(any, *Sha
 	return nil
 }
 
-func AppendDistanceDecl(b []byte, name, input string, s Shader) []byte {
+func AppendDistanceDecl(b []byte, floatVarname, sdfPositionArgInput string, s Shader) []byte {
 	b = append(b, "float "...)
-	b = append(b, name...)
+	b = append(b, floatVarname...)
 	b = append(b, '=')
 	b = s.AppendShaderName(b)
 	b = append(b, '(')
-	b = append(b, input...)
+	b = append(b, sdfPositionArgInput...)
 	b = append(b, ");\n"...)
 	return b
 }
 
-func AppendVec3Decl(b []byte, name string, v ms3.Vec) []byte {
+func AppendVec3Decl(b []byte, vec3Varname string, v ms3.Vec) []byte {
 	b = append(b, "vec3 "...)
-	b = append(b, name...)
+	b = append(b, vec3Varname...)
 	b = append(b, "=vec3("...)
 	arr := v.Array()
 	b = AppendFloats(b, ',', '-', '.', arr[:]...)
@@ -454,9 +454,9 @@ func AppendVec3Decl(b []byte, name string, v ms3.Vec) []byte {
 	return b
 }
 
-func AppendVec2Decl(b []byte, name string, v ms2.Vec) []byte {
+func AppendVec2Decl(b []byte, vec2Varname string, v ms2.Vec) []byte {
 	b = append(b, "vec2 "...)
-	b = append(b, name...)
+	b = append(b, vec2Varname...)
 	b = append(b, "=vec2("...)
 	arr := v.Array()
 	b = AppendFloats(b, ',', '-', '.', arr[:]...)
@@ -464,28 +464,28 @@ func AppendVec2Decl(b []byte, name string, v ms2.Vec) []byte {
 	return b
 }
 
-func AppendFloatDecl(b []byte, name string, v float32) []byte {
+func AppendFloatDecl(b []byte, floatVarname string, v float32) []byte {
 	b = append(b, "float "...)
-	b = append(b, name...)
+	b = append(b, floatVarname...)
 	b = append(b, '=')
 	b = AppendFloat(b, '-', '.', v)
 	b = append(b, ';', '\n')
 	return b
 }
 
-func AppendMat2Decl(b []byte, name string, m22 ms2.Mat2) []byte {
+func AppendMat2Decl(b []byte, mat2Varname string, m22 ms2.Mat2) []byte {
 	arr := m22.Array()
-	return appendMatDecl(b, "mat2", name, 2, 2, arr[:])
+	return appendMatDecl(b, "mat2", mat2Varname, 2, 2, arr[:])
 }
 
-func AppendMat3Decl(b []byte, name string, m33 ms3.Mat3) []byte {
+func AppendMat3Decl(b []byte, mat3Varname string, m33 ms3.Mat3) []byte {
 	arr := m33.Array()
-	return appendMatDecl(b, "mat3", name, 3, 3, arr[:])
+	return appendMatDecl(b, "mat3", mat3Varname, 3, 3, arr[:])
 }
 
-func AppendMat4Decl(b []byte, name string, m44 ms3.Mat4) []byte {
+func AppendMat4Decl(b []byte, mat4Varname string, m44 ms3.Mat4) []byte {
 	arr := m44.Array()
-	return appendMatDecl(b, "mat4", name, 4, 4, arr[:])
+	return appendMatDecl(b, "mat4", mat4Varname, 4, 4, arr[:])
 }
 
 func appendMatDecl(b []byte, typename, name string, row, col int, arr []float32) []byte {

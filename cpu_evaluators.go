@@ -111,24 +111,35 @@ func evaluateSDF2(obj bounder2, pos []ms2.Vec, dist []float32, userData any) err
 	return sdf.Evaluate(pos, dist, userData)
 }
 
-func (u *union) Evaluate(pos []ms3.Vec, dist []float32, userData any) error {
+// Evaluate implements [gleval.SDF].
+func (u *OpUnion) Evaluate(pos []ms3.Vec, dist []float32, userData any) error {
+	u.mustValidate()
 	vp, err := gleval.GetVecPool(userData)
 	if err != nil {
 		return err
 	}
-	d1 := dist
-	d2 := vp.Float.Acquire(len(dist))
-	defer vp.Float.Release(d2)
-	err = evaluateSDF3(u.s1, pos, d1, userData)
-	if err != nil {
-		return err
+	auxDist := vp.Float.Acquire(len(dist))
+	defer vp.Float.Release(auxDist)
+	// This algorithm of switching distance buffers avoids needing to allocate
+	// a new distance buffer for every SDF in the union list.
+	distCalc, distAccum := dist, auxDist
+	if len(u.joined)%2 != 0 {
+		// If odd number of elements we ensure the last accumulated
+		// distance calculation is stored in dist to avoid needing to copy.
+		// All we need to do is switch our buffers once before we start.
+		distCalc, distAccum = distAccum, distCalc
 	}
-	err = evaluateSDF3(u.s2, pos, d2, userData)
-	if err != nil {
-		return err
-	}
-	for i := range d1 {
-		dist[i] = minf(d1[i], d2[i])
+	for i := range u.joined {
+		err = evaluateSDF3(u.joined[i], pos, distCalc, userData)
+		if err != nil {
+			return err
+		}
+		for i, d := range distAccum {
+			distAccum[i] = math32.Min(d, distCalc[i])
+		}
+		// Buffer switcheroo for next evaluation to not overwrite
+		// the minumum distance we just calculated.
+		distCalc, distAccum = distAccum, distCalc
 	}
 	return nil
 }
