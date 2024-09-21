@@ -209,12 +209,12 @@ func (p *Programmer) writeShaders(w io.Writer, nodes []Shader) (n int, err error
 
 func ShortenNames3D(root *Shader3D, maxRewriteLen int) error {
 	scratch := make([]byte, 1024)
-	var h uint64 = 0xff51afd7ed558ccd
 	// makeNewName creates a name from scratch
 	makeNewName := func(s Shader) []byte {
+		var h uint64 = 0xff51afd7ed558ccd
 		scratch = s.AppendShaderName(scratch[:0])
 		if len(scratch) < maxRewriteLen {
-			return nil
+			return nil // Already short name, no need to rewrite.
 		}
 		newName := append([]byte{}, scratch[:maxRewriteLen]...)
 		h = hash(scratch, h)

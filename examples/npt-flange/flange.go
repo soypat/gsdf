@@ -47,7 +47,7 @@ func scene() (glbuild.Shader3D, error) {
 
 	// Join threaded section with flange.
 	flange = gsdf.Translate(flange, 0, 0, -tlen/2)
-	union := gsdf.SmoothUnion(pipe, flange, 0.2)
+	union := gsdf.SmoothUnion(0.2, pipe, flange)
 
 	// Make through-hole in flange bottom. Holes usually done at the end
 	// to avoid smoothing effects covering up desired negative space.
