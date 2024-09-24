@@ -459,17 +459,7 @@ func (c *poly2D) AppendShaderName(b []byte) []byte {
 }
 
 func (c *poly2D) AppendShaderBody(b []byte) []byte {
-	b = append(b, "vec2[] v=vec2[]("...)
-	for i, v := range c.vert {
-		last := i == len(c.vert)-1
-		b = append(b, "vec2("...)
-		b = glbuild.AppendFloats(b, ',', '-', '.', v.X, v.Y)
-		b = append(b, ')')
-		if !last {
-			b = append(b, ',')
-		}
-	}
-	b = append(b, ");\n"...)
+	b = glbuild.AppendVec2SliceDecl(b, "v", c.vert)
 	b = append(b, `const int num = v.length();
 float d = dot(p-v[0],p-v[0]);
 float s = 1.0;
@@ -477,7 +467,7 @@ for( int i=0, j=num-1; i<num; j=i, i++ )
 {
 	// distance
 	vec2 e = v[j] - v[i];
-	vec2 w =    p - v[i];
+	vec2 w = p - v[i];
 	vec2 b = w - e*clamp( dot(w,e)/dot(e,e), 0.0, 1.0 );
 	d = min( d, dot(b,b) );
 	// winding number from http://geomalgorithms.com/a03-_inclusion.html

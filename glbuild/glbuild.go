@@ -207,46 +207,75 @@ func (p *Programmer) writeShaders(w io.Writer, nodes []Shader) (n int, err error
 	return n, err
 }
 
+const shorteningBufsize = 1024
+
 func ShortenNames3D(root *Shader3D, maxRewriteLen int) error {
-	scratch := make([]byte, 1024)
-	// makeNewName creates a name from scratch
-	makeNewName := func(s Shader) []byte {
-		var h uint64 = 0xff51afd7ed558ccd
-		scratch = s.AppendShaderName(scratch[:0])
-		if len(scratch) < maxRewriteLen {
-			return nil // Already short name, no need to rewrite.
-		}
-		newName := append([]byte{}, scratch[:maxRewriteLen]...)
-		h = hash(scratch, h)
-		scratch = s.AppendShaderBody(scratch[:0])
-		h = hash(scratch, h)
-		newName = strconv.AppendUint(newName, h, 32)
-		return newName
-	}
+	scratch := make([]byte, shorteningBufsize)
 	rewrite3 := func(a any, s3 *Shader3D) error {
-		sd3 := *s3
-		name := makeNewName(sd3)
-		if name == nil {
-			return nil
-		}
-		*s3 = &nameOverloadShader3D{Shader: sd3, name: name}
+		scratch = rewriteName3(s3, scratch, maxRewriteLen)
 		return nil
 	}
 	rewrite2 := func(a any, s2 *Shader2D) error {
-		sd2 := *s2
-		name := makeNewName(sd2)
-		if name == nil {
-			return nil
-		}
-		*s2 = &nameOverloadShader2D{Shader: sd2, name: name}
+		scratch = rewriteName2(s2, scratch, maxRewriteLen)
 		return nil
 	}
-
 	err := forEachNode(*root, rewrite3, rewrite2)
 	if err != nil {
 		return err
 	}
 	return rewrite3(nil, root)
+}
+
+func ShortenNames2D(root *Shader2D, maxRewriteLen int) error {
+	scratch := make([]byte, shorteningBufsize)
+	rewrite3 := func(a any, s3 *Shader3D) error {
+		scratch = rewriteName3(s3, scratch, maxRewriteLen)
+		return nil
+	}
+	rewrite2 := func(a any, s2 *Shader2D) error {
+		scratch = rewriteName2(s2, scratch, maxRewriteLen)
+		return nil
+	}
+	err := forEachNode(*root, rewrite3, rewrite2)
+	if err != nil {
+		return err
+	}
+	return rewrite2(nil, root)
+}
+
+func rewriteName3(s3 *Shader3D, scratch []byte, rewritelen int) []byte {
+	sd3 := *s3
+	name, scratch := makeShortname(sd3, scratch, rewritelen)
+	if name == nil {
+		return scratch
+	}
+	*s3 = &nameOverloadShader3D{Shader: sd3, name: name}
+	return scratch
+}
+
+func rewriteName2(s2 *Shader2D, scratch []byte, rewritelen int) []byte {
+	sd2 := *s2
+	name, scratch := makeShortname(sd2, scratch, rewritelen)
+	if name == nil {
+		return scratch
+	}
+	*s2 = &nameOverloadShader2D{Shader: sd2, name: name}
+	return scratch
+}
+
+// makeNewName creates.
+func makeShortname(s Shader, scratch []byte, rewritelen int) (newNameOrNil []byte, newScratch []byte) {
+	var h uint64 = 0xff51afd7ed558ccd
+	scratch = s.AppendShaderName(scratch[:0])
+	if len(scratch) < rewritelen {
+		return nil, scratch // Already short name, no need to rewrite.
+	}
+	newName := append([]byte{}, scratch[:rewritelen]...)
+	h = hash(scratch, h)
+	scratch = s.AppendShaderBody(scratch[:0])
+	h = hash(scratch, h)
+	newName = strconv.AppendUint(newName, h, 32)
+	return newName, scratch
 }
 
 // ParseAppendNodes parses the shader object tree and appends all nodes in Depth First order
@@ -524,6 +553,7 @@ func AppendFloat(b []byte, neg, decimal byte, v float32) []byte {
 	for i := len(b) - 1; idx >= 0 && i > idx+start && b[i] == '0'; i-- {
 		end--
 	}
+	// TODO(soypat): Round off when find N consecutive 9's?
 	return b[:end]
 }
 
@@ -534,6 +564,75 @@ func AppendFloats(b []byte, sep, neg, decimal byte, s ...float32) []byte {
 			b = append(b, sep)
 		}
 	}
+	return b
+}
+
+const maxLineLim = 500
+
+func AppendFloatSliceDecl(b []byte, floatSliceVarname string, vecs []float32) []byte {
+	lineStart := len(b)
+	b = append(b, "float[] "...)
+	b = append(b, floatSliceVarname...)
+	b = append(b, "=float[]("...)
+	for i, v := range vecs {
+		last := i == len(vecs)-1
+		b = AppendFloat(b, '-', '.', v)
+		if !last {
+			b = append(b, ',')
+			lineLen := len(b) - lineStart
+			if lineLen > maxLineLim {
+				b = append(b, '\n') // Break up line for VERY long polygon vertex lists.
+				lineStart = len(b)
+			}
+		}
+	}
+	b = append(b, ");\n"...)
+	return b
+}
+
+func AppendVec2SliceDecl(b []byte, vec2Varname string, vecs []ms2.Vec) []byte {
+	lineStart := len(b)
+	b = append(b, "vec2[] "...)
+	b = append(b, vec2Varname...)
+	b = append(b, "=vec2[]("...)
+	for i, v := range vecs {
+		last := i == len(vecs)-1
+		b = append(b, "vec2("...)
+		b = AppendFloats(b, ',', '-', '.', v.X, v.Y)
+		b = append(b, ')')
+		if !last {
+			b = append(b, ',')
+			lineLen := len(b) - lineStart
+			if lineLen > maxLineLim {
+				b = append(b, '\n') // Break up line for VERY long polygon vertex lists.
+				lineStart = len(b)
+			}
+		}
+	}
+	b = append(b, ");\n"...)
+	return b
+}
+
+func AppendVec3SliceDecl(b []byte, vec3Varname string, vecs []ms3.Vec) []byte {
+	lineStart := len(b)
+	b = append(b, "vec3[] "...)
+	b = append(b, vec3Varname...)
+	b = append(b, "=vec3[]("...)
+	for i, v := range vecs {
+		last := i == len(vecs)-1
+		b = append(b, "vec3("...)
+		b = AppendFloats(b, ',', '-', '.', v.X, v.Y, v.Z)
+		b = append(b, ')')
+		if !last {
+			b = append(b, ',')
+			lineLen := len(b) - lineStart
+			if lineLen > maxLineLim {
+				b = append(b, '\n') // Break up line for VERY long polygon vertex lists.
+				lineStart = len(b)
+			}
+		}
+	}
+	b = append(b, ");\n"...)
 	return b
 }
 

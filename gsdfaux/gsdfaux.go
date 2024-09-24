@@ -160,9 +160,6 @@ func stopwatch() func() time.Duration {
 // The image width is sized automatically from the image height argument to preserve SDF aspect ratio.
 // If a nil color conversion function is passed then one is automatically chosen.
 func RenderPNGFile(filename string, s glbuild.Shader2D, picHeight int, useGPU bool, colorConversion func(float32) color.Color) error {
-	if useGPU {
-		return errors.New("TODO: implement GPU rendering for RenderPNGFile")
-	}
 	bb := s.Bounds()
 	sz := bb.Size()
 	if colorConversion == nil {
@@ -175,11 +172,28 @@ func RenderPNGFile(filename string, s glbuild.Shader2D, picHeight int, useGPU bo
 	if err != nil {
 		return err
 	}
-
-	sdf, err := gleval.NewCPUSDF2(s)
+	var sdf gleval.SDF2
+	if useGPU {
+		var n int
+		var buf bytes.Buffer
+		err = glbuild.ShortenNames2D(&s, 8)
+		if err != nil {
+			return err
+		}
+		n, err = glbuild.NewDefaultProgrammer().WriteComputeSDF2(&buf, s)
+		if err != nil {
+			return err
+		} else if n != buf.Len() {
+			return fmt.Errorf("wrote %d bytes but WriteComputeSDF2 counted %d", buf.Len(), n)
+		}
+		sdf, err = gleval.NewComputeGPUSDF2(&buf, bb)
+	} else {
+		sdf, err = gleval.NewCPUSDF2(s)
+	}
 	if err != nil {
 		return err
 	}
+
 	err = renderer.Render(sdf, img, nil)
 	if err != nil {
 		return err
