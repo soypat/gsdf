@@ -571,9 +571,7 @@ const maxLineLim = 500
 
 func AppendFloatSliceDecl(b []byte, floatSliceVarname string, vecs []float32) []byte {
 	lineStart := len(b)
-	b = append(b, "float[] "...)
-	b = append(b, floatSliceVarname...)
-	b = append(b, "=float[]("...)
+	b = appendStartSliceDecl(b, "float", floatSliceVarname, len(vecs))
 	for i, v := range vecs {
 		last := i == len(vecs)-1
 		b = AppendFloat(b, '-', '.', v)
@@ -592,9 +590,7 @@ func AppendFloatSliceDecl(b []byte, floatSliceVarname string, vecs []float32) []
 
 func AppendVec2SliceDecl(b []byte, vec2Varname string, vecs []ms2.Vec) []byte {
 	lineStart := len(b)
-	b = append(b, "vec2[] "...)
-	b = append(b, vec2Varname...)
-	b = append(b, "=vec2[]("...)
+	b = appendStartSliceDecl(b, "vec2", vec2Varname, len(vecs))
 	for i, v := range vecs {
 		last := i == len(vecs)-1
 		b = append(b, "vec2("...)
@@ -615,9 +611,7 @@ func AppendVec2SliceDecl(b []byte, vec2Varname string, vecs []ms2.Vec) []byte {
 
 func AppendVec3SliceDecl(b []byte, vec3Varname string, vecs []ms3.Vec) []byte {
 	lineStart := len(b)
-	b = append(b, "vec3[] "...)
-	b = append(b, vec3Varname...)
-	b = append(b, "=vec3[]("...)
+	b = appendStartSliceDecl(b, "vec3", vec3Varname, len(vecs))
 	for i, v := range vecs {
 		last := i == len(vecs)-1
 		b = append(b, "vec3("...)
@@ -633,6 +627,21 @@ func AppendVec3SliceDecl(b []byte, vec3Varname string, vecs []ms3.Vec) []byte {
 		}
 	}
 	b = append(b, ");\n"...)
+	return b
+}
+
+func appendStartSliceDecl(b []byte, typeName, varName string, length int) []byte {
+	l := int64(length)
+	typeStart := len(b)
+	b = append(b, typeName...)
+	b = append(b, "["...)
+	b = strconv.AppendInt(b, l, 10)
+	b = append(b, ']')
+	typeEnd := len(b)
+	b = append(b, varName...)
+	b = append(b, '=')
+	b = append(b, b[typeStart:typeEnd]...) // Reuse typename appended earlier.
+	b = append(b, '(')
 	return b
 }
 

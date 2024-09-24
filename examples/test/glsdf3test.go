@@ -574,9 +574,9 @@ func appendMeshgrid(dst []ms3.Vec, bounds ms3.Box, nx, ny, nz int) []ms3.Vec {
 	nxyz := ms3.Vec{X: float32(nx), Y: float32(ny), Z: float32(nz)}
 	dxyz := ms3.DivElem(bounds.Size(), nxyz)
 	var xyz ms3.Vec
-	for k := 0; k < nx; k++ {
+	for k := 0; k < nz; k++ {
 		xyz.Z = bounds.Min.Z + dxyz.Z*float32(k)
-		for j := 0; j < nx; j++ {
+		for j := 0; j < ny; j++ {
 			xyz.Y = bounds.Min.Y + dxyz.Y*float32(j)
 			for i := 0; i < nx; i++ {
 				xyz.X = bounds.Min.X + dxyz.X*float32(i)
@@ -591,7 +591,7 @@ func appendMeshgrid2D(dst []ms2.Vec, bounds ms2.Box, nx, ny, nz int) []ms2.Vec {
 	nxyz := ms2.Vec{X: float32(nx), Y: float32(ny)}
 	dxyz := ms2.DivElem(bounds.Size(), nxyz)
 	var xy ms2.Vec
-	for j := 0; j < nx; j++ {
+	for j := 0; j < ny; j++ {
 		xy.Y = bounds.Min.Y + dxyz.Y*float32(j)
 		for i := 0; i < nx; i++ {
 			xy.X = bounds.Min.X + dxyz.X*float32(i)
