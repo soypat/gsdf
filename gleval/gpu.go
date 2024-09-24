@@ -4,7 +4,9 @@ package gleval
 
 import (
 	"errors"
+	"fmt"
 	"io"
+	"unsafe"
 
 	"github.com/go-gl/gl/all-core/gl"
 	"github.com/soypat/glgl/math/ms2"
@@ -55,46 +57,7 @@ func (sdf *SDF3Compute) Bounds() ms3.Box {
 func (sdf *SDF3Compute) Evaluations() uint64 { return sdf.evals }
 
 func (sdf *SDF3Compute) Evaluate(pos []ms3.Vec, dist []float32, userData any) error {
-	sdf.prog.Bind()
-	defer sdf.prog.Unbind()
-	posCfg := glgl.TextureImgConfig{
-		Type:           glgl.Texture2D,
-		Width:          len(pos),
-		Height:         1,
-		Access:         glgl.ReadOnly,
-		Format:         gl.RGB,
-		MinFilter:      gl.NEAREST,
-		MagFilter:      gl.NEAREST,
-		Xtype:          gl.FLOAT,
-		InternalFormat: gl.RGBA32F,
-		ImageUnit:      0,
-	}
-	_, err := glgl.NewTextureFromImage(posCfg, pos)
-	if err != nil {
-		return err
-	}
-	distCfg := glgl.TextureImgConfig{
-		Type:           glgl.Texture2D,
-		Width:          len(dist),
-		Height:         1,
-		Access:         glgl.WriteOnly,
-		Format:         gl.RED,
-		MinFilter:      gl.NEAREST,
-		MagFilter:      gl.NEAREST,
-		Xtype:          gl.FLOAT,
-		InternalFormat: gl.R32F,
-		ImageUnit:      1,
-	}
-
-	distTex, err := glgl.NewTextureFromImage(distCfg, dist)
-	if err != nil {
-		return err
-	}
-	err = sdf.prog.RunCompute(len(dist), 1, 1)
-	if err != nil {
-		return err
-	}
-	err = glgl.GetImage(dist, distTex, distCfg)
+	err := computeEvaluate(sdf.prog, pos, dist)
 	if err != nil {
 		return err
 	}
@@ -133,42 +96,29 @@ func (sdf *SDF2Compute) Bounds() ms2.Box {
 func (sdf *SDF2Compute) Evaluations() uint64 { return sdf.evals }
 
 func (sdf *SDF2Compute) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {
-	sdf.prog.Bind()
-	defer sdf.prog.Unbind()
-	posCfg := glgl.TextureImgConfig{
-		Type:           glgl.Texture2D,
-		Width:          len(pos),
-		Height:         1,
-		Access:         glgl.ReadOnly,
-		Format:         gl.RG,
-		MinFilter:      gl.NEAREST,
-		MagFilter:      gl.NEAREST,
-		Xtype:          gl.FLOAT,
-		InternalFormat: gl.RG32F,
-		ImageUnit:      0,
-	}
-	_, err := glgl.NewTextureFromImage(posCfg, pos)
+	err := computeEvaluate(sdf.prog, pos, dist)
 	if err != nil {
 		return err
 	}
-	distCfg := glgl.TextureImgConfig{
-		Type:           glgl.Texture2D,
-		Width:          len(dist),
-		Height:         1,
-		Access:         glgl.WriteOnly,
-		Format:         gl.RED,
-		MinFilter:      gl.NEAREST,
-		MagFilter:      gl.NEAREST,
-		Xtype:          gl.FLOAT,
-		InternalFormat: gl.R32F,
-		ImageUnit:      1,
-	}
+	sdf.evals += uint64(len(pos))
+	return nil
+}
 
-	distTex, err := glgl.NewTextureFromImage(distCfg, dist)
+func computeEvaluate[T ms2.Vec | ms3.Vec](prog glgl.Program, pos []T, dist []float32) error {
+	prog.Bind()
+	defer prog.Unbind()
+
+	posTex, _, err := loadTexture(pos, 0, glgl.ReadOnly)
 	if err != nil {
 		return err
 	}
-	err = sdf.prog.RunCompute(len(dist), 1, 1)
+	defer posTex.Delete()
+
+	distTex, distCfg, err := loadTexture(dist, 1, glgl.WriteOnly)
+	if err != nil {
+		return err
+	}
+	err = prog.RunCompute(len(dist), 1, 1)
 	if err != nil {
 		return err
 	}
@@ -176,6 +126,40 @@ func (sdf *SDF2Compute) Evaluate(pos []ms2.Vec, dist []float32, userData any) er
 	if err != nil {
 		return err
 	}
-	sdf.evals += uint64(len(pos))
 	return nil
+}
+
+func loadTexture[T float32 | ms2.Vec | ms3.Vec](slice []T, imageUnit uint32, access glgl.AccessUsage) (glgl.Texture, glgl.TextureImgConfig, error) {
+	var zero T
+	var format uint32
+	var internalFormat int32
+	switch unsafe.Sizeof(zero) / 4 {
+	case 1: // float32
+		format = gl.RED
+		internalFormat = gl.R32F
+	case 2: // ms2.Vec
+		format = gl.RG
+		internalFormat = gl.RG32F
+	case 3: // ms3.Vec
+		format = gl.RGB
+		internalFormat = gl.RGBA32F
+	default:
+		panic(fmt.Sprintf("unsupported type %T", zero))
+	}
+	posCfg := glgl.TextureImgConfig{
+		Type:      glgl.Texture2D,
+		Width:     len(slice),
+		Height:    1,
+		Access:    access,
+		MinFilter: gl.NEAREST,
+		MagFilter: gl.NEAREST,
+		Xtype:     gl.FLOAT,
+		ImageUnit: imageUnit,
+
+		// Type specific layout attributes.
+		Format:         format,
+		InternalFormat: internalFormat,
+	}
+	tex, err := glgl.NewTextureFromImage(posCfg, slice)
+	return tex, posCfg, err
 }

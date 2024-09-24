@@ -37,6 +37,11 @@ func main() {
 	}
 	defer terminate()
 
+	start := time.Now()
+	err = test_polygongpu()
+	if err != nil {
+		log.Fatal("FAIL testing PolygonGPU: ", err.Error())
+	}
 	err = test_visualizer_generation()
 	if err != nil {
 		log.Fatal("FAIL generating visualization GLSL: ", err.Error())
@@ -50,7 +55,7 @@ func main() {
 		log.Fatal("FAIL generating STL: ", err.Error())
 	}
 
-	log.Println("PASS")
+	log.Println("PASS in ", time.Since(start).Round(time.Millisecond))
 }
 
 var programmer = glbuild.NewDefaultProgrammer()
@@ -423,6 +428,37 @@ func test_visualizer_generation() error {
 	}
 	s = gsdf.Union(s, shape)
 	return visualize(s, filename)
+}
+
+func test_polygongpu() error {
+	var polybuilder ms2.PolygonBuilder
+	polybuilder.NagonSmoothed(5, 2, 4, 0.1)
+	vecs, err := polybuilder.AppendVecs(nil)
+	if err != nil {
+		return err
+	}
+	poly, err := gsdf.NewPolygon(vecs)
+	if err != nil {
+		return err
+	}
+	polyGPU := gleval.PolygonGPU{Vertices: vecs}
+	pos := appendMeshgrid2D(nil, poly.Bounds(), 32, 32, 32)
+	distCPU := make([]float32, len(pos))
+	distGPU := make([]float32, len(pos))
+	sdfcpu, err := gleval.NewCPUSDF2(poly)
+	if err != nil {
+		return err
+	}
+	err = polyGPU.Evaluate(pos, distGPU, nil)
+	if err != nil {
+		return err
+	}
+	err = sdfcpu.Evaluate(pos, distCPU, nil)
+	if err != nil {
+		return err
+	}
+	log.Println("PASS polygongpu")
+	return nil
 }
 
 // visualize facilitates the SDF visualization.
