@@ -65,18 +65,36 @@ type Programmer struct {
 	computeHeader []byte
 	// names maps shader names to body hashes for checking duplicates.
 	names map[uint64]uint64
+	// Invocations size in X (local group size) to give each compute work group.
+	invocX int
 }
 
 var defaultComputeHeader = []byte("#shader compute\n#version 430\n")
 
-// NewDefaultProgrammer returns a Programmer with reasonable default parameters for use with glgl package.
+// NewDefaultProgrammer returns a Programmer with reasonable default parameters for use with glgl package on the local machine.
 func NewDefaultProgrammer() *Programmer {
 	return &Programmer{
 		scratchNodes:  make([]Shader, 64),
 		scratch:       make([]byte, 1024), // Max length of shader token is around 1024..1060 characters.
 		computeHeader: defaultComputeHeader,
 		names:         make(map[uint64]uint64),
+		invocX:        32,
 	}
+}
+
+// SetComputeInvocations sets the work group local-sizes. x*y*z must be less than maximum number of invocations.
+func (p *Programmer) SetComputeInvocations(x, y, z int) {
+	if y != 1 || z != 1 {
+		panic("unsupported")
+	} else if x < 1 {
+		panic("zero or negative X invocation size")
+	}
+	p.invocX = x
+}
+
+// ComputeInvocations returns the worker group invocation size in x y and z.
+func (p *Programmer) ComputeInvocations() (int, int, int) {
+	return p.invocX, 1, 1
 }
 
 // WriteDistanceIO creates the bare bones I/O compute program for calculating SDF
@@ -99,7 +117,7 @@ func (p *Programmer) WriteComputeSDF3(w io.Writer, obj Shader3D) (int, error) {
 	const sz = unsafe.Sizeof(ms3.Vec{})
 	ngot, err = fmt.Fprintf(w, `
 
-layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+layout(local_size_x = %d, local_size_y = 1, local_size_z = 1) in;
 
 // Input: 3D positions at which to evaluate SDF.
 layout(std140, binding = 0) buffer PositionsBuffer {
@@ -117,7 +135,7 @@ void main() {
 	vec3 p = vbo_positions[idx];    // Get position to evaluate SDF at.
 	vbo_distances[idx] = %s(p);     // Evaluate SDF and store to distance buffer.
 }
-`, baseName)
+`, p.invocX, baseName)
 
 	n += ngot
 	return n, err
@@ -142,7 +160,7 @@ func (p *Programmer) WriteComputeSDF2(w io.Writer, obj Shader2D) (int, error) {
 	}
 	ngot, err = fmt.Fprintf(w, `
 
-layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+layout(local_size_x = %d, local_size_y = 1, local_size_z = 1) in;
 
 // Input: 2D positions at which to evaluate SDF.
 layout(std430, binding = 0) buffer PositionsBuffer {
@@ -160,7 +178,7 @@ void main() {
 	vec2 p = vbo_positions[idx];    // Get position to evaluate SDF at.
 	vbo_distances[idx] = %s(p);     // Evaluate SDF and store to distance buffer.
 }
-`, baseName)
+`, p.invocX, baseName)
 
 	n += ngot
 	return n, err

@@ -45,6 +45,9 @@ func run() error {
 	if err != nil {
 		log.Fatal("FAIL to start GLFW", err.Error())
 	}
+	invoc := gleval.MaxComputeInvocations()
+	fmt.Println("invoc size:", invoc)
+	programmer.SetComputeInvocations(invoc, 1, 1)
 	defer terminate()
 	err = test_polygongpu()
 	if err != nil {
@@ -453,7 +456,9 @@ func test_polygongpu() error {
 		return err
 	}
 	polyGPU := gleval.PolygonGPU{Vertices: vecs}
-	for _, sz := range []int{32} {
+	invocX, _, _ := programmer.ComputeInvocations()
+	polyGPU.Configure(gleval.ComputeConfig{InvocX: invocX})
+	for i, sz := range []int{32, 256, 512} {
 		now := time.Now()
 		pos := appendMeshgrid2D(nil, poly.Bounds(), sz, sz)
 		distCPU := make([]float32, len(pos))
@@ -467,16 +472,18 @@ func test_polygongpu() error {
 			return err
 		}
 		fmt.Println(sz, time.Since(now).Round(time.Millisecond))
-		err = sdfcpu.Evaluate(pos, distCPU, nil)
-		if err != nil {
-			return err
-		}
-		err = cmpDist(pos, distCPU, distGPU)
-		if err != nil {
-			return err
+		if i == 0 {
+			// Only check for small case.
+			err = sdfcpu.Evaluate(pos, distCPU, nil)
+			if err != nil {
+				return err
+			}
+			err = cmpDist(pos, distCPU, distGPU)
+			if err != nil {
+				return err
+			}
 		}
 	}
-
 	log.Println("PASS polygongpu")
 	return nil
 }
@@ -668,7 +675,8 @@ func makeGPUSDF3(s glbuild.Shader3D) *gleval.SDF3Compute {
 	} else if n != source.Len() {
 		panic("bytes written mismatch")
 	}
-	sdfgpu, err := gleval.NewComputeGPUSDF3(&source, s.Bounds())
+	invocX, _, _ := programmer.ComputeInvocations()
+	sdfgpu, err := gleval.NewComputeGPUSDF3(&source, s.Bounds(), gleval.ComputeConfig{InvocX: invocX})
 	if err != nil {
 		panic(err)
 	}
@@ -680,13 +688,15 @@ func makeGPUSDF2(s glbuild.Shader2D) gleval.SDF2 {
 		panic("nil Shader3D")
 	}
 	var source bytes.Buffer
+
 	n, err := programmer.WriteComputeSDF2(&source, s)
 	if err != nil {
 		panic(err)
 	} else if n != source.Len() {
 		panic("bytes written mismatch")
 	}
-	sdfgpu, err := gleval.NewComputeGPUSDF2(&source, s.Bounds())
+	invocX, _, _ := programmer.ComputeInvocations()
+	sdfgpu, err := gleval.NewComputeGPUSDF2(&source, s.Bounds(), gleval.ComputeConfig{InvocX: invocX})
 	if err != nil {
 		panic(err)
 	}

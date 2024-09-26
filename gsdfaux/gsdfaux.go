@@ -62,11 +62,18 @@ func Render(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 			defer terminate()
 		}
 		source := new(bytes.Buffer)
-		_, err = glbuild.NewDefaultProgrammer().WriteComputeSDF3(source, s)
+		prog := glbuild.NewDefaultProgrammer()
+		invoc := gleval.MaxComputeInvocations()
+		log("compute invocation size ", invoc)
+		if invoc < 1 {
+			return errors.New("zero or negative GPU invocation size")
+		}
+		prog.SetComputeInvocations(invoc, 1, 1)
+		_, err = prog.WriteComputeSDF3(source, s)
 		if err != nil {
 			return err
 		}
-		sdf, err = gleval.NewComputeGPUSDF3(source, bb)
+		sdf, err = gleval.NewComputeGPUSDF3(source, bb, gleval.ComputeConfig{InvocX: invoc})
 	} else {
 		log("using CPU")
 		sdf, err = gleval.NewCPUSDF3(s)
@@ -180,13 +187,21 @@ func RenderPNGFile(filename string, s glbuild.Shader2D, picHeight int, useGPU bo
 		if err != nil {
 			return err
 		}
-		n, err = glbuild.NewDefaultProgrammer().WriteComputeSDF2(&buf, s)
+		invoc := gleval.MaxComputeInvocations()
+		if invoc < 1 {
+			return errors.New("zero or negative GPU invocation size")
+		}
+		prog := glbuild.NewDefaultProgrammer()
+		prog.SetComputeInvocations(invoc, 1, 1)
+
+		n, err = prog.WriteComputeSDF2(&buf, s)
 		if err != nil {
 			return err
 		} else if n != buf.Len() {
 			return fmt.Errorf("wrote %d bytes but WriteComputeSDF2 counted %d", buf.Len(), n)
 		}
-		sdf, err = gleval.NewComputeGPUSDF2(&buf, bb)
+
+		sdf, err = gleval.NewComputeGPUSDF2(&buf, bb, gleval.ComputeConfig{InvocX: invoc})
 	} else {
 		sdf, err = gleval.NewCPUSDF2(s)
 	}

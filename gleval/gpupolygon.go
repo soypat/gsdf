@@ -19,6 +19,8 @@ import (
 type PolygonGPU struct {
 	Vertices    []ms2.Vec
 	evaluations uint64
+	shader      string
+	invocX      int
 }
 
 func (poly *PolygonGPU) Bounds() ms2.Box {
@@ -33,11 +35,22 @@ func (poly *PolygonGPU) Bounds() ms2.Box {
 	return bb
 }
 
+func (poly *PolygonGPU) Configure(cfg ComputeConfig) error {
+	if cfg.InvocX < 1 {
+		return errZeroInvoc
+	}
+	poly.invocX = cfg.InvocX
+	poly.shader = fmt.Sprintf(polyshader, cfg.InvocX)
+	return nil
+}
+
 func (poly *PolygonGPU) Evaluate(pos []ms2.Vec, dist []float32, userData any) (err error) {
 	if len(pos) != len(dist) {
 		return errors.New("position and distance buffer length mismatch")
+	} else if poly.shader == "" {
+		return errors.New("need to initialize PolygonGPU before first use")
 	}
-	prog, err := glgl.CompileProgram(glgl.ShaderSource{Compute: polyshader})
+	prog, err := glgl.CompileProgram(glgl.ShaderSource{Compute: poly.shader})
 	if err != nil {
 		return fmt.Errorf("compiling GL program: %w", err)
 	}
@@ -58,7 +71,7 @@ func (poly *PolygonGPU) Evaluate(pos []ms2.Vec, dist []float32, userData any) (e
 	defer p.Unpin()
 	defer gl.DeleteBuffers(1, &ssbo)
 
-	err = computeEvaluate(prog, pos, dist)
+	err = computeEvaluate(pos, dist, poly.invocX)
 	if err != nil {
 		return err
 	}
@@ -66,11 +79,13 @@ func (poly *PolygonGPU) Evaluate(pos []ms2.Vec, dist []float32, userData any) (e
 	return nil
 }
 
-func computeEvaluate[T ms2.Vec | ms3.Quat](prog glgl.Program, pos []T, dist []float32) (err error) {
+func computeEvaluate[T ms2.Vec | ms3.Quat](pos []T, dist []float32, invocX int) (err error) {
 	if len(pos) != len(dist) {
 		return errors.New("positional and distance buffers not equal in length")
 	} else if len(dist) == 0 {
 		return errors.New("zero length buffers")
+	} else if invocX < 1 {
+		return errors.New("zero or negative invocation size")
 	}
 	var p runtime.Pinner
 	var posSSBO, distSSBO uint32
@@ -90,9 +105,9 @@ func computeEvaluate[T ms2.Vec | ms3.Quat](prog glgl.Program, pos []T, dist []fl
 	if err != nil {
 		return err
 	}
-
+	nWorkX := (len(dist) + invocX - 1) / invocX
 	defer gl.DeleteBuffers(1, &distSSBO)
-	gl.DispatchCompute(uint32(len(dist)), 1, 1)
+	gl.DispatchCompute(uint32(nWorkX), 1, 1)
 	err = glgl.Err()
 	if err != nil {
 		return err
@@ -147,7 +162,7 @@ func getvbo[T elem](ssbo uint32, buf []T) error {
 // winding number from http://geomalgorithms.com/a03-_inclusion.html
 const polyshader = `#version 430
 
-layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+layout(local_size_x = %d, local_size_y = 1, local_size_z = 1) in;
 
 // Input: 2D positions at which to evaluate SDF.
 layout(std430, binding = 0) buffer PositionsBuffer {

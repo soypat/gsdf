@@ -12,6 +12,11 @@ import (
 
 var errNoCGO = errors.New("GPU evaluation requires CGo and is not supported on TinyGo")
 
+// MaxComputeInvoc returns maximum number of invocations/warps per workgroup on the local GPU. The GL context must be actual.
+func MaxComputeInvocations() int {
+	return 32
+}
+
 // Init1x1GLFW starts a 1x1 sized GLFW so that user can start working with GPU.
 // It returns a termination function that should be called when user is done running loads on GPU.
 func Init1x1GLFW() (terminate func(), err error) {
