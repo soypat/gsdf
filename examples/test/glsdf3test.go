@@ -26,6 +26,16 @@ import (
 )
 
 func main() {
+	start := time.Now()
+	err := run()
+	elapsed := time.Since(start).Round(time.Millisecond)
+	if err != nil {
+		log.Fatalf("FAIL in %s: %s", elapsed, err.Error())
+	}
+	log.Println("PASS in ", elapsed)
+}
+
+func run() error {
 	_, terminate, err := glgl.InitWithCurrentWindow33(glgl.WindowConfig{
 		Title:   "compute",
 		Version: [2]int{4, 6},
@@ -36,26 +46,24 @@ func main() {
 		log.Fatal("FAIL to start GLFW", err.Error())
 	}
 	defer terminate()
-
-	start := time.Now()
 	err = test_polygongpu()
 	if err != nil {
-		log.Fatal("FAIL testing PolygonGPU: ", err.Error())
+		return fmt.Errorf("testing polygonGPU: %w", err)
 	}
+
 	err = test_visualizer_generation()
 	if err != nil {
-		log.Fatal("FAIL generating visualization GLSL: ", err.Error())
+		return fmt.Errorf("generating visualization GLSL: %w", err)
 	}
 	err = test_sdf_gpu_cpu()
 	if err != nil {
-		log.Fatal("FAIL testing CPU/GPU sdf comparisons: ", err.Error())
+		return fmt.Errorf("testing CPU/GPU sdf comparisons: %w", err)
 	}
 	err = test_stl_generation()
 	if err != nil {
-		log.Fatal("FAIL generating STL: ", err.Error())
+		return fmt.Errorf("generating STL: %w", err)
 	}
-
-	log.Println("PASS in ", time.Since(start).Round(time.Millisecond))
+	return nil
 }
 
 var programmer = glbuild.NewDefaultProgrammer()
@@ -144,6 +152,38 @@ func test_sdf_gpu_cpu() error {
 	scratchDist := make([]float32, maxBuf)
 	scratchPos := make([]ms3.Vec, maxBuf)
 	scratchPos2 := make([]ms2.Vec, maxBuf)
+
+	for _, primitive := range PremadePrimitives2D {
+		log.Printf("evaluate 2D %s\n", getBaseTypename(primitive))
+		bounds := primitive.Bounds()
+		pos := appendMeshgrid2D(scratchPos2[:0], bounds, nx, ny)
+		distCPU := scratchDistCPU[:len(pos)]
+		distGPU := scratchDistGPU[:len(pos)]
+		sdfcpu, err := gleval.AssertSDF2(primitive)
+		if err != nil {
+			return err
+		}
+		err = sdfcpu.Evaluate(pos, distCPU, vp)
+		if err != nil {
+			return err
+		}
+		sdfgpu := makeGPUSDF2(primitive)
+		err = sdfgpu.Evaluate(pos, distGPU, nil)
+		if err != nil {
+			return err
+		}
+		err = cmpDist(pos, distCPU, distGPU)
+		if err != nil {
+			description := sprintOpPrimitive(nil, primitive)
+			return fmt.Errorf("%s: %s", description, err)
+		}
+		// err = test_bounds(sdfcpu, scratchDist, vp)
+		// if err != nil {
+		// 	description := sprintOpPrimitive(nil, primitive)
+		// 	return fmt.Errorf("%s: %s", description, err)
+		// }
+	}
+
 	for _, primitive := range PremadePrimitives {
 		log.Printf("begin evaluating %s", getBaseTypename(primitive))
 		bounds := primitive.Bounds()
@@ -173,37 +213,6 @@ func test_sdf_gpu_cpu() error {
 			description := sprintOpPrimitive(nil, primitive)
 			return fmt.Errorf("%s: %s", description, err)
 		}
-	}
-
-	for _, primitive := range PremadePrimitives2D {
-		log.Printf("evaluate 2D %s\n", getBaseTypename(primitive))
-		bounds := primitive.Bounds()
-		pos := appendMeshgrid2D(scratchPos2[:0], bounds, nx, ny, nz)
-		distCPU := scratchDistCPU[:len(pos)]
-		distGPU := scratchDistGPU[:len(pos)]
-		sdfcpu, err := gleval.AssertSDF2(primitive)
-		if err != nil {
-			return err
-		}
-		err = sdfcpu.Evaluate(pos, distCPU, vp)
-		if err != nil {
-			return err
-		}
-		sdfgpu := makeGPUSDF2(primitive)
-		err = sdfgpu.Evaluate(pos, distGPU, nil)
-		if err != nil {
-			return err
-		}
-		err = cmpDist(pos, distCPU, distGPU)
-		if err != nil {
-			description := sprintOpPrimitive(nil, primitive)
-			return fmt.Errorf("%s: %s", description, err)
-		}
-		// err = test_bounds(sdfcpu, scratchDist, vp)
-		// if err != nil {
-		// 	description := sprintOpPrimitive(nil, primitive)
-		// 	return fmt.Errorf("%s: %s", description, err)
-		// }
 	}
 
 	for _, op := range BinaryOps {
@@ -431,32 +440,43 @@ func test_visualizer_generation() error {
 }
 
 func test_polygongpu() error {
+	const Nvertices = 16000
 	var polybuilder ms2.PolygonBuilder
-	polybuilder.NagonSmoothed(5, 2, 4, 0.1)
+	polybuilder.Nagon(Nvertices, 2)
 	vecs, err := polybuilder.AppendVecs(nil)
 	if err != nil {
 		return err
 	}
+
 	poly, err := gsdf.NewPolygon(vecs)
 	if err != nil {
 		return err
 	}
 	polyGPU := gleval.PolygonGPU{Vertices: vecs}
-	pos := appendMeshgrid2D(nil, poly.Bounds(), 32, 32, 32)
-	distCPU := make([]float32, len(pos))
-	distGPU := make([]float32, len(pos))
-	sdfcpu, err := gleval.NewCPUSDF2(poly)
-	if err != nil {
-		return err
+	for _, sz := range []int{32} {
+		now := time.Now()
+		pos := appendMeshgrid2D(nil, poly.Bounds(), sz, sz)
+		distCPU := make([]float32, len(pos))
+		distGPU := make([]float32, len(pos))
+		sdfcpu, err := gleval.NewCPUSDF2(poly)
+		if err != nil {
+			return err
+		}
+		err = polyGPU.Evaluate(pos, distGPU, nil)
+		if err != nil {
+			return err
+		}
+		fmt.Println(sz, time.Since(now).Round(time.Millisecond))
+		err = sdfcpu.Evaluate(pos, distCPU, nil)
+		if err != nil {
+			return err
+		}
+		err = cmpDist(pos, distCPU, distGPU)
+		if err != nil {
+			return err
+		}
 	}
-	err = polyGPU.Evaluate(pos, distGPU, nil)
-	if err != nil {
-		return err
-	}
-	err = sdfcpu.Evaluate(pos, distCPU, nil)
-	if err != nil {
-		return err
-	}
+
 	log.Println("PASS polygongpu")
 	return nil
 }
@@ -623,7 +643,7 @@ func appendMeshgrid(dst []ms3.Vec, bounds ms3.Box, nx, ny, nz int) []ms3.Vec {
 	return dst
 }
 
-func appendMeshgrid2D(dst []ms2.Vec, bounds ms2.Box, nx, ny, nz int) []ms2.Vec {
+func appendMeshgrid2D(dst []ms2.Vec, bounds ms2.Box, nx, ny int) []ms2.Vec {
 	nxyz := ms2.Vec{X: float32(nx), Y: float32(ny)}
 	dxyz := ms2.DivElem(bounds.Size(), nxyz)
 	var xy ms2.Vec
@@ -691,12 +711,12 @@ func cmpDist[T any](pos []T, dcpu, dgpu []float32) error {
 	mismatches := 0
 	const tol = 5e-3
 	var mismatchErr error
-	for i, dg := range dcpu {
-		dc := dgpu[i]
+	for i, dc := range dcpu {
+		dg := dgpu[i]
 		diff := math32.Abs(dg - dc)
 		if diff > tol {
 			mismatches++
-			msg := fmt.Sprintf("mismatch: pos=%+v cpu=%f, gpu=%f (diff=%f)", pos[i], dc, dg, diff)
+			msg := fmt.Sprintf("mismatch: pos=%+v cpu=%f, gpu=%f (diff=%f) idx=%d", pos[i], dc, dg, diff, i)
 			if mismatchErr == nil {
 				mismatchErr = errors.New("cpu vs. gpu distance mismatch")
 			}

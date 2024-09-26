@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"unsafe"
 
 	"github.com/soypat/glgl/math/ms2"
 	"github.com/soypat/glgl/math/ms3"
@@ -95,21 +96,26 @@ func (p *Programmer) WriteComputeSDF3(w io.Writer, obj Shader3D) (int, error) {
 	if err != nil {
 		return n, err
 	}
+	const sz = unsafe.Sizeof(ms3.Vec{})
 	ngot, err = fmt.Fprintf(w, `
 
 layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
-layout(rgba32f, binding = 0) uniform image2D in_tex;
-// The binding argument refers to the textures Unit.
-layout(r32f, binding = 1) uniform image2D out_tex;
+
+// Input: 3D positions at which to evaluate SDF.
+layout(std140, binding = 0) buffer PositionsBuffer {
+    vec3 vbo_positions[];
+};
+
+// Output: Result of SDF evaluation are the distances. Maps to position buffer.
+layout(std430, binding = 1) buffer DistancesBuffer {
+    float vbo_distances[];
+};
 
 void main() {
-	// get position to read/write data from.
-	ivec2 pos = ivec2( gl_GlobalInvocationID.xy );
-	// Get SDF position value.
-	vec3 p = imageLoad( in_tex, pos ).rgb;
-	float distance = %s(p);
-	// store new value in image
-	imageStore( out_tex, pos, vec4( distance, 0.0, 0.0, 0.0 ) );
+	int idx = int( gl_GlobalInvocationID.x );
+	
+	vec3 p = vbo_positions[idx];    // Get position to evaluate SDF at.
+	vbo_distances[idx] = %s(p);     // Evaluate SDF and store to distance buffer.
 }
 `, baseName)
 
@@ -137,18 +143,22 @@ func (p *Programmer) WriteComputeSDF2(w io.Writer, obj Shader2D) (int, error) {
 	ngot, err = fmt.Fprintf(w, `
 
 layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
-layout(rg32f, binding = 0) uniform image2D in_tex;
-// The binding argument refers to the textures Unit.
-layout(r32f, binding = 1) uniform image2D out_tex;
+
+// Input: 2D positions at which to evaluate SDF.
+layout(std430, binding = 0) buffer PositionsBuffer {
+    vec2 vbo_positions[];
+};
+
+// Output: Result of SDF evaluation are the distances. Maps to position buffer.
+layout(std430, binding = 1) buffer DistancesBuffer {
+    float vbo_distances[];
+};
 
 void main() {
-	// get position to read/write data from.
-	ivec2 pos = ivec2( gl_GlobalInvocationID.xy );
-	// Get SDF position value.
-	vec2 p = imageLoad( in_tex, pos ).rg;
-	float distance = %s(p);
-	// store new value in image
-	imageStore( out_tex, pos, vec4( distance, 0.0, 0.0, 0.0 ) );
+	int idx = int( gl_GlobalInvocationID.x );
+	
+	vec2 p = vbo_positions[idx];    // Get position to evaluate SDF at.
+	vbo_distances[idx] = %s(p);     // Evaluate SDF and store to distance buffer.
 }
 `, baseName)
 
