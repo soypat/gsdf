@@ -120,26 +120,18 @@ func (u *OpUnion) Evaluate(pos []ms3.Vec, dist []float32, userData any) error {
 	}
 	auxDist := vp.Float.Acquire(len(dist))
 	defer vp.Float.Release(auxDist)
-	// This algorithm of switching distance buffers avoids needing to allocate
-	// a new distance buffer for every SDF in the union list.
-	distCalc, distAccum := dist, auxDist
-	if len(u.joined)%2 != 0 {
-		// If odd number of elements we ensure the last accumulated
-		// distance calculation is stored in dist to avoid needing to copy.
-		// All we need to do is switch our buffers once before we start.
-		distCalc, distAccum = distAccum, distCalc
+	err = evaluateSDF3(u.joined[0], pos, dist, userData)
+	if err != nil {
+		return err
 	}
-	for i := range u.joined {
-		err = evaluateSDF3(u.joined[i], pos, distCalc, userData)
+	for _, shape := range u.joined[1:] {
+		err = evaluateSDF3(shape, pos, auxDist, userData)
 		if err != nil {
 			return err
 		}
-		for i, d := range distAccum {
-			distAccum[i] = math32.Min(d, distCalc[i])
+		for i, d := range dist {
+			dist[i] = math32.Min(d, auxDist[i])
 		}
-		// Buffer switcheroo for next evaluation to not overwrite
-		// the minumum distance we just calculated.
-		distCalc, distAccum = distAccum, distCalc
 	}
 	return nil
 }
@@ -553,11 +545,11 @@ func (l *line2D) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {
 	a := l.a
 	ba := ms2.Sub(l.b, l.a)
 	dotba := ms2.Dot(ba, ba)
-	t := l.thick / 2
+	w := l.width / 2
 	for i, p := range pos {
 		pa := ms2.Sub(p, a)
 		h := ms1.Clamp(ms2.Dot(pa, ba)/dotba, 0, 1)
-		dist[i] = ms2.Norm(ms2.Sub(pa, ms2.Scale(h, ba))) - t
+		dist[i] = ms2.Norm(ms2.Sub(pa, ms2.Scale(h, ba))) - w
 	}
 	return nil
 }
@@ -705,19 +697,19 @@ func (u *OpUnion2D) Evaluate(pos []ms2.Vec, dist []float32, userData any) error 
 	}
 	auxDist := vp.Float.Acquire(len(dist))
 	defer vp.Float.Release(auxDist)
-	distCalc, distAccum := dist, auxDist
-	if len(u.joined)%2 != 0 {
-		distCalc, distAccum = distAccum, distCalc
+
+	err = evaluateSDF2(u.joined[0], pos, dist, userData)
+	if err != nil {
+		return err
 	}
-	for i := range u.joined {
-		err = evaluateSDF2(u.joined[i], pos, distCalc, userData)
+	for _, shape := range u.joined[1:] {
+		err = evaluateSDF2(shape, pos, auxDist, userData)
 		if err != nil {
 			return err
 		}
-		for i, d := range distAccum {
-			distAccum[i] = math32.Min(d, distCalc[i])
+		for i, d := range dist {
+			dist[i] = math32.Min(d, auxDist[i])
 		}
-		distCalc, distAccum = distAccum, distCalc
 	}
 	return nil
 }

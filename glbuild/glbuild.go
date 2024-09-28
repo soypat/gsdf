@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"strconv"
-	"unsafe"
 
 	"github.com/soypat/glgl/math/ms2"
 	"github.com/soypat/glgl/math/ms3"
@@ -114,7 +113,6 @@ func (p *Programmer) WriteComputeSDF3(w io.Writer, obj Shader3D) (int, error) {
 	if err != nil {
 		return n, err
 	}
-	const sz = unsafe.Sizeof(ms3.Vec{})
 	ngot, err = fmt.Fprintf(w, `
 
 layout(local_size_x = %d, local_size_y = 1, local_size_z = 1) in;
@@ -186,16 +184,11 @@ void main() {
 
 // WriteFragVisualizerSDF3 generates a OpenGL program that can be visualized in most shader visualizers such as ShaderToy.
 func (p *Programmer) WriteFragVisualizerSDF3(w io.Writer, obj Shader3D) (n int, err error) {
-	baseName, nodes, err := ParseAppendNodes(p.scratchNodes[:0], obj)
+	baseName, n, err := p.WriteSDFDecl(w, obj)
 	if err != nil {
 		return 0, err
 	}
-	ngot, err := p.writeShaders(w, nodes)
-	n += ngot
-	if err != nil {
-		return n, err
-	}
-	ngot, err = w.Write([]byte("\nfloat sdf(vec3 p) { return " + baseName + "(p); }\n\n"))
+	ngot, err := w.Write([]byte("\nfloat sdf(vec3 p) { return " + baseName + "(p); }\n\n"))
 	n += ngot
 	if err != nil {
 		return n, err
@@ -206,6 +199,19 @@ func (p *Programmer) WriteFragVisualizerSDF3(w io.Writer, obj Shader3D) (n int, 
 		return n, err
 	}
 	return n, nil
+}
+
+// WriteShaderDecl writes the SDF shader function declarations and returns the top-level SDF function name.
+func (p *Programmer) WriteSDFDecl(w io.Writer, obj Shader) (baseName string, n int, err error) {
+	baseName, nodes, err := ParseAppendNodes(p.scratchNodes[:0], obj)
+	if err != nil {
+		return "", 0, err
+	}
+	n, err = p.writeShaders(w, nodes)
+	if err != nil {
+		return "", n, err
+	}
+	return baseName, n, nil
 }
 
 func (p *Programmer) writeShaders(w io.Writer, nodes []Shader) (n int, err error) {

@@ -100,7 +100,7 @@ func run() error {
 	}
 	defer fpvis.Close()
 
-	err = gsdfaux.Render(object, gsdfaux.RenderConfig{
+	err = gsdfaux.RenderShader3D(object, gsdfaux.RenderConfig{
 		STLOutput:     fpstl,
 		VisualOutput:  fpvis,
 		Resolution:    object.Bounds().Diagonal() / 200,

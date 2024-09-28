@@ -33,9 +33,9 @@ type RenderConfig struct {
 	EnableCaching bool
 }
 
-// Render is an auxiliary function to aid users in getting setup in using gsdf quickly.
+// RenderShader3D is an auxiliary function to aid users in getting setup in using gsdf quickly.
 // Ideally users should implement their own rendering functions since applications may vary widely.
-func Render(s glbuild.Shader3D, cfg RenderConfig) (err error) {
+func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 	if cfg.STLOutput == nil && cfg.VisualOutput == nil {
 		return errors.New("Render requires output parameter in config")
 	}
@@ -166,45 +166,16 @@ func stopwatch() func() time.Duration {
 // RenderPNGFile renders a 2D SDF as an image and saves result to a PNG file with said filename.
 // The image width is sized automatically from the image height argument to preserve SDF aspect ratio.
 // If a nil color conversion function is passed then one is automatically chosen.
-func RenderPNGFile(filename string, s glbuild.Shader2D, picHeight int, useGPU bool, colorConversion func(float32) color.Color) error {
-	bb := s.Bounds()
-	sz := bb.Size()
+func RenderPNGFile(filename string, sdf gleval.SDF2, picHeight int, colorConversion func(float32) color.Color) error {
+	bb := sdf.Bounds()
 	if colorConversion == nil {
 		colorConversion = ColorConversionInigoQuilez(bb.Diagonal() / 3)
 	}
+	sz := bb.Size()
 	pixPerUnit := float64(picHeight) / float64(sz.Y)
 	picWidth := int(pixPerUnit * float64(sz.X))
 	img := image.NewRGBA(image.Rect(0, 0, picWidth, picHeight))
 	renderer, err := glrender.NewImageRendererSDF2(max(4096, picWidth), colorConversion)
-	if err != nil {
-		return err
-	}
-	var sdf gleval.SDF2
-	if useGPU {
-		var n int
-		var buf bytes.Buffer
-		err = glbuild.ShortenNames2D(&s, 8)
-		if err != nil {
-			return err
-		}
-		invoc := gleval.MaxComputeInvocations()
-		if invoc < 1 {
-			return errors.New("zero or negative GPU invocation size")
-		}
-		prog := glbuild.NewDefaultProgrammer()
-		prog.SetComputeInvocations(invoc, 1, 1)
-
-		n, err = prog.WriteComputeSDF2(&buf, s)
-		if err != nil {
-			return err
-		} else if n != buf.Len() {
-			return fmt.Errorf("wrote %d bytes but WriteComputeSDF2 counted %d", buf.Len(), n)
-		}
-
-		sdf, err = gleval.NewComputeGPUSDF2(&buf, bb, gleval.ComputeConfig{InvocX: invoc})
-	} else {
-		sdf, err = gleval.NewCPUSDF2(s)
-	}
 	if err != nil {
 		return err
 	}
@@ -224,6 +195,30 @@ func RenderPNGFile(filename string, s glbuild.Shader2D, picHeight int, useGPU bo
 	}
 	fp.Sync()
 	return nil
+}
+
+func MakeGPUSDF2(s glbuild.Shader2D) (sdf gleval.SDF2, err error) {
+	var n int
+	var buf bytes.Buffer
+	err = glbuild.ShortenNames2D(&s, 8)
+	if err != nil {
+		return nil, err
+	}
+	invoc := gleval.MaxComputeInvocations()
+	if invoc < 1 {
+		return nil, errors.New("zero or negative GPU invocation size")
+	}
+	prog := glbuild.NewDefaultProgrammer()
+	prog.SetComputeInvocations(invoc, 1, 1)
+
+	n, err = prog.WriteComputeSDF2(&buf, s)
+	if err != nil {
+		return nil, err
+	} else if n != buf.Len() {
+		return nil, fmt.Errorf("wrote %d bytes but WriteComputeSDF2 counted %d", buf.Len(), n)
+	}
+
+	return gleval.NewComputeGPUSDF2(&buf, s.Bounds(), gleval.ComputeConfig{InvocX: invoc})
 }
 
 var red = color.RGBA{R: 255, A: 255}

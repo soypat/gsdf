@@ -23,6 +23,7 @@ import (
 	"github.com/soypat/gsdf/glbuild"
 	"github.com/soypat/gsdf/gleval"
 	"github.com/soypat/gsdf/glrender"
+	"github.com/soypat/gsdf/gsdfaux"
 )
 
 func main() {
@@ -49,9 +50,27 @@ func run() error {
 	fmt.Println("invoc size:", invoc)
 	programmer.SetComputeInvocations(invoc, 1, 1)
 	defer terminate()
+
+	err = test_multidisplacegpu()
+	if err != nil {
+		return fmt.Errorf("testing multi displace GPU: %w", err)
+	}
+	err = test_linesgpu()
+	if err != nil {
+		return fmt.Errorf("testing linesGPU: %w", err)
+	}
 	err = test_polygongpu()
 	if err != nil {
 		return fmt.Errorf("testing polygonGPU: %w", err)
+	}
+
+	err = test_union2D()
+	if err != nil {
+		return fmt.Errorf("testing union2D: %w", err)
+	}
+	err = test_union3D()
+	if err != nil {
+		return fmt.Errorf("testing union3D: %w", err)
 	}
 
 	err = test_visualizer_generation()
@@ -442,8 +461,76 @@ func test_visualizer_generation() error {
 	return visualize(s, filename)
 }
 
+func test_union2D() error {
+	const Nshapes = 32
+	var circles []glbuild.Shader2D
+	for i := 0; i < Nshapes; i++ {
+		c, _ := gsdf.NewCircle(.1)
+		circles = append(circles, gsdf.Translate2D(c, rand.Float32(), rand.Float32()))
+	}
+	union := gsdf.Union2D(circles...)
+	sdfCPU, err := gleval.NewCPUSDF2(union)
+	if err != nil {
+		return err
+	}
+	sdfGPU, err := gsdfaux.MakeGPUSDF2(union)
+	if err != nil {
+		return err
+	}
+	bb := union.Bounds()
+	pos := appendMeshgrid2D(nil, bb, 32, 32)
+	distCPU := make([]float32, len(pos))
+	distGPU := make([]float32, len(pos))
+	err = sdfCPU.Evaluate(pos, distCPU, nil)
+	if err != nil {
+		return err
+	}
+	err = sdfGPU.Evaluate(pos, distGPU, nil)
+	if err != nil {
+		return err
+	}
+	err = cmpDist(pos, distCPU, distGPU)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func test_union3D() error {
+	const Nshapes = 32
+	var spheres []glbuild.Shader3D
+	for i := 0; i < Nshapes; i++ {
+		c, _ := gsdf.NewSphere(.1)
+		spheres = append(spheres, gsdf.Translate(c, rand.Float32(), rand.Float32(), rand.Float32()))
+	}
+	union := gsdf.Union(spheres...)
+	sdfCPU, err := gleval.NewCPUSDF3(union)
+	if err != nil {
+		return err
+	}
+	sdfGPU := makeGPUSDF3(union)
+
+	bb := union.Bounds()
+	pos := appendMeshgrid(nil, bb, 32, 32, 32)
+	distCPU := make([]float32, len(pos))
+	distGPU := make([]float32, len(pos))
+	err = sdfCPU.Evaluate(pos, distCPU, nil)
+	if err != nil {
+		return err
+	}
+	err = sdfGPU.Evaluate(pos, distGPU, nil)
+	if err != nil {
+		return err
+	}
+	err = cmpDist(pos, distCPU, distGPU)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func test_polygongpu() error {
-	const Nvertices = 16000
+	const Nvertices = 1600
 	var polybuilder ms2.PolygonBuilder
 	polybuilder.Nagon(Nvertices, 2)
 	vecs, err := polybuilder.AppendVecs(nil)
@@ -455,26 +542,115 @@ func test_polygongpu() error {
 	if err != nil {
 		return err
 	}
-	polyGPU := gleval.PolygonGPU{Vertices: vecs}
+	sdfcpu, err := gleval.NewCPUSDF2(poly)
+	if err != nil {
+		return err
+	}
+	polyGPU := &gleval.PolygonGPU{Vertices: vecs}
 	invocX, _, _ := programmer.ComputeInvocations()
 	polyGPU.Configure(gleval.ComputeConfig{InvocX: invocX})
-	for i, sz := range []int{32, 256, 512} {
+	return testsdf2("poly", sdfcpu, polyGPU)
+}
+
+func test_multidisplacegpu() error {
+	const Nshapes = 300
+	circle, _ := gsdf.NewCircle(.2)
+	var displace []ms2.Vec
+	for i := 0; i < Nshapes; i++ {
+		displace = append(displace, ms2.Vec{X: 1 + rand.Float32(), Y: 2 * rand.Float32()})
+	}
+	var sdfs []glbuild.Shader2D
+	for _, vv := range displace {
+		sdf := gsdf.Translate2D(circle, vv.X, vv.Y)
+		sdfs = append(sdfs, sdf)
+	}
+	union := sdfs[0]
+	if len(sdfs) > 1 {
+		union = gsdf.Union2D(sdfs...)
+	}
+
+	displCPU, err := gsdfaux.MakeGPUSDF2(union)
+	if err != nil {
+		return err
+	}
+	displGPU := &gleval.DisplaceMulti2D{
+		Displacements: displace,
+	}
+	invocX, _, _ := programmer.ComputeInvocations()
+	err = displGPU.Configure(programmer, circle, gleval.ComputeConfig{InvocX: invocX})
+	if err != nil {
+		return err
+	}
+	return testsdf2("multidisp", displCPU, displGPU)
+}
+
+func test_linesgpu() error {
+	const Nlines = 300
+	const width = 1
+
+	var lines [][2]ms2.Vec
+	for i := 0; i < Nlines; i++ {
+		lines = append(lines, [2]ms2.Vec{
+			{X: rand.Float32(), Y: rand.Float32()},
+			{X: 1 + rand.Float32(), Y: 2 * rand.Float32()},
+		})
+	}
+	var sdfs []glbuild.Shader2D
+	for _, vv := range lines {
+		line, err := gsdf.NewLine2D(vv[0].X, vv[0].Y, vv[1].X, vv[1].Y, width)
+		if err != nil {
+			return err
+		}
+		sdfs = append(sdfs, line)
+	}
+	union := sdfs[0]
+	if len(sdfs) > 1 {
+		union = gsdf.Union2D(sdfs...)
+	}
+
+	linesCPU, err := gsdfaux.MakeGPUSDF2(union)
+	if err != nil {
+		return err
+	}
+	linesGPU := &gleval.Lines2DGPU{
+		Lines: lines,
+		Width: width,
+	}
+	invocX, _, _ := programmer.ComputeInvocations()
+	linesGPU.Configure(gleval.ComputeConfig{InvocX: invocX})
+	return testsdf2("lines", linesCPU, linesGPU)
+}
+
+func testsdf2(name string, sdfcpu, sdfgpu gleval.SDF2) (err error) {
+	bbGPU := sdfgpu.Bounds()
+	bbCPU := sdfcpu.Bounds()
+	if !bbGPU.Equal(bbCPU, 1e-8) {
+		return fmt.Errorf("bounding boxes not equal diff: Dmax=%v  Dmin=%v", ms2.Sub(bbCPU.Max, bbGPU.Max), ms2.Sub(bbCPU.Min, bbGPU.Min))
+	}
+	err = gsdfaux.RenderPNGFile(name+"_gpu.png", sdfgpu, 512, nil)
+	if err != nil {
+		return err
+	}
+	err = gsdfaux.RenderPNGFile(name+"_cpu.png", sdfcpu, 512, nil)
+	if err != nil {
+		return err
+	}
+	var pos []ms2.Vec
+	for _, sz := range []int{32, 256, 512} {
 		now := time.Now()
-		pos := appendMeshgrid2D(nil, poly.Bounds(), sz, sz)
+		pos = appendMeshgrid2D(pos[:0], bbGPU, sz, sz)
 		distCPU := make([]float32, len(pos))
 		distGPU := make([]float32, len(pos))
-		sdfcpu, err := gleval.NewCPUSDF2(poly)
+		err = sdfgpu.Evaluate(pos, distGPU, nil)
 		if err != nil {
 			return err
 		}
-		err = polyGPU.Evaluate(pos, distGPU, nil)
-		if err != nil {
-			return err
-		}
-		fmt.Println(sz, time.Since(now).Round(time.Millisecond))
-		if i == 0 {
+		gpuElapsed := time.Since(now).Round(time.Millisecond)
+		if len(pos) <= 2*math.MaxUint16 {
 			// Only check for small case.
+			now = time.Now()
 			err = sdfcpu.Evaluate(pos, distCPU, nil)
+			cpuElapsed := time.Since(now).Round(time.Millisecond)
 			if err != nil {
 				return err
 			}
@@ -482,9 +658,12 @@ func test_polygongpu() error {
 			if err != nil {
 				return err
 			}
+			fmt.Println("\t", name, len(pos), "gpuelased:", gpuElapsed, "cpuelased:", cpuElapsed)
+		} else {
+			fmt.Println("\t", name, len(pos), "gpuelased:", gpuElapsed)
 		}
 	}
-	log.Println("PASS polygongpu")
+	log.Println("PASS", name)
 	return nil
 }
 

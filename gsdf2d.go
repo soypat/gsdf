@@ -96,49 +96,50 @@ func (u *OpUnion2D) mustValidate() {
 }
 
 // NewLine2D creates a straight line between (x0,y0) and (x1,y1) with a given thickness.
-func NewLine2D(x0, y0, x1, y1, thick float32) (glbuild.Shader2D, error) {
-	hasNaN := math32.IsNaN(x0) || math32.IsNaN(y0) || math32.IsNaN(x1) || math32.IsNaN(y1) || math32.IsNaN(thick)
+func NewLine2D(x0, y0, x1, y1, width float32) (glbuild.Shader2D, error) {
+	hasNaN := math32.IsNaN(x0) || math32.IsNaN(y0) || math32.IsNaN(x1) || math32.IsNaN(y1) || math32.IsNaN(width)
 	if hasNaN {
 		return nil, errors.New("NaN argument to NewLine2D")
-	} else if thick < 0 {
+	} else if width < 0 {
 		return nil, errors.New("negative thickness to NewLine2D")
 	}
 	a, b := ms2.Vec{X: x0, Y: y0}, ms2.Vec{X: x1, Y: y1}
 	lineLen := ms2.Norm(ms2.Sub(a, b))
-	if lineLen < thick*1e-6 || lineLen < epstol {
-		if thick == 0 {
+	if lineLen < width*1e-6 || lineLen < epstol {
+		if width == 0 {
 			return nil, errors.New("infimal line")
 		}
-		return NewCircle(thick / 2)
+		return NewCircle(width / 2)
 	}
-	return &line2D{a: a, b: b, thick: thick}, nil
+	return &line2D{a: a, b: b, width: width}, nil
 }
 
 type line2D struct {
-	thick float32
+	width float32
 	a, b  ms2.Vec
 }
 
 func (l *line2D) Bounds() ms2.Box {
+	w := l.width / 2
 	b := ms2.Box{Min: l.a, Max: l.b}.Canon()
-	b.Max = ms2.AddScalar(l.thick, b.Max)
-	b.Min = ms2.AddScalar(-l.thick, b.Min)
+	b.Max = ms2.AddScalar(w, b.Max)
+	b.Min = ms2.AddScalar(-w, b.Min)
 	return b
 }
 
 func (l *line2D) AppendShaderName(b []byte) []byte {
 	b = append(b, "line"...)
-	b = glbuild.AppendFloats(b, 0, 'n', 'p', l.a.X, l.a.Y, l.b.X, l.b.Y, l.thick)
+	b = glbuild.AppendFloats(b, 0, 'n', 'p', l.a.X, l.a.Y, l.b.X, l.b.Y, l.width)
 	return b
 }
 
 func (l *line2D) AppendShaderBody(b []byte) []byte {
 	b = glbuild.AppendVec2Decl(b, "a", l.a)
 	b = glbuild.AppendVec2Decl(b, "ba", ms2.Sub(l.b, l.a))
-	b = glbuild.AppendFloatDecl(b, "t", l.thick/2)
+	b = glbuild.AppendFloatDecl(b, "w", l.width/2)
 	b = append(b, `vec2 pa=p-a;
 float h=clamp( dot(pa,ba)/dot(ba,ba), 0.0, 1.0); 
-return length(pa-ba*h)-t;`...)
+return length(pa-ba*h)-w;`...)
 	return b
 }
 

@@ -13,6 +13,7 @@ import (
 	"github.com/soypat/glgl/math/ms2"
 	"github.com/soypat/gsdf"
 	"github.com/soypat/gsdf/glbuild"
+	"github.com/soypat/gsdf/gleval"
 	"github.com/soypat/gsdf/gsdfaux"
 )
 
@@ -54,7 +55,11 @@ func scenePotBase() (glbuild.Shader3D, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = gsdfaux.RenderPNGFile(visualization2D, poly2, 1080, false, gsdfaux.ColorConversionInigoQuilez(poly2.Bounds().Diagonal()/3))
+	sdf, err := gleval.NewCPUSDF2(poly2)
+	if err != nil {
+		return nil, err
+	}
+	err = gsdfaux.RenderPNGFile(visualization2D, sdf, 1080, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +84,7 @@ func run() error {
 	}
 	defer fpvis.Close()
 
-	err = gsdfaux.Render(object, gsdfaux.RenderConfig{
+	err = gsdfaux.RenderShader3D(object, gsdfaux.RenderConfig{
 		STLOutput:    fpstl,
 		VisualOutput: fpvis,
 		Resolution:   object.Bounds().Diagonal() / 350,
