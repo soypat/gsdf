@@ -15,6 +15,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
+    
+    - name: Env disable Cgo 
+      run: echo "CGO_ENABLED=0" >> $GITHUB_ENV
 
     - name: Set up Go
       uses: actions/setup-go@v3
