@@ -4,7 +4,6 @@ package gleval
 
 import (
 	"errors"
-	"io"
 
 	"github.com/soypat/glgl/math/ms2"
 	"github.com/soypat/glgl/math/ms3"
@@ -12,47 +11,18 @@ import (
 
 var errNoCGO = errors.New("GPU evaluation requires CGo and is not supported on TinyGo")
 
-// MaxComputeInvoc returns maximum number of invocations/warps per workgroup on the local GPU. The GL context must be actual.
-func MaxComputeInvocations() int {
-	return 32
-}
-
-// Init1x1GLFW starts a 1x1 sized GLFW so that user can start working with GPU.
-// It returns a termination function that should be called when user is done running loads on GPU.
-func Init1x1GLFW() (terminate func(), err error) {
-	return nil, errNoCGO
-}
-
-// NewComputeGPUSDF3 instantiates a [SDF3] that runs on the GPU.
-func NewComputeGPUSDF3(glglSourceCode io.Reader, bb ms3.Box) (*SDF3Compute, error) {
-	return nil, errNoCGO
-}
-
-type SDF3Compute struct {
-	bb ms3.Box
-}
-
-func (sdf *SDF3Compute) Bounds() ms3.Box {
-	return sdf.bb
-}
-
-func (sdf *SDF3Compute) Evaluate(pos []ms3.Vec, dist []float32, userData any) error {
+func (poly *PolygonGPU) evaluate(pos []ms2.Vec, dist []float32, userData any) (err error) {
 	return errNoCGO
 }
 
-// NewComputeGPUSDF2 instantiates a [SDF2] that runs on the GPU.
-func NewComputeGPUSDF2(glglSourceCode io.Reader, bb ms2.Box) (*SDF2Compute, error) {
-	return nil, errNoCGO
+func (lines *Lines2DGPU) evaluate(pos []ms2.Vec, dist []float32, userData any) (err error) {
+	return errNoCGO
 }
 
-type SDF2Compute struct {
-	bb ms2.Box
+func (lines *DisplaceMulti2D) evaluate(pos []ms2.Vec, dist []float32, userData any) (err error) {
+	return errNoCGO
 }
 
-func (sdf *SDF2Compute) Bounds() ms2.Box {
-	return sdf.bb
-}
-
-func (sdf *SDF2Compute) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {
+func computeEvaluate[T ms2.Vec | ms3.Quat](pos []T, dist []float32, invocX int) (err error) {
 	return errNoCGO
 }

@@ -16,6 +16,7 @@ import (
 	math "github.com/chewxy/math32"
 	"github.com/soypat/glgl/math/ms1"
 	"github.com/soypat/glgl/math/ms3"
+	"github.com/soypat/glgl/v4.6-core/glgl"
 	"github.com/soypat/gsdf"
 	"github.com/soypat/gsdf/glbuild"
 	"github.com/soypat/gsdf/gleval"
@@ -63,7 +64,7 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 		}
 		source := new(bytes.Buffer)
 		prog := glbuild.NewDefaultProgrammer()
-		invoc := gleval.MaxComputeInvocations()
+		invoc := glgl.MaxComputeInvocations()
 		log("compute invocation size ", invoc)
 		if invoc < 1 {
 			return errors.New("zero or negative GPU invocation size")
@@ -204,7 +205,7 @@ func MakeGPUSDF2(s glbuild.Shader2D) (sdf gleval.SDF2, err error) {
 	if err != nil {
 		return nil, err
 	}
-	invoc := gleval.MaxComputeInvocations()
+	invoc := glgl.MaxComputeInvocations()
 	if invoc < 1 {
 		return nil, errors.New("zero or negative GPU invocation size")
 	}

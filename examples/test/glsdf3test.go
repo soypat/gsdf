@@ -46,7 +46,7 @@ func run() error {
 	if err != nil {
 		log.Fatal("FAIL to start GLFW", err.Error())
 	}
-	invoc := gleval.MaxComputeInvocations()
+	invoc := glgl.MaxComputeInvocations()
 	fmt.Println("invoc size:", invoc)
 	programmer.SetComputeInvocations(invoc, 1, 1)
 	defer terminate()
