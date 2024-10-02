@@ -29,19 +29,22 @@ func (butt PlasticButtress) Thread() (glbuild.Shader2D, error) {
 		t1 = 0.1227845609029046 // math.Tan(7.0 * math.Pi / 180)
 	)
 	const threadEngage = 0.6 // thread engagement
-
-	h0 := butt.P / (t0 + t1)
-	h1 := ((threadEngage / 2.0) * butt.P) + (0.5 * h0)
-	hp := butt.P / 2.0
+	p := butt.P
+	h0 := p / (t0 + t1)
+	h1 := ((threadEngage / 2.0) * p) + (0.5 * h0)
+	hp := p / 2.0
 	var tp ms2.PolygonBuilder
 
-	tp.AddXY(butt.P, 0)
-	tp.AddXY(butt.P, radius)
-	tp.AddXY(hp-((h0-h1)*t1), radius).Smooth(0.05*butt.P, 5)
-	tp.AddXY(t0*h0-hp, radius-h1).Smooth(0.15*butt.P, 5)
-	tp.AddXY((h0-h1)*t0-hp, radius).Smooth(0.15*butt.P, 5)
-	tp.AddXY(-butt.P, radius)
-	tp.AddXY(-butt.P, 0)
+	tp.AddXY(p, 0)
+	tp.AddXY(p, radius)
+	p2 := hp - ((h0 - h1) * t1)
+	tp.AddXY(p2, radius).Smooth(0.05*p, 5)
+	p3 := t0*h0 - hp
+	tp.AddXY(p3, radius-h1).Smooth(0.15*p, 5)
+	p4 := (h0-h1)*t0 - hp
+	tp.AddXY(p4, radius).Smooth(0.15*p, 5)
+	tp.AddXY(-p, radius)
+	tp.AddXY(-p, 0)
 	verts, err := tp.AppendVecs(nil)
 	if err != nil {
 		return nil, err

@@ -13,6 +13,7 @@ import (
 	"github.com/soypat/gsdf"
 	"github.com/soypat/gsdf/forge/threads"
 	"github.com/soypat/gsdf/glbuild"
+	"github.com/soypat/gsdf/gleval"
 	"github.com/soypat/gsdf/gsdfaux"
 )
 
@@ -48,6 +49,13 @@ func scene() (glbuild.Shader3D, error) {
 			P: threadPitch,
 		}
 	)
+	t2d, err := showerThread.Thread()
+	if err != nil {
+		return nil, err
+	}
+	threadSDF, _ := gleval.NewCPUSDF2(t2d)
+	gsdfaux.RenderPNGFile("thread.png", threadSDF, 512, nil)
+
 	// Object accumulates the showerhead sdf.
 	var object glbuild.Shader3D
 
@@ -56,6 +64,7 @@ func scene() (glbuild.Shader3D, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	threads, err := threads.Screw(threadheight+.5, showerThread)
 	if err != nil {
 		return nil, err
