@@ -1,4 +1,12 @@
 # gsdf
+
+[![go.dev reference](https://pkg.go.dev/badge/github.com/soypat/gsdf)](https://pkg.go.dev/github.com/soypat/gsdf)
+[![Go Report Card](https://goreportcard.com/badge/github.com/soypat/gsdf)](https://goreportcard.com/report/github.com/soypat/gsdf)
+[![codecov](https://codecov.io/gh/soypat/gsdf/branch/main/graph/badge.svg)](https://codecov.io/gh/soypat/gsdf)
+[![Go](https://github.com/soypat/gsdf/actions/workflows/go.yml/badge.svg)](https://github.com/soypat/gsdf/actions/workflows/go.yml)
+[![stability-frozen](https://img.shields.io/badge/stability-frozen-blue.svg)](https://github.com/emersion/stability-badges#frozen)
+[![sourcegraph](https://sourcegraph.com/github.com/soypat/gsdf/-/badge.svg)](https://sourcegraph.com/github.com/soypat/gsdf?badge)
+
 `gsdf` is a CAD 3D design library for Go that uses SDFs for shape definition. Rendering can be done on GPU or CPU
 for visualization or 3D printing file outputs.
 
