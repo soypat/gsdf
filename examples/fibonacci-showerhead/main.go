@@ -92,12 +92,23 @@ func scene() (glbuild.Shader3D, error) {
 }
 
 func run() error {
-	useGPU := flag.Bool("gpu", false, "Enable GPU usage")
+	var (
+		useGPU     bool
+		resolution float64
+		flagResDiv uint
+	)
+	flag.BoolVar(&useGPU, "gpu", false, "enable GPU usage")
+	flag.Float64Var(&resolution, "res", 0, "Set resolution in shape units. Useful for setting the minimum level of detail to a fixed amount for final result. If not set resdiv used [mm/in]")
+	flag.UintVar(&flagResDiv, "resdiv", 200, "Set resolution in bounding box diagonal divisions. Useful for prototyping when constant speed of rendering is desired.")
 	flag.Parse()
 	object, err := scene()
 	if err != nil {
 		return err
 	}
+	if resolution == 0 {
+		resolution = float64(object.Bounds().Diagonal()) / float64(flagResDiv)
+	}
+
 	fpstl, err := os.Create(stl)
 	if err != nil {
 		return err
@@ -112,9 +123,9 @@ func run() error {
 	err = gsdfaux.RenderShader3D(object, gsdfaux.RenderConfig{
 		STLOutput:     fpstl,
 		VisualOutput:  fpvis,
-		Resolution:    object.Bounds().Diagonal() / 200,
-		UseGPU:        *useGPU,
-		EnableCaching: !*useGPU, // Has many unions, part can likely benefit from caching when using CPU.
+		Resolution:    float32(resolution),
+		UseGPU:        useGPU,
+		EnableCaching: !useGPU, // Has many unions, part can likely benefit from caching when using CPU.
 	})
 
 	return err

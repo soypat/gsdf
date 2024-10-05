@@ -25,6 +25,7 @@ func Init1x1GLFW() (terminate func(), err error) {
 		OpenGLProfile: glgl.ProfileCompat,
 		Width:         1,
 		Height:        1,
+		HideWindow:    true,
 	})
 	return terminate, err
 }

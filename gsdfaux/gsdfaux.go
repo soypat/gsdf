@@ -37,6 +37,12 @@ type RenderConfig struct {
 // RenderShader3D is an auxiliary function to aid users in getting setup in using gsdf quickly.
 // Ideally users should implement their own rendering functions since applications may vary widely.
 func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
+	const (
+		_ = 1 << (iota * 10)
+		kB
+		MB
+		GB
+	)
 	if cfg.STLOutput == nil && cfg.VisualOutput == nil {
 		return errors.New("Render requires output parameter in config")
 	}
@@ -97,7 +103,17 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 		}()
 	}
 	log("instantiating evaluation SDF took", watch())
-	const size = 1 << 12
+	size := 4096 // Default "sensible" value.
+	if cfg.UseGPU {
+		// We set the size of our buffer based on the limitations of
+		// GPU hardware. GPUs have compute work groups which run invocations(warps/threads).
+		// Workers run in parallel, which in turn run the invocations within their work group in parallel.
+		// Typically the number of parallel work groups run in parallel runs between 20 and 64 on modern GPUs.
+		// OpenGL does not expose an API to calculate this number so we take a best guess.
+		// 32 was the optimal guess for a AMD ATI Radeon RX 6800, with 1024 invocations, resulting in 32678 size of buffer (32*32*32).
+		const guessedNumberOfParallelWorkers = 32
+		size = glgl.MaxComputeInvocations() * guessedNumberOfParallelWorkers
+	}
 	renderer, err := glrender.NewOctreeRenderer(sdf, cfg.Resolution, size)
 	if err != nil {
 		return err
