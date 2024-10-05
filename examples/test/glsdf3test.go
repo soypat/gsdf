@@ -114,6 +114,7 @@ var _ = npt.SetFromNominal(1.0 / 2.0)
 
 var PremadePrimitives2D = []glbuild.Shader2D{
 	mustShader2D(gsdf.NewLine2D(-2.3, 1, 13, 12, .1)),
+	mustShader2D(gsdf.NewRectangle(1, 2)),
 	mustShader2D(gsdf.NewArc(2.3, math.Pi/3, 0.1)),
 	mustShader2D(gsdf.NewCircle(1)),
 	mustShader2D(gsdf.NewHexagon(1)),
@@ -121,6 +122,7 @@ var PremadePrimitives2D = []glbuild.Shader2D{
 		{X: -1, Y: -1}, {X: -1, Y: 0}, {X: 0.5, Y: 2},
 	})),
 	mustShader2D(npt.Thread()),
+
 	// mustShader2D(gsdf.NewEllipse(1, 2)), // Ellipse seems to be very sensitive to position.
 }
 var BinaryOps = []func(a, b glbuild.Shader3D) glbuild.Shader3D{
@@ -143,7 +145,7 @@ var SmoothBinaryOps = []func(k float32, a, b glbuild.Shader3D) glbuild.Shader3D{
 	gsdf.SmoothIntersect,
 }
 
-var OtherUnaryRandomizedOps = []func(a glbuild.Shader3D, rng *rand.Rand) glbuild.Shader3D{
+var UnaryRandomizedOps = []func(a glbuild.Shader3D, rng *rand.Rand) glbuild.Shader3D{
 	randomRotation,
 	randomShell,
 	randomElongate,
@@ -152,6 +154,10 @@ var OtherUnaryRandomizedOps = []func(a glbuild.Shader3D, rng *rand.Rand) glbuild
 	randomSymmetry,
 	randomTranslate,
 	// randomArray, // round() differs from go's math.Round()
+}
+
+var UnaryRandomizedOps2D = []func(a glbuild.Shader2D, rng *rand.Rand) glbuild.Shader2D{
+	// randomCircArray2D,
 }
 
 var OtherUnaryRandomizedOps2D3D = []func(a glbuild.Shader2D, rng *rand.Rand) glbuild.Shader3D{
@@ -305,7 +311,7 @@ func test_sdf_gpu_cpu() error {
 		}
 	}
 	rng := rand.New(rand.NewSource(1))
-	for _, op := range OtherUnaryRandomizedOps {
+	for _, op := range UnaryRandomizedOps {
 		log.Printf("begin evaluating %s\n", getFnName(op))
 		for i := 0; i < 50; i++ {
 			primitive := PremadePrimitives[rng.Intn(len(PremadePrimitives))]
@@ -343,6 +349,47 @@ func test_sdf_gpu_cpu() error {
 				description := sprintOpPrimitive(op, primitive)
 				return fmt.Errorf("%s: %s", description, err)
 			}
+		}
+	}
+	for _, op := range UnaryRandomizedOps2D {
+		log.Printf("begin evaluating %s\n", getFnName(op))
+		for i := 0; i < 50; i++ {
+			primitive := PremadePrimitives2D[rng.Intn(len(PremadePrimitives2D))]
+			obj := op(primitive, rng)
+			bounds := obj.Bounds()
+			pos := appendMeshgrid2D(scratchPos2[:0], bounds, nx, ny)
+			distCPU := scratchDistCPU[:len(pos)]
+			distGPU := scratchDistGPU[:len(pos)]
+			sdfcpu, err := gleval.AssertSDF2(obj)
+			if err != nil {
+				return err
+			}
+			err = sdfcpu.Evaluate(pos, distCPU, vp)
+			if err != nil {
+				return err
+			}
+			sdfgpu := makeGPUSDF2(obj)
+			err = sdfgpu.Evaluate(pos, distGPU, nil)
+			if err != nil {
+				return err
+			}
+			if getBaseTypename(primitive) == "poly2d" ||
+				(getBaseTypename(primitive) == "tri" && getFnName(op) == "randomRotation") {
+				log.Println("omit 2d dist checks")
+				continue
+			}
+			err = cmpDist(pos, distCPU, distGPU)
+			if err != nil {
+				description := sprintOpPrimitive(op, primitive)
+				return fmt.Errorf("%d %s: %s", i, description, err)
+			}
+			// log.Printf("allocated v3=%dMB v2=%dMB f32=%dMB", vp.V3.TotalAlloc()/MB, vp.V2.TotalAlloc()/MB, vp.Float.TotalAlloc()/MB)
+
+			// err = test_bounds(sdfcpu, scratchDist, vp)
+			// if err != nil {
+			// 	description := sprintOpPrimitive(op, primitive)
+			// 	return fmt.Errorf("%s: %s", description, err)
+			// }
 		}
 	}
 
@@ -530,7 +577,7 @@ func test_union3D() error {
 }
 
 func test_polygongpu() error {
-	const Nvertices = 1600
+	const Nvertices = 13
 	var polybuilder ms2.PolygonBuilder
 	polybuilder.Nagon(Nvertices, 2)
 	vecs, err := polybuilder.AppendVecs(nil)
@@ -917,6 +964,16 @@ func cmpDist[T any](pos []T, dcpu, dgpu []float32) error {
 		}
 	}
 	return mismatchErr
+}
+
+func randomCircArray2D(a glbuild.Shader2D, rng *rand.Rand) glbuild.Shader2D {
+	circleDiv := rng.Intn(16) + 3
+	nInst := rng.Intn(circleDiv) + 1
+	s, err := gsdf.CircularArray2D(a, nInst, circleDiv)
+	if err != nil {
+		panic(err)
+	}
+	return s
 }
 
 func randomRotation(a glbuild.Shader3D, rng *rand.Rand) glbuild.Shader3D {

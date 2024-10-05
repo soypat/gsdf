@@ -596,7 +596,7 @@ func (t *equilateralTri2d) Evaluate(pos []ms2.Vec, dist []float32, userData any)
 }
 
 func (c *rect2D) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {
-	b := c.d
+	b := ms2.Scale(0.5, c.d)
 	for i, p := range pos {
 		d := ms2.Sub(ms2.AbsElem(p), b)
 		dist[i] = ms2.Norm(ms2.MaxElem(d, ms2.Vec{})) + math32.Min(0, math32.Max(d.X, d.Y))
@@ -904,6 +904,57 @@ func (s *annulus2D) Evaluate(pos []ms2.Vec, dist []float32, userData any) error 
 	r := s.r
 	for i, d := range dist {
 		dist[i] = math32.Abs(d) - r
+	}
+	return nil
+}
+
+func (c *circarray2D) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {
+	vp, err := gleval.GetVecPool(userData)
+	if err != nil {
+		return err
+	}
+	sdf, err := gleval.AssertSDF2(c.s)
+	if err != nil {
+		return err
+	}
+	pos0 := vp.V2.Acquire(len(pos))
+	pos1 := vp.V2.Acquire(len(pos))
+	defer vp.V2.Release(pos0)
+	defer vp.V2.Release(pos1)
+
+	angle := 2 * math32.Pi / float32(c.circleDiv)
+	ncirc := float32(c.circleDiv)
+	ninsm1 := float32(c.nInst - 1)
+	for i, p := range pos {
+		pangle := math32.Atan2(p.Y, p.X)
+		id := math32.Floor(pangle / angle)
+		if id < 0 {
+			id += ncirc
+		}
+		var i0, i1 float32
+		if id >= ninsm1 {
+			i0 = ninsm1
+			i1 = 0
+		} else {
+			i0 = id
+			i1 = id + 1
+		}
+		pos0[i] = ms2.MulMatVecTrans(ms2.RotationMat2(angle*i0), p)
+		pos1[i] = ms2.MulMatVecTrans(ms2.RotationMat2(angle*i1), p)
+	}
+
+	dist1 := vp.Float.Acquire(len(pos))
+	defer vp.Float.Release(dist1)
+	err = sdf.Evaluate(pos1, dist1, userData)
+	if err != nil {
+		return err
+	}
+	err = sdf.Evaluate(pos0, dist, userData)
+	if err != nil {
+		return err
+	}
+	for i, d := range dist {
+		dist[i] = math32.Min(d, dist1[i])
 	}
 	return nil
 }

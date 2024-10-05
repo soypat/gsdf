@@ -286,8 +286,12 @@ func NewRectangle(x, y float32) (glbuild.Shader2D, error) {
 }
 
 func (c *rect2D) Bounds() ms2.Box {
-	min := ms2.Scale(-0.5, c.d)
-	return ms2.Box{Min: min, Max: ms2.AbsElem(min)}
+	xd2 := c.d.X / 2
+	yd2 := c.d.Y / 2
+	return ms2.Box{
+		Min: ms2.Vec{X: -xd2, Y: -yd2},
+		Max: ms2.Vec{X: xd2, Y: yd2},
+	}
 }
 
 func (c *rect2D) AppendShaderName(b []byte) []byte {
@@ -298,7 +302,7 @@ func (c *rect2D) AppendShaderName(b []byte) []byte {
 }
 
 func (c *rect2D) AppendShaderBody(b []byte) []byte {
-	b = glbuild.AppendVec2Decl(b, "b", c.d)
+	b = glbuild.AppendVec2Decl(b, "b", ms2.Scale(0.5, c.d))
 	b = append(b, `vec2 d = abs(p)-b;
     return length(max(d,0.0)) + min(max(d.x,d.y),0.0);`...)
 	return b
@@ -991,5 +995,82 @@ func (s *annulus2D) AppendShaderBody(b []byte) []byte {
 	b = glbuild.AppendFloatDecl(b, "r", s.r)
 	b = glbuild.AppendDistanceDecl(b, "d", "p", s.s)
 	b = append(b, "return abs(d)-r;"...)
+	return b
+}
+
+// CircularArray2 is the circular domain repetition operation around the origin (x,y)=(0,0).
+// It repeats the shape numInstances times and the spacing angle is defined by circleDiv such that angle = 2*pi/circleDiv.
+// The operation is defined this way so that the argument shape is evaluated only twice per circular array evaluation, regardless of instances.
+func CircularArray2D(s glbuild.Shader2D, numInstances, circleDiv int) (glbuild.Shader2D, error) {
+	if circleDiv <= 1 || numInstances <= 0 {
+		return nil, errors.New("invalid circarray repeat param")
+	} else if s == nil {
+		return nil, errors.New("nil argument to circarray")
+	} else if numInstances > circleDiv {
+		return nil, errors.New("bad circular array instances, must be less than circleDiv")
+	}
+	return &circarray2D{s: s, circleDiv: circleDiv, nInst: numInstances}, nil
+}
+
+type circarray2D struct {
+	s         glbuild.Shader2D
+	nInst     int
+	circleDiv int
+}
+
+func (ca *circarray2D) Bounds() ms2.Box {
+	bb := ca.s.Bounds()
+	verts := bb.Vertices()
+	angle := 2 * math.Pi / float32(ca.circleDiv)
+	m := ms2.RotationMat2(angle)
+	for i := 0; i < ca.nInst-1; i++ {
+		for i := range verts {
+			verts[i] = ms2.MulMatVec(m, verts[i])
+			bb = bb.IncludePoint(verts[i])
+		}
+	}
+	return bb
+}
+
+func (ca *circarray2D) ForEach2DChild(userData any, fn func(userData any, s *glbuild.Shader2D) error) error {
+	return fn(userData, &ca.s)
+}
+
+// func (ca *circarray2D) angle() float32 { return 2 * math32.Pi / float32(ca.n) }
+
+func (ca *circarray2D) AppendShaderName(b []byte) []byte {
+	b = append(b, "circarray2D2d"...)
+	b = glbuild.AppendFloats(b, 0, 'n', 'p', float32(ca.nInst), float32(ca.circleDiv))
+	b = append(b, '_')
+	b = ca.s.AppendShaderName(b)
+	return b
+}
+
+func (ca *circarray2D) AppendShaderBody(b []byte) []byte {
+	angle := 2 * math.Pi / float32(ca.circleDiv)
+	b = glbuild.AppendFloatDecl(b, "ncirc", float32(ca.circleDiv))
+	b = glbuild.AppendFloatDecl(b, "angle", angle)
+	b = glbuild.AppendFloatDecl(b, "ninsm1", float32(ca.nInst-1))
+	b = append(b, `float pangle=atan(p.y, p.x);
+	float i=floor(pangle/angle);
+	if (i<0.0) i=ncirc+i;
+	float i0,i1;
+	if (i>=ninsm1) {
+		i0=ninsm1;
+		i1=0.0;
+	} else {
+		i0=i;
+		i1=i+1.0;
+	}
+	float c0 = cos(angle*i0);
+	float s0 = sin(angle*i0);
+	vec2 p0 = mat2(c0,-s0,s0,c0)*p;
+	float c1 = cos(angle*i1);
+	float s1 = sin(angle*i1);
+	vec2 p1 = mat2(c1,-s1,s1,c1)*p;
+	`...)
+	b = glbuild.AppendDistanceDecl(b, "d0", "p0", ca.s)
+	b = glbuild.AppendDistanceDecl(b, "d1", "p1", ca.s)
+	b = append(b, "return min(d0, d1);"...)
 	return b
 }
