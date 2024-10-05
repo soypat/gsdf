@@ -908,6 +908,61 @@ func (s *annulus2D) Evaluate(pos []ms2.Vec, dist []float32, userData any) error 
 	return nil
 }
 
+func (c *circarray) Evaluate(pos []ms3.Vec, dist []float32, userData any) error {
+	vp, err := gleval.GetVecPool(userData)
+	if err != nil {
+		return err
+	}
+	sdf, err := gleval.AssertSDF3(c.s)
+	if err != nil {
+		return err
+	}
+	pos0 := vp.V3.Acquire(len(pos))
+	pos1 := vp.V3.Acquire(len(pos))
+	defer vp.V3.Release(pos0)
+	defer vp.V3.Release(pos1)
+
+	angle := 2 * math32.Pi / float32(c.circleDiv)
+	ncirc := float32(c.circleDiv)
+	ninsm1 := float32(c.nInst - 1)
+	for i, p := range pos {
+
+		pangle := math32.Atan2(p.Y, p.X)
+		id := math32.Floor(pangle / angle)
+		if id < 0 {
+			id += ncirc
+		}
+		var i0, i1 float32
+		if id >= ninsm1 {
+			i0 = ninsm1
+			i1 = 0
+		} else {
+			i0 = id
+			i1 = id + 1
+		}
+		p2d := ms2.Vec{X: p.X, Y: p.Y}
+		p0 := ms2.MulMatVecTrans(ms2.RotationMat2(angle*i0), p2d)
+		p1 := ms2.MulMatVecTrans(ms2.RotationMat2(angle*i1), p2d)
+		pos0[i] = ms3.Vec{X: p0.X, Y: p0.Y, Z: p.Z}
+		pos1[i] = ms3.Vec{X: p1.X, Y: p1.Y, Z: p.Z}
+	}
+
+	dist1 := vp.Float.Acquire(len(pos))
+	defer vp.Float.Release(dist1)
+	err = sdf.Evaluate(pos1, dist1, userData)
+	if err != nil {
+		return err
+	}
+	err = sdf.Evaluate(pos0, dist, userData)
+	if err != nil {
+		return err
+	}
+	for i, d := range dist {
+		dist[i] = math32.Min(d, dist1[i])
+	}
+	return nil
+}
+
 func (c *circarray2D) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {
 	vp, err := gleval.GetVecPool(userData)
 	if err != nil {

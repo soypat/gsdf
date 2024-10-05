@@ -26,9 +26,10 @@ import (
 type RenderConfig struct {
 	STLOutput    io.Writer
 	VisualOutput io.Writer
-	Resolution   float32
-	UseGPU       bool
-	Silent       bool
+	// Resolution decides the STL output resolution. It correlates with the minimum triangle size.
+	Resolution float32
+	UseGPU     bool
+	Silent     bool
 	// EnableCaching uses [gleval.BlockCachedSDF3] to omit potential evaluations.
 	// Can cut down on times for very complex SDFs, mainly when using CPU.
 	EnableCaching bool
@@ -37,14 +38,11 @@ type RenderConfig struct {
 // RenderShader3D is an auxiliary function to aid users in getting setup in using gsdf quickly.
 // Ideally users should implement their own rendering functions since applications may vary widely.
 func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
-	const (
-		_ = 1 << (iota * 10)
-		kB
-		MB
-		GB
-	)
+	if cfg.Resolution <= 0 && !math.IsNaN(cfg.Resolution) && !math.IsInf(cfg.Resolution, 0) {
+		return errors.New("RenderConfig resolution must be positive, non-infinity")
+	}
 	if cfg.STLOutput == nil && cfg.VisualOutput == nil {
-		return errors.New("Render requires output parameter in config")
+		return errors.New("RenderShader3D requires output parameter in config")
 	}
 	log := func(args ...any) {
 		if !cfg.Silent {

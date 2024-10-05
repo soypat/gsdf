@@ -699,37 +699,43 @@ func (s *shell) AppendShaderBody(b []byte) []byte {
 	return b
 }
 
-// circularArray is the circular domain repetition operation around Z axis.
-// It repeats domain centered around (x,y)=(0,0) around the Z axis.
-func circularArray(s glbuild.Shader3D, angle float32, n int) (glbuild.Shader3D, error) {
-	if n <= 0 {
+// CircularArray is the circular domain repetition operation around the origin (x,y,z)=(0,0,0).
+// It repeats the shape numInstances times and the spacing angle is defined by circleDiv such that angle = 2*pi/circleDiv.
+// The operation is defined this way so that the argument shape is evaluated only twice per circular array evaluation, regardless of instances.
+func CircularArray(s glbuild.Shader3D, numInstances, circleDiv int) (glbuild.Shader3D, error) {
+	if circleDiv <= 1 || numInstances <= 0 {
 		return nil, errors.New("invalid circarray repeat param")
 	} else if s == nil {
 		return nil, errors.New("nil argument to circarray")
+	} else if numInstances > circleDiv {
+		return nil, errors.New("bad circular array instances, must be less than or equal to circleDiv")
 	}
-	// return &circarray{s: s, n: n, angle: angle}, nil
-	return nil, errors.New("TODO")
+	return &circarray{s: s, circleDiv: circleDiv, nInst: numInstances}, nil
 }
 
 type circarray struct {
-	s     glbuild.Shader3D
-	n     int
-	angle float32
+	s         glbuild.Shader3D
+	nInst     int
+	circleDiv int
 }
 
 func (ca *circarray) Bounds() ms3.Box {
-	// Naive solution, place bounding box N times
-	// and take the union of all bounds.
 	bb := ca.s.Bounds()
-	size := bb.Size()
-	center := bb.Center()
-	v := ms2.Vec{X: center.X, Y: center.Y}
-	m := ms2.RotationMat2(ca.angle)
-	for i := 0; i < ca.n; i++ {
-		v = ms2.MulMatVec(m, v)
-		centerV := ms3.Vec{X: v.X, Y: v.Y, Z: center.Z}
-		bb = bb.Union(ms3.NewCenteredBox(centerV, size))
+	bb2 := ms2.Box{
+		Min: ms2.Vec{X: bb.Min.X, Y: bb.Min.Y},
+		Max: ms2.Vec{X: bb.Max.X, Y: bb.Max.Y},
 	}
+	verts := bb2.Vertices()
+	angle := 2 * math32.Pi / float32(ca.circleDiv)
+	m := ms2.RotationMat2(angle)
+	for i := 0; i < ca.nInst-1; i++ {
+		for i := range verts {
+			verts[i] = ms2.MulMatVec(m, verts[i])
+			bb2 = bb2.IncludePoint(verts[i])
+		}
+	}
+	bb.Max.X, bb.Max.Y = bb2.Max.X, bb2.Max.Y
+	bb.Min.X, bb.Min.Y = bb2.Min.X, bb2.Min.Y
 	return bb
 }
 
@@ -741,13 +747,37 @@ func (ca *circarray) ForEachChild(userData any, fn func(userData any, s *glbuild
 
 func (ca *circarray) AppendShaderName(b []byte) []byte {
 	b = append(b, "circarray"...)
-	b = glbuild.AppendFloats(b, 0, 'n', 'p', float32(ca.n), ca.angle)
+	b = glbuild.AppendFloats(b, 0, 'n', 'p', float32(ca.nInst), float32(ca.circleDiv))
 	b = append(b, '_')
 	b = ca.s.AppendShaderName(b)
 	return b
 }
 
 func (ca *circarray) AppendShaderBody(b []byte) []byte {
-
+	angle := 2 * math32.Pi / float32(ca.circleDiv)
+	b = glbuild.AppendFloatDecl(b, "ncirc", float32(ca.circleDiv))
+	b = glbuild.AppendFloatDecl(b, "angle", angle)
+	b = glbuild.AppendFloatDecl(b, "ninsm1", float32(ca.nInst-1))
+	b = append(b, `float pangle=atan(p.y, p.x);
+	float i=floor(pangle/angle);
+	if (i<0.0) i=ncirc+i;
+	float i0,i1;
+	if (i>=ninsm1) {
+		i0=ninsm1;
+		i1=0.0;
+	} else {
+		i0=i;
+		i1=i+1.0;
+	}
+	float c0 = cos(angle*i0);
+	float s0 = sin(angle*i0);
+	vec2 p0 = mat2(c0,-s0,s0,c0)*p.xy;
+	float c1 = cos(angle*i1);
+	float s1 = sin(angle*i1);
+	vec2 p1 = mat2(c1,-s1,s1,c1)*p.xy;
+	`...)
+	b = glbuild.AppendDistanceDecl(b, "d0", "vec3(p0.x,p0.y,p.z)", ca.s)
+	b = glbuild.AppendDistanceDecl(b, "d1", "vec3(p1.x,p1.y,p.z)", ca.s)
+	b = append(b, "return min(d0, d1);"...)
 	return b
 }

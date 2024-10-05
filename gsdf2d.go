@@ -998,7 +998,7 @@ func (s *annulus2D) AppendShaderBody(b []byte) []byte {
 	return b
 }
 
-// CircularArray2 is the circular domain repetition operation around the origin (x,y)=(0,0).
+// CircularArray2D is the circular domain repetition operation around the origin (x,y)=(0,0).
 // It repeats the shape numInstances times and the spacing angle is defined by circleDiv such that angle = 2*pi/circleDiv.
 // The operation is defined this way so that the argument shape is evaluated only twice per circular array evaluation, regardless of instances.
 func CircularArray2D(s glbuild.Shader2D, numInstances, circleDiv int) (glbuild.Shader2D, error) {
@@ -1007,7 +1007,7 @@ func CircularArray2D(s glbuild.Shader2D, numInstances, circleDiv int) (glbuild.S
 	} else if s == nil {
 		return nil, errors.New("nil argument to circarray")
 	} else if numInstances > circleDiv {
-		return nil, errors.New("bad circular array instances, must be less than circleDiv")
+		return nil, errors.New("bad circular array instances, must be less than or equal to circleDiv")
 	}
 	return &circarray2D{s: s, circleDiv: circleDiv, nInst: numInstances}, nil
 }
@@ -1039,7 +1039,7 @@ func (ca *circarray2D) ForEach2DChild(userData any, fn func(userData any, s *glb
 // func (ca *circarray2D) angle() float32 { return 2 * math32.Pi / float32(ca.n) }
 
 func (ca *circarray2D) AppendShaderName(b []byte) []byte {
-	b = append(b, "circarray2D2d"...)
+	b = append(b, "circarray2D"...)
 	b = glbuild.AppendFloats(b, 0, 'n', 'p', float32(ca.nInst), float32(ca.circleDiv))
 	b = append(b, '_')
 	b = ca.s.AppendShaderName(b)
