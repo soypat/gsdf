@@ -141,6 +141,9 @@ func main() {
 }
 ```
 
+![npt-flange-example](https://github.com/user-attachments/assets/32a00926-0a1e-47f0-8b6c-dda940240265)
+
+
 ### Fibonacci Showerhead example - 40× GPU speedup
 
 Note that the amount of triangles is very similar to the NPT flange example, but the speedup is much more notable due to the complexity of the part.
@@ -171,9 +174,9 @@ showerhead example done
 go run ./examples/fibonacci-showerhead -resdiv 350  36,16s user 0,76s system 100% cpu 36,591 total
 ```
 
-![npt-flange-example](https://github.com/user-attachments/assets/32a00926-0a1e-47f0-8b6c-dda940240265)
+![fibonacci-showerhead](https://github.com/user-attachments/assets/a72c366c-6ee0-43ba-9128-087a76524ff9)
 
 ## More examples
-![fibonacci-showerhead](https://github.com/user-attachments/assets/a72c366c-6ee0-43ba-9128-087a76524ff9)
+
 ![iso-screw](https://github.com/user-attachments/assets/6bc987b9-d522-42a4-89df-71a20c3ae7ff)
 ![array-triangles](https://github.com/user-attachments/assets/6a479889-2836-464c-b8ea-82109a5aad13)
