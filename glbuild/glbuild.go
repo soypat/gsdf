@@ -80,6 +80,7 @@ type Programmer struct {
 	scratchNodes  []Shader
 	scratch       []byte
 	computeHeader []byte
+	ssbosScratch  []ShaderBuffer
 	// names maps shader names to body hashes for checking duplicates.
 	names map[uint64]uint64
 	// Invocations size in X (local group size) to give each compute work group.
@@ -116,20 +117,20 @@ func (p *Programmer) ComputeInvocations() (int, int, int) {
 
 // WriteDistanceIO creates the bare bones I/O compute program for calculating SDF
 // and writes it to the writer.
-func (p *Programmer) WriteComputeSDF3(w io.Writer, obj Shader3D) (int, error) {
+func (p *Programmer) WriteComputeSDF3(w io.Writer, obj Shader3D) (int, []ShaderBuffer, error) {
 	baseName, nodes, err := ParseAppendNodes(p.scratchNodes[:0], obj)
 	if err != nil {
-		return 0, err
+		return 0, nil, err
 	}
 	// Begin writing shader source code.
 	n, err := w.Write(p.computeHeader)
 	if err != nil {
-		return n, err
+		return n, nil, err
 	}
-	ngot, err := p.writeShaders(w, nodes)
+	ngot, ssbos, err := p.writeShaders(w, nodes)
 	n += ngot
 	if err != nil {
-		return n, err
+		return n, nil, err
 	}
 	ngot, err = fmt.Fprintf(w, `
 
@@ -154,25 +155,25 @@ void main() {
 `, p.invocX, baseName)
 
 	n += ngot
-	return n, err
+	return n, ssbos, err
 }
 
 // WriteDistanceIO creates the bare bones I/O compute program for calculating SDF
 // and writes it to the writer.
-func (p *Programmer) WriteComputeSDF2(w io.Writer, obj Shader2D) (int, error) {
+func (p *Programmer) WriteComputeSDF2(w io.Writer, obj Shader2D) (int, []ShaderBuffer, error) {
 	baseName, nodes, err := ParseAppendNodes(p.scratchNodes[:0], obj)
 	if err != nil {
-		return 0, err
+		return 0, nil, err
 	}
 	// Begin writing shader source code.
 	n, err := w.Write(p.computeHeader)
 	if err != nil {
-		return n, err
+		return n, nil, err
 	}
-	ngot, err := p.writeShaders(w, nodes)
+	ngot, ssbos, err := p.writeShaders(w, nodes)
 	n += ngot
 	if err != nil {
-		return n, err
+		return n, ssbos, err
 	}
 	ngot, err = fmt.Fprintf(w, `
 
@@ -197,43 +198,73 @@ void main() {
 `, p.invocX, baseName)
 
 	n += ngot
-	return n, err
+	return n, ssbos, err
 }
 
 // WriteFragVisualizerSDF3 generates a OpenGL program that can be visualized in most shader visualizers such as ShaderToy.
-func (p *Programmer) WriteFragVisualizerSDF3(w io.Writer, obj Shader3D) (n int, err error) {
-	baseName, n, err := p.WriteSDFDecl(w, obj)
+func (p *Programmer) WriteFragVisualizerSDF3(w io.Writer, obj Shader3D) (n int, ssbos []ShaderBuffer, err error) {
+	baseName, n, ssbos, err := p.WriteSDFDecl(w, obj)
 	if err != nil {
-		return 0, err
+		return 0, ssbos, err
 	}
 	ngot, err := w.Write([]byte("\nfloat sdf(vec3 p) { return " + baseName + "(p); }\n\n"))
 	n += ngot
 	if err != nil {
-		return n, err
+		return n, ssbos, err
 	}
 	ngot, err = w.Write(visualizerFooter)
 	n += ngot
 	if err != nil {
-		return n, err
+		return n, ssbos, err
 	}
-	return n, nil
+	return n, ssbos, nil
 }
 
 // WriteShaderDecl writes the SDF shader function declarations and returns the top-level SDF function name.
-func (p *Programmer) WriteSDFDecl(w io.Writer, obj Shader) (baseName string, n int, err error) {
+func (p *Programmer) WriteSDFDecl(w io.Writer, obj Shader) (baseName string, n int, ssbos []ShaderBuffer, err error) {
 	baseName, nodes, err := ParseAppendNodes(p.scratchNodes[:0], obj)
 	if err != nil {
-		return "", 0, err
+		return "", 0, nil, err
 	}
-	n, err = p.writeShaders(w, nodes)
+	n, ssbos, err = p.writeShaders(w, nodes)
 	if err != nil {
-		return "", n, err
+		return "", n, ssbos, err
 	}
-	return baseName, n, nil
+	return baseName, n, ssbos, nil
 }
 
-func (p *Programmer) writeShaders(w io.Writer, nodes []Shader) (n int, err error) {
+func (p *Programmer) writeShaders(w io.Writer, nodes []Shader) (n int, ssbos []ShaderBuffer, err error) {
 	clear(p.names)
+	p.ssbosScratch = p.ssbosScratch[:0]
+	currentBase := 2
+	p.scratch = p.scratch[:0]
+	for i := len(nodes) - 1; i >= 0; i-- {
+		node := nodes[i]
+		prevIdx := len(p.ssbosScratch)
+		p.ssbosScratch = node.AppendShaderBuffers(p.ssbosScratch)
+		for _, ssbo := range p.ssbosScratch[prevIdx:] {
+			nameHash := hash(ssbo.NamePtr, 0)
+			_, nameConflict := p.names[nameHash]
+			if nameConflict {
+				return n, nil, fmt.Errorf("shader buffer object name conflict resolution not implemented: %T has buffer conflicting name %q of type %s", node, ssbo.NamePtr, ssbo.Element.String())
+			}
+			p.names[nameHash] = nameHash
+			p.scratch, err = AppendShaderBufferDecl(p.scratch, "", "", currentBase, ssbo)
+			currentBase++
+			if err != nil {
+				return n, nil, err
+			}
+		}
+	}
+	if len(p.scratch) > 0 {
+		// Write shader buffer declarations if any.
+		ngot, err := w.Write(p.scratch)
+		n += ngot
+		if err != nil {
+			return n, nil, err
+		}
+	}
+
 	for i := len(nodes) - 1; i >= 0; i-- {
 		node := nodes[i]
 		var name, body []byte
@@ -246,17 +277,18 @@ func (p *Programmer) writeShaders(w io.Writer, nodes []Shader) (n int, err error
 			if bodyHash == gotBodyHash {
 				continue // Shader already written and is identical, skip.
 			}
-			return n, fmt.Errorf("duplicate %T shader name %q w/ body:\n%s", node, name, body)
+			return n, nil, fmt.Errorf("duplicate %T shader name %q w/ body:\n%s", node, name, body)
 		} else {
 			p.names[nameHash] = bodyHash // Not found, add it.
 		}
 		ngot, err := w.Write(p.scratch)
 		n += ngot
 		if err != nil {
-			return n, err
+			return n, nil, err
 		}
 	}
-	return n, err
+	ssbos = append(ssbos, p.ssbosScratch...) // Clone slice and return it.
+	return n, ssbos, err
 }
 
 const shorteningBufsize = 1024
@@ -379,6 +411,54 @@ func WriteShader(w io.Writer, s Shader, scratch []byte) (int, []byte, error) {
 	scratch = append(scratch, "\n}\n\n"...)
 	n, err := w.Write(scratch)
 	return n, scratch, err
+}
+
+// AppendShaderBufferDecl appends the ShaderBuffer
+//
+//	layout(<ssbo.std>, binding = <base>) buffer <BlockName> {
+//		<ssbo.Element> <ssbo.NamePtr>[];
+//	} <instanceName>;
+func AppendShaderBufferDecl(dst []byte, BlockName, instanceName string, base int, ssbo ShaderBuffer) ([]byte, error) {
+	if len(ssbo.NamePtr) == 0 {
+		return dst, errors.New("empty ShaderBuffer name")
+	}
+	const std = "std140" // Subject to change, would be provided by ShaderBuffer.
+	var typename string
+	switch ssbo.Element {
+	case reflect.TypeOf(float32(0)):
+		typename = "float"
+
+	case reflect.TypeOf(ms2.Vec{}):
+		typename = "vec2"
+
+	case reflect.TypeOf(ms3.Vec{}):
+		typename = "vec3"
+
+	case nil:
+		return nil, fmt.Errorf("nil shader buffer type for %q", ssbo.NamePtr)
+	default:
+		return nil, fmt.Errorf("arbitrary shader buffer type not implemented, got %T from %q", ssbo.Element, ssbo.NamePtr)
+	}
+	dst = append(dst, "layout("...)
+	dst = append(dst, std...)
+	dst = append(dst, "base="...)
+	dst = strconv.AppendInt(dst, int64(base), 10)
+	dst = append(dst, ") buffer"...)
+	if len(BlockName) > 0 {
+		dst = append(dst, ' ')
+		dst = append(dst, BlockName...)
+	}
+	dst = append(dst, "{\n\t"...)
+	dst = append(dst, typename...)
+	dst = append(dst, ' ')
+	dst = append(dst, ssbo.NamePtr...)
+	dst = append(dst, "[];\n}"...)
+	if len(instanceName) > 0 {
+		dst = append(dst, ' ')
+		dst = append(dst, instanceName...)
+	}
+	dst = append(dst, ";\n"...)
+	return dst, nil
 }
 
 // AppendShaderSource appends the GL code of a single shader to the dst byte buffer.  If dst's

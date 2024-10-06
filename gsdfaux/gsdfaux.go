@@ -74,9 +74,12 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 			return errors.New("zero or negative GPU invocation size")
 		}
 		prog.SetComputeInvocations(invoc, 1, 1)
-		_, err = prog.WriteComputeSDF3(source, s)
+		var ssbos []glbuild.ShaderBuffer
+		_, ssbos, err = prog.WriteComputeSDF3(source, s)
 		if err != nil {
 			return err
+		} else if len(ssbos) > 0 {
+			return errors.New("ssbos unsupported")
 		}
 		sdf, err = gleval.NewComputeGPUSDF3(source, bb, gleval.ComputeConfig{InvocX: invoc})
 	} else {
@@ -132,9 +135,12 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 		sz := bb.Size()
 		visual = gsdf.Translate(visual, center.X, center.Y, center.Z-sz.Z)
 		visual = gsdf.Scale(visual, sceneSize/bb.Diagonal())
-		_, err = glbuild.NewDefaultProgrammer().WriteFragVisualizerSDF3(cfg.VisualOutput, visual)
+		var ssbos []glbuild.ShaderBuffer
+		_, ssbos, err = glbuild.NewDefaultProgrammer().WriteFragVisualizerSDF3(cfg.VisualOutput, visual)
 		if err != nil {
 			return fmt.Errorf("writing visual GLSL: %s", err)
+		} else if len(ssbos) > 0 {
+			return errors.New("ssbos unsupported")
 		}
 		filename := "GLSL visualization"
 		if fp, ok := cfg.VisualOutput.(*os.File); ok {
@@ -226,11 +232,14 @@ func MakeGPUSDF2(s glbuild.Shader2D) (sdf gleval.SDF2, err error) {
 	prog := glbuild.NewDefaultProgrammer()
 	prog.SetComputeInvocations(invoc, 1, 1)
 
-	n, err = prog.WriteComputeSDF2(&buf, s)
+	var ssbos []glbuild.ShaderBuffer
+	n, ssbos, err = prog.WriteComputeSDF2(&buf, s)
 	if err != nil {
 		return nil, err
 	} else if n != buf.Len() {
 		return nil, fmt.Errorf("wrote %d bytes but WriteComputeSDF2 counted %d", buf.Len(), n)
+	} else if len(ssbos) > 0 {
+		return nil, errors.New("ssbos unsupported")
 	}
 
 	return gleval.NewComputeGPUSDF2(&buf, s.Bounds(), gleval.ComputeConfig{InvocX: invoc})

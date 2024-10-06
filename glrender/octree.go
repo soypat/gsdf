@@ -414,9 +414,11 @@ func (oc *Octree) debugVisual(filename string, lvlDescent int, merge glbuild.Sha
 	if err != nil {
 		return err
 	}
-	_, err = prog.WriteFragVisualizerSDF3(fp, s)
+	_, ssbos, err := prog.WriteFragVisualizerSDF3(fp, s)
 	if err != nil {
 		return err
+	} else if len(ssbos) > 0 {
+		return errors.New("ssbos unsupported")
 	}
 	return nil
 }

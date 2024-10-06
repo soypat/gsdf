@@ -731,9 +731,11 @@ func visualize(sdf glbuild.Shader3D, filename string) error {
 	const desiredScale = 2.0
 	diag := ms3.Norm(bb.Size())
 	sdf = gsdf.Scale(sdf, desiredScale/diag)
-	written, err := programmer.WriteFragVisualizerSDF3(fp, sdf)
+	written, ssbos, err := programmer.WriteFragVisualizerSDF3(fp, sdf)
 	if err != nil {
 		return err
+	} else if len(ssbos) > 0 {
+		return errors.New("ssbos unsupported in frag visualizer")
 	}
 	stat, err := fp.Stat()
 	if err != nil {
@@ -895,11 +897,13 @@ func makeGPUSDF3(s glbuild.Shader3D) *gleval.SDF3Compute {
 		panic("nil Shader3D")
 	}
 	var source bytes.Buffer
-	n, err := programmer.WriteComputeSDF3(&source, s)
+	n, ssbos, err := programmer.WriteComputeSDF3(&source, s)
 	if err != nil {
 		panic(err)
 	} else if n != source.Len() {
 		panic("bytes written mismatch")
+	} else if len(ssbos) > 0 {
+		panic("ssbos unsupported")
 	}
 	invocX, _, _ := programmer.ComputeInvocations()
 	sdfgpu, err := gleval.NewComputeGPUSDF3(&source, s.Bounds(), gleval.ComputeConfig{InvocX: invocX})
@@ -915,11 +919,13 @@ func makeGPUSDF2(s glbuild.Shader2D) gleval.SDF2 {
 	}
 	var source bytes.Buffer
 
-	n, err := programmer.WriteComputeSDF2(&source, s)
+	n, ssbos, err := programmer.WriteComputeSDF2(&source, s)
 	if err != nil {
 		panic(err)
 	} else if n != source.Len() {
 		panic("bytes written mismatch")
+	} else if len(ssbos) > 0 {
+		panic("ssbos unsupported")
 	}
 	invocX, _, _ := programmer.ComputeInvocations()
 	sdfgpu, err := gleval.NewComputeGPUSDF2(&source, s.Bounds(), gleval.ComputeConfig{InvocX: invocX})
