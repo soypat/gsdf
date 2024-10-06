@@ -1013,3 +1013,20 @@ func (c *circarray2D) Evaluate(pos []ms2.Vec, dist []float32, userData any) erro
 	}
 	return nil
 }
+
+func (l *lines2D) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {
+	w := l.width / 2
+	for i, p := range pos {
+		d := float32(1e23)
+		for _, v1v2 := range l.points {
+			a, b := v1v2[0], v1v2[1]
+			pa := ms2.Sub(p, a)
+			ba := ms2.Sub(b, a)
+			dotba := ms2.Dot(ba, ba)
+			h := ms1.Clamp(ms2.Dot(pa, ba)/dotba, 0, 1)
+			d = math32.Min(d, ms2.Norm2(ms2.Sub(pa, ms2.Scale(h, ba))))
+		}
+		dist[i] = math32.Sqrt(d) - w
+	}
+	return nil
+}

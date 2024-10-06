@@ -78,10 +78,11 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 		_, ssbos, err = prog.WriteComputeSDF3(source, s)
 		if err != nil {
 			return err
-		} else if len(ssbos) > 0 {
-			return errors.New("ssbos unsupported")
 		}
-		sdf, err = gleval.NewComputeGPUSDF3(source, bb, gleval.ComputeConfig{InvocX: invoc})
+		sdf, err = gleval.NewComputeGPUSDF3(source, bb, gleval.ComputeConfig{
+			InvocX: invoc,
+			SSBOs:  ssbos,
+		})
 	} else {
 		log("using CPU")
 		sdf, err = gleval.NewCPUSDF3(s)
@@ -140,7 +141,7 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 		if err != nil {
 			return fmt.Errorf("writing visual GLSL: %s", err)
 		} else if len(ssbos) > 0 {
-			return errors.New("ssbos unsupported")
+			return errors.New("ssbos unsupported for visual outputs")
 		}
 		filename := "GLSL visualization"
 		if fp, ok := cfg.VisualOutput.(*os.File); ok {
@@ -238,11 +239,12 @@ func MakeGPUSDF2(s glbuild.Shader2D) (sdf gleval.SDF2, err error) {
 		return nil, err
 	} else if n != buf.Len() {
 		return nil, fmt.Errorf("wrote %d bytes but WriteComputeSDF2 counted %d", buf.Len(), n)
-	} else if len(ssbos) > 0 {
-		return nil, errors.New("ssbos unsupported")
 	}
 
-	return gleval.NewComputeGPUSDF2(&buf, s.Bounds(), gleval.ComputeConfig{InvocX: invoc})
+	return gleval.NewComputeGPUSDF2(&buf, s.Bounds(), gleval.ComputeConfig{
+		InvocX: invoc,
+		SSBOs:  ssbos,
+	})
 }
 
 var red = color.RGBA{R: 255, A: 255}

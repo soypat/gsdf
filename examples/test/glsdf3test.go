@@ -902,11 +902,12 @@ func makeGPUSDF3(s glbuild.Shader3D) *gleval.SDF3Compute {
 		panic(err)
 	} else if n != source.Len() {
 		panic("bytes written mismatch")
-	} else if len(ssbos) > 0 {
-		panic("ssbos unsupported")
 	}
 	invocX, _, _ := programmer.ComputeInvocations()
-	sdfgpu, err := gleval.NewComputeGPUSDF3(&source, s.Bounds(), gleval.ComputeConfig{InvocX: invocX})
+	sdfgpu, err := gleval.NewComputeGPUSDF3(&source, s.Bounds(), gleval.ComputeConfig{
+		InvocX: invocX,
+		SSBOs:  ssbos,
+	})
 	if err != nil {
 		panic(err)
 	}
@@ -924,11 +925,12 @@ func makeGPUSDF2(s glbuild.Shader2D) gleval.SDF2 {
 		panic(err)
 	} else if n != source.Len() {
 		panic("bytes written mismatch")
-	} else if len(ssbos) > 0 {
-		panic("ssbos unsupported")
 	}
 	invocX, _, _ := programmer.ComputeInvocations()
-	sdfgpu, err := gleval.NewComputeGPUSDF2(&source, s.Bounds(), gleval.ComputeConfig{InvocX: invocX})
+	sdfgpu, err := gleval.NewComputeGPUSDF2(&source, s.Bounds(), gleval.ComputeConfig{
+		InvocX: invocX,
+		SSBOs:  ssbos,
+	})
 	if err != nil {
 		panic(err)
 	}

@@ -17,12 +17,19 @@ All images and shapes in readme were generated using this library.
 
 ## Features
 
-- Heapless algorithms for everything. No usage of GC in happy path.
-- Generate visualization for your parts as shaders.
-- Heapless Octree triangle renderer. Is stupid fast.
 - GPU and CPU implementations for all shapes and operations. CPU implementations are actually faster for simple parts.
+
+- Include arbitrary buffers into GPU calculation. See [`NewLines2D`](./gsdf2d.go).
+
+- Heapless algorithms for everything. No usage of GC in happy path.
+
+- Generate visualization for your parts as shaders.
+
+- Heapless Octree triangle renderer. Is stupid fast.
     - Design your part using one API, switch between CPU and GPU after design.
+
 - Extremely coherent API design.
+
 - TinyGo supported for CPU evaluation :)
 
 ## Package layout/structure

@@ -157,6 +157,82 @@ func (u *line2D) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.Sha
 	return ssbos
 }
 
+// NewLines2D creates sequential straight lines between the argument points.
+func NewLines2D(segments [][2]ms2.Vec, width float32) (glbuild.Shader2D, error) {
+	if width < 0 {
+		return nil, errors.New("negative thickness to NewLines2D")
+	} else if len(segments) < 2 {
+		return nil, errors.New("empty or single points")
+	}
+	for _, v := range segments[:len(segments)-1] {
+		if v[0] == v[1] {
+			return nil, errors.New("superimposed points in NewLines2D")
+		}
+	}
+	hash := hash2vec2(segments...) + width
+	bufName := []byte("ssboLines2d_")
+	bufName = glbuild.AppendFloat(bufName, 'n', 'p', hash)
+	return &lines2D{points: segments, width: width, bufName: bufName, hash: hash}, nil
+}
+
+type lines2D struct {
+	hash    float32
+	bufName []byte
+	points  [][2]ms2.Vec
+	width   float32
+}
+
+func (l *lines2D) Bounds() ms2.Box {
+	w := l.width / 2
+	bb := ms2.NewBox(l.points[0][0].X, l.points[0][0].Y, l.points[0][1].X, l.points[0][1].Y)
+	for _, v := range l.points[1:] {
+		bb = bb.IncludePoint(v[0])
+		bb = bb.IncludePoint(v[1])
+	}
+	bb.Max = ms2.AddScalar(w, bb.Max)
+	bb.Min = ms2.AddScalar(-w, bb.Min)
+	return bb
+}
+
+func (l *lines2D) AppendShaderName(b []byte) []byte {
+	b = append(b, "lines"...)
+	b = glbuild.AppendFloat(b, 'n', 'p', l.hash)
+	return b
+}
+
+func (l *lines2D) AppendShaderBody(b []byte) []byte {
+	b = glbuild.AppendFloatDecl(b, "w", l.width/2)
+	b = glbuild.AppendDefineDecl(b, "points", string(l.bufName))
+	b = append(b, `const int num = points.length();
+float d2 = 1.0e23;
+for (int i=0; i<num; i++)
+{
+	vec4 v1v2 = points[i];
+	vec2 a = v1v2.xy;
+	vec2 b = v1v2.zw;
+	vec2 pa = p-a, ba = b-a;
+	float h = clamp( dot(pa,ba)/dot(ba,ba), 0.0, 1.0 );
+	vec2 dv = pa -ba*h;
+	d2 = min(d2, dot(dv,dv) );
+}
+return sqrt(d2)-w;
+`...)
+	b = glbuild.AppendUndefineDecl(b, "points")
+	return b
+}
+
+func (l *lines2D) ForEach2DChild(userData any, fn func(userData any, s *glbuild.Shader2D) error) error {
+	return nil
+}
+
+func (u *lines2D) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+	ssbo, err := glbuild.MakeShaderBufferReadOnly(u.bufName, u.points)
+	if err != nil {
+		panic(err)
+	}
+	return append(ssbos, ssbo)
+}
+
 // NewArc returns a 2D arc centered at the origin (x,y)=(0,0) for a given radius and arc angle and thickness of the arc.
 // The arc begins opening at (x,y)=(0,r) in both positive and negative x direction.
 func NewArc(radius, arcAngle, thick float32) (glbuild.Shader2D, error) {

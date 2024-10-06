@@ -62,17 +62,55 @@ func absf(a float32) float32 {
 	return math32.Abs(a)
 }
 
+func hashvec2(vecs ...ms2.Vec) float32 {
+	var hashA float32 = 0.0
+	var hashB float32 = 1.0
+	for _, v := range vecs {
+		hashA, hashB = hashAdd(hashA, hashB, v.X)
+		hashA, hashB = hashAdd(hashA, hashB, v.Y)
+	}
+	return hashfint(hashA + hashB)
+}
+
+func hash2vec2(vecs ...[2]ms2.Vec) float32 {
+	var hashA float32 = 0.0
+	var hashB float32 = 1.0
+	for _, v := range vecs {
+		hashA, hashB = hashAdd(hashA, hashB, v[0].X)
+		hashA, hashB = hashAdd(hashA, hashB, v[0].Y)
+		hashA, hashB = hashAdd(hashA, hashB, v[1].X)
+		hashA, hashB = hashAdd(hashA, hashB, v[1].Y)
+	}
+	return hashfint(hashA + hashB)
+}
+
+func hashvec3(vecs ...ms3.Vec) float32 {
+	var hashA float32 = 0.0
+	var hashB float32 = 1.0
+	for _, v := range vecs {
+		hashA, hashB = hashAdd(hashA, hashB, v.X)
+		hashA, hashB = hashAdd(hashA, hashB, v.Y)
+		hashA, hashB = hashAdd(hashA, hashB, v.Z)
+	}
+	return hashfint(hashA + hashB)
+}
+
 func hashf(values []float32) float32 {
-	const prime = 31.0
 	var hashA float32 = 0.0
 	var hashB float32 = 1.0
 	for _, num := range values {
-		hashA += num
-		hashB *= (prime + num)
-		hashA = hashfint(hashA)
-		hashB = hashfint(hashB)
+		hashA, hashB = hashAdd(hashA, hashB, num)
 	}
 	return hashfint(hashA + hashB)
+}
+
+func hashAdd(a, b, num float32) (aNew, bNew float32) {
+	const prime = 31.0
+	a += num
+	b *= (prime + num)
+	a = hashfint(a)
+	b = hashfint(b)
+	return a, b
 }
 
 func hashfint(f float32) float32 {

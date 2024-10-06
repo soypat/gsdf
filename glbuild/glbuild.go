@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"unsafe"
 
+	"github.com/soypat/glgl/math/md2"
+	"github.com/soypat/glgl/math/md3"
 	"github.com/soypat/glgl/math/ms2"
 	"github.com/soypat/glgl/math/ms3"
 )
@@ -38,11 +40,14 @@ type ShaderBuffer struct {
 
 	// Element is the element of the buffer.
 	Element reflect.Type
-	// Ptr points to the start of buffer data.
-	Ptr unsafe.Pointer
+	// Data points to the start of buffer data.
+	Data unsafe.Pointer
 	// Size of buffer in bytes.
 	Size int
-	Read bool
+	// Binding specifies the resource's binding point during shader execution.
+	// Binding should be equal to -1 until the final binding point is allocated in shader generation.
+	Binding int
+	read    bool
 	// Write bool
 }
 
@@ -85,6 +90,25 @@ type Programmer struct {
 	names map[uint64]uint64
 	// Invocations size in X (local group size) to give each compute work group.
 	invocX int
+}
+
+func MakeShaderBufferReadOnly[T any](namePtr []byte, data []T) (ssbo ShaderBuffer, err error) {
+	var z T
+	ssbo = ShaderBuffer{
+		NamePtr: namePtr,
+		Element: reflect.TypeOf(z),
+		Data:    unsafe.Pointer(&data[0]),
+		Size:    int(unsafe.Sizeof(z)) * len(data),
+		read:    true,
+	}
+	err = ssbo.Validate()
+	if err != nil {
+		return ShaderBuffer{}, err
+	}
+	// Until shader pipeline we do not know where our buffer will be binded.
+	// Programmer expects -1 binding until then.
+	ssbo.Binding = -1
+	return ssbo, nil
 }
 
 var defaultComputeHeader = []byte("#shader compute\n#version 430\n")
@@ -235,22 +259,30 @@ func (p *Programmer) WriteSDFDecl(w io.Writer, obj Shader) (baseName string, n i
 
 func (p *Programmer) writeShaders(w io.Writer, nodes []Shader) (n int, ssbos []ShaderBuffer, err error) {
 	clear(p.names)
+	p.scratch = p.scratch[:0]
 	p.ssbosScratch = p.ssbosScratch[:0]
 	currentBase := 2
-	p.scratch = p.scratch[:0]
 	for i := len(nodes) - 1; i >= 0; i-- {
+		// Start by generating SSBOs.
 		node := nodes[i]
 		prevIdx := len(p.ssbosScratch)
 		p.ssbosScratch = node.AppendShaderBuffers(p.ssbosScratch)
-		for _, ssbo := range p.ssbosScratch[prevIdx:] {
+		newSSBOs := p.ssbosScratch[prevIdx:]
+		for i := range newSSBOs {
+			if newSSBOs[i].Binding != -1 {
+				return n, nil, fmt.Errorf("shader buffer object binding should be set to -1 until shader generated for %T, %q", node, newSSBOs[i].NamePtr)
+			}
+			newSSBOs[i].Binding = currentBase
+			currentBase++
+			ssbo := newSSBOs[i]
 			nameHash := hash(ssbo.NamePtr, 0)
 			_, nameConflict := p.names[nameHash]
 			if nameConflict {
 				return n, nil, fmt.Errorf("shader buffer object name conflict resolution not implemented: %T has buffer conflicting name %q of type %s", node, ssbo.NamePtr, ssbo.Element.String())
 			}
 			p.names[nameHash] = nameHash
-			p.scratch, err = AppendShaderBufferDecl(p.scratch, "", "", currentBase, ssbo)
-			currentBase++
+			blockName := unsafe.String(&ssbo.NamePtr[0], len(ssbo.NamePtr)) + "Buffer"
+			p.scratch, err = AppendShaderBufferDecl(p.scratch, blockName, "", ssbo)
 			if err != nil {
 				return n, nil, err
 			}
@@ -287,7 +319,7 @@ func (p *Programmer) writeShaders(w io.Writer, nodes []Shader) (n int, ssbos []S
 			return n, nil, err
 		}
 	}
-	ssbos = append(ssbos, p.ssbosScratch...) // Clone slice and return it.
+	ssbos = append(ssbos[:0], p.ssbosScratch...) // Clone slice and return it.
 	return n, ssbos, err
 }
 
@@ -418,37 +450,27 @@ func WriteShader(w io.Writer, s Shader, scratch []byte) (int, []byte, error) {
 //	layout(<ssbo.std>, binding = <base>) buffer <BlockName> {
 //		<ssbo.Element> <ssbo.NamePtr>[];
 //	} <instanceName>;
-func AppendShaderBufferDecl(dst []byte, BlockName, instanceName string, base int, ssbo ShaderBuffer) ([]byte, error) {
-	if len(ssbo.NamePtr) == 0 {
-		return dst, errors.New("empty ShaderBuffer name")
+func AppendShaderBufferDecl(dst []byte, BlockName, instanceName string, ssbo ShaderBuffer) ([]byte, error) {
+	err := ssbo.Validate()
+	if err != nil {
+		return dst, err
 	}
+
 	const std = "std140" // Subject to change, would be provided by ShaderBuffer.
-	var typename string
-	switch ssbo.Element {
-	case reflect.TypeOf(float32(0)):
-		typename = "float"
-
-	case reflect.TypeOf(ms2.Vec{}):
-		typename = "vec2"
-
-	case reflect.TypeOf(ms3.Vec{}):
-		typename = "vec3"
-
-	case nil:
-		return nil, fmt.Errorf("nil shader buffer type for %q", ssbo.NamePtr)
-	default:
-		return nil, fmt.Errorf("arbitrary shader buffer type not implemented, got %T from %q", ssbo.Element, ssbo.NamePtr)
+	typename, err := glTypename(ssbo.Element)
+	if err != nil {
+		return dst, fmt.Errorf("typename failed for %q: %w", ssbo.NamePtr, err)
 	}
 	dst = append(dst, "layout("...)
 	dst = append(dst, std...)
-	dst = append(dst, "base="...)
-	dst = strconv.AppendInt(dst, int64(base), 10)
+	dst = append(dst, ",binding="...)
+	dst = strconv.AppendInt(dst, int64(ssbo.Binding), 10)
 	dst = append(dst, ") buffer"...)
 	if len(BlockName) > 0 {
 		dst = append(dst, ' ')
 		dst = append(dst, BlockName...)
 	}
-	dst = append(dst, "{\n\t"...)
+	dst = append(dst, " {\n\t"...)
 	dst = append(dst, typename...)
 	dst = append(dst, ' ')
 	dst = append(dst, ssbo.NamePtr...)
@@ -459,6 +481,69 @@ func AppendShaderBufferDecl(dst []byte, BlockName, instanceName string, base int
 	}
 	dst = append(dst, ";\n"...)
 	return dst, nil
+}
+
+func (ssbo ShaderBuffer) Validate() error {
+	if ssbo.Data == nil {
+		return errors.New("ssbo nil data pointer")
+	} else if ssbo.Size == 0 {
+		return errors.New("ssbo zero/negative length data")
+	} else if ssbo.Size < 0 {
+		return errors.New("ssbo negative length of data")
+	} else if !ssbo.read {
+		return errors.New("ssbo no usage defined")
+	} else if len(ssbo.NamePtr) == 0 {
+		return errors.New("ssbo zero-length name")
+	} else if ssbo.Binding < 0 {
+		return errors.New("ssbo negative binding point")
+	}
+	_, err := glTypename(ssbo.Element)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func glTypename(tp reflect.Type) (typename string, err error) {
+	switch tp {
+	case reflect.TypeOf(md2.Vec{}):
+		typename = "dvec2"
+	case reflect.TypeOf(md3.Vec{}):
+		typename = "dvec3"
+	case reflect.TypeOf(float64(0)):
+		typename = "double"
+	case reflect.TypeOf(float32(0)):
+		typename = "float"
+	case reflect.TypeOf(ms2.Vec{}):
+		typename = "vec2"
+	case reflect.TypeOf(ms3.Vec{}):
+		typename = "vec3"
+	case reflect.TypeOf([2]ms2.Vec{}), reflect.TypeOf(ms3.Quat{}):
+		typename = "vec4"
+	case reflect.TypeOf(ms2.Mat2{}):
+		typename = "mat2"
+	case reflect.TypeOf(ms3.Mat3{}):
+		typename = "mat3"
+	case reflect.TypeOf(ms3.Mat4{}):
+		typename = "mat4"
+	case reflect.TypeOf(uint32(0)):
+		typename = "uint"
+	case reflect.TypeOf(int32(0)):
+		typename = "int"
+	case reflect.TypeOf([2]uint32{}):
+		typename = "uvec2"
+	case reflect.TypeOf([2]int32{}):
+		typename = "ivec2"
+	case reflect.TypeOf([3]uint32{}):
+		typename = "uvec3"
+	case reflect.TypeOf([3]int32{}):
+		typename = "ivec3"
+	case nil:
+		err = errors.New("ssbo nil element type")
+	default:
+		err = fmt.Errorf("ssbo type not implemented for %s", tp.String())
+	}
+	return typename, err
 }
 
 // AppendShaderSource appends the GL code of a single shader to the dst byte buffer.  If dst's
@@ -592,6 +677,22 @@ func forEachNode(root Shader, fn3 func(any, *Shader3D) error, fn2 func(any, *Sha
 		}
 	}
 	return nil
+}
+
+func AppendDefineDecl(b []byte, aliasToDefine, aliasReplace string) []byte {
+	b = append(b, "#define "...)
+	b = append(b, aliasToDefine...)
+	b = append(b, ' ')
+	b = append(b, aliasReplace...)
+	b = append(b, '\n')
+	return b
+}
+
+func AppendUndefineDecl(b []byte, aliasToUndefine string) []byte {
+	b = append(b, "#undef "...)
+	b = append(b, aliasToUndefine...)
+	b = append(b, '\n')
+	return b
 }
 
 func AppendDistanceDecl(b []byte, floatVarname, sdfPositionArgInput string, s Shader) []byte {

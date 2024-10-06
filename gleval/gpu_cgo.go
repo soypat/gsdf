@@ -12,6 +12,7 @@ import (
 	"github.com/soypat/glgl/math/ms2"
 	"github.com/soypat/glgl/math/ms3"
 	"github.com/soypat/glgl/v4.6-core/glgl"
+	"github.com/soypat/gsdf/glbuild"
 )
 
 func (lines *Lines2DGPU) evaluate(pos []ms2.Vec, dist []float32, userData any) (err error) {
@@ -42,7 +43,7 @@ func (lines *Lines2DGPU) evaluate(pos []ms2.Vec, dist []float32, userData any) (
 	defer p.Unpin()
 	defer gl.DeleteBuffers(1, &ssbo)
 
-	err = computeEvaluate(pos, dist, lines.invocX)
+	err = computeEvaluate(pos, dist, lines.invocX, nil)
 	if err != nil {
 		return err
 	}
@@ -76,7 +77,7 @@ func (poly *PolygonGPU) evaluate(pos []ms2.Vec, dist []float32, userData any) (e
 	defer p.Unpin()
 	defer gl.DeleteBuffers(1, &ssbo)
 
-	err = computeEvaluate(pos, dist, poly.invocX)
+	err = computeEvaluate(pos, dist, poly.invocX, nil)
 	if err != nil {
 		return err
 	}
@@ -112,7 +113,7 @@ func (lines *DisplaceMulti2D) evaluate(pos []ms2.Vec, dist []float32, userData a
 	defer p.Unpin()
 	defer gl.DeleteBuffers(1, &ssbo)
 
-	err = computeEvaluate(pos, dist, lines.invocX)
+	err = computeEvaluate(pos, dist, lines.invocX, nil)
 	if err != nil {
 		return err
 	}
@@ -158,7 +159,7 @@ func copySSBO[T any](dst []T, ssbo uint32) error {
 	return glgl.Err()
 }
 
-func computeEvaluate[T ms2.Vec | ms3.Quat](pos []T, dist []float32, invocX int) (err error) {
+func computeEvaluate[T ms2.Vec | ms3.Quat](pos []T, dist []float32, invocX int, ssbos []glbuild.ShaderBuffer) (err error) {
 	if len(pos) != len(dist) {
 		return errors.New("positional and distance buffers not equal in length")
 	} else if len(dist) == 0 {
@@ -166,7 +167,28 @@ func computeEvaluate[T ms2.Vec | ms3.Quat](pos []T, dist []float32, invocX int) 
 	} else if invocX < 1 {
 		return errors.New("zero or negative invocation size")
 	}
+
 	var p runtime.Pinner
+	if len(ssbos) > 0 {
+		ssbosIDs := make([]uint32, len(ssbos))
+		p.Pin(&ssbosIDs[0])
+		gl.GenBuffers(int32(len(ssbosIDs)), &ssbosIDs[0])
+		defer gl.DeleteBuffers(int32(len(ssbosIDs)), &ssbosIDs[0])
+		for i, id := range ssbosIDs {
+			ssbo := ssbos[i]
+			gl.BindBuffer(gl.SHADER_STORAGE_BUFFER, id)
+			gl.BufferData(gl.SHADER_STORAGE_BUFFER, ssbo.Size, ssbo.Data, gl.STATIC_DRAW)
+			gl.BindBufferBase(gl.SHADER_STORAGE_BUFFER, uint32(ssbo.Binding), id)
+			// buf := unsafe.Slice((*[2]ms2.Vec)(ssbo.Data), ssbo.Size/16)
+			// fmt.Println(buf)
+			// println(ssbo.Binding, ssbo.Size, ssbo.Data)
+		}
+		err := glgl.Err()
+		if err != nil {
+			return fmt.Errorf("binding SSBOs: %w", err)
+		}
+	}
+
 	var posSSBO, distSSBO uint32
 	p.Pin(&posSSBO)
 	p.Pin(&distSSBO)
@@ -200,5 +222,10 @@ func computeEvaluate[T ms2.Vec | ms3.Quat](pos []T, dist []float32, invocX int) 
 	if err != nil {
 		return err
 	}
+	return nil
+}
+
+func bindSSBOs(ssbos []glbuild.ShaderBuffer) error {
+
 	return nil
 }
