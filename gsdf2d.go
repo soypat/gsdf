@@ -89,6 +89,12 @@ func (u *OpUnion2D) AppendShaderBody(b []byte) []byte {
 	return b
 }
 
+// AppendShaderBuffers implements [glbuild.Shader]. This method returns the argument buffer with no modifications. See [glbuild.Shader] for more information.
+func (u *OpUnion2D) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+	u.mustValidate()
+	return ssbos
+}
+
 func (u *OpUnion2D) mustValidate() {
 	if len(u.joined) < 2 {
 		panic("OpUnion2D must have at least 2 elements. Please prefer using gsdf.Union2D over gsdf.OpUnion2D")
@@ -147,6 +153,10 @@ func (l *line2D) ForEach2DChild(userData any, fn func(userData any, s *glbuild.S
 	return nil
 }
 
+func (u *line2D) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+	return ssbos
+}
+
 // NewArc returns a 2D arc centered at the origin (x,y)=(0,0) for a given radius and arc angle and thickness of the arc.
 // The arc begins opening at (x,y)=(0,r) in both positive and negative x direction.
 func NewArc(radius, arcAngle, thick float32) (glbuild.Shader2D, error) {
@@ -196,6 +206,10 @@ func (a *arc2D) ForEach2DChild(userData any, fn func(userData any, s *glbuild.Sh
 	return nil
 }
 
+func (u *arc2D) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+	return ssbos
+}
+
 type circle2D struct {
 	r float32
 }
@@ -227,6 +241,10 @@ func (c *circle2D) AppendShaderBody(b []byte) []byte {
 
 func (c *circle2D) ForEach2DChild(userData any, fn func(userData any, s *glbuild.Shader2D) error) error {
 	return nil
+}
+
+func (u *circle2D) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+	return ssbos
 }
 
 type equilateralTri2d struct {
@@ -273,6 +291,10 @@ func (t *equilateralTri2d) ForEach2DChild(userData any, fn func(userData any, s 
 	return nil
 }
 
+func (u *equilateralTri2d) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+	return ssbos
+}
+
 type rect2D struct {
 	d ms2.Vec
 }
@@ -312,6 +334,10 @@ func (c *rect2D) ForEach2DChild(userData any, fn func(userData any, s *glbuild.S
 	return nil
 }
 
+func (u *rect2D) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+	return ssbos
+}
+
 type hex2D struct {
 	side float32
 }
@@ -347,6 +373,10 @@ return length(p)*sign(p.y);`...)
 
 func (c *hex2D) ForEach2DChild(userData any, fn func(userData any, s *glbuild.Shader2D) error) error {
 	return nil
+}
+
+func (u *hex2D) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+	return ssbos
 }
 
 type ellipse2D struct {
@@ -414,6 +444,10 @@ return length(r-p) * sign(p.y-r.y);`...)
 
 func (c *ellipse2D) ForEach2DChild(userData any, fn func(userData any, s *glbuild.Shader2D) error) error {
 	return nil
+}
+
+func (u *ellipse2D) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+	return ssbos
 }
 
 type poly2D struct {
@@ -489,6 +523,10 @@ func (c *poly2D) ForEach2DChild(userData any, fn func(userData any, s *glbuild.S
 	return nil
 }
 
+func (u *poly2D) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+	return ssbos // TODO: implement shader buffer storage here!
+}
+
 // Extrude converts a 2D SDF into a 3D extrusion. Extrudes in both positive and negative Z direction, half of h both ways.
 func Extrude(s glbuild.Shader2D, h float32) (glbuild.Shader3D, error) {
 	if s == nil {
@@ -518,6 +556,9 @@ func (e *extrusion) ForEach2DChild(userData any, fn func(userData any, s *glbuil
 }
 func (e *extrusion) ForEachChild(userData any, fn func(userData any, s *glbuild.Shader3D) error) error {
 	return nil
+}
+func (u *extrusion) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+	return ssbos
 }
 
 func (e *extrusion) AppendShaderName(b []byte) []byte {
@@ -563,6 +604,9 @@ func (r *revolution) ForEach2DChild(userData any, fn func(userData any, s *glbui
 }
 func (r *revolution) ForEachChild(userData any, fn func(userData any, s *glbuild.Shader3D) error) error {
 	return nil
+}
+func (u *revolution) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+	return ssbos
 }
 
 func (r *revolution) AppendShaderName(b []byte) []byte {
@@ -619,6 +663,9 @@ func (s *diff2D) AppendShaderBody(b []byte) []byte {
 	b = append(b, "(p));"...)
 	return b
 }
+func (u *diff2D) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+	return ssbos
+}
 
 // Intersection2D is the SDF intersection of a ^ b. Does not produce an exact SDF.
 func Intersection2D(a, b glbuild.Shader2D) glbuild.Shader2D {
@@ -660,6 +707,9 @@ func (s *intersect2D) AppendShaderBody(b []byte) []byte {
 	b = append(b, "(p));"...)
 	return b
 }
+func (u *intersect2D) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+	return ssbos
+}
 
 // Xor2D is the mutually exclusive boolean operation and results in an exact SDF.
 func Xor2D(s1, s2 glbuild.Shader2D) glbuild.Shader2D {
@@ -698,6 +748,9 @@ func (s *xor2D) AppendShaderBody(b []byte) []byte {
 	b = glbuild.AppendDistanceDecl(b, "d2", "(p)", s.s2)
 	b = append(b, "return max(min(d1,d2),-max(d1,d2));"...)
 	return b
+}
+func (u *xor2D) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+	return ssbos
 }
 
 // Array is the domain repetition operation. It repeats domain centered around (x,y)=(0,0).
@@ -775,6 +828,9 @@ return d;`, s.d.X, s.d.Y,
 	b = append(b, body...)
 	return b
 }
+func (u *array2D) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+	return ssbos
+}
 
 // Offset2D adds sdfAdd to the entire argument SDF. If sdfAdd is negative this will
 // round edges and increase the dimension of flat surfaces of the SDF by the absolute magnitude.
@@ -821,6 +877,9 @@ func (s *offset2D) AppendShaderBody(b []byte) []byte {
 	b = append(b, ')', ';')
 	return b
 }
+func (u *offset2D) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+	return ssbos
+}
 
 // Translate2D moves the SDF s in the given direction.
 func Translate2D(s glbuild.Shader2D, dirX, dirY float32) glbuild.Shader2D {
@@ -855,6 +914,9 @@ func (s *translate2D) AppendShaderBody(b []byte) []byte {
 	b = s.s.AppendShaderName(b)
 	b = append(b, "(p-t);"...)
 	return b
+}
+func (u *translate2D) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+	return ssbos
 }
 
 // Rotate2D returns the argument shape rotated around the origin by theta (radians).
@@ -913,6 +975,10 @@ func (r *rotation2D) AppendShaderBody(b []byte) []byte {
 	return b
 }
 
+func (u *rotation2D) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+	return ssbos
+}
+
 // Symmetry reflects the SDF around x or y (or both) axis.
 func Symmetry2D(s glbuild.Shader2D, mirrorX, mirrorY bool) glbuild.Shader2D {
 	if !mirrorX && !mirrorY {
@@ -961,6 +1027,10 @@ func (s *symmetry2D) AppendShaderBody(b []byte) []byte {
 	return b
 }
 
+func (u *symmetry2D) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+	return ssbos
+}
+
 // Annulus makes a 2D shape annular by emptying it's center. It is the equivalent of the 3D Shell operation but in 2D.
 func Annulus(s glbuild.Shader2D, sub float32) (glbuild.Shader2D, error) {
 	if s == nil {
@@ -996,6 +1066,10 @@ func (s *annulus2D) AppendShaderBody(b []byte) []byte {
 	b = glbuild.AppendDistanceDecl(b, "d", "p", s.s)
 	b = append(b, "return abs(d)-r;"...)
 	return b
+}
+
+func (u *annulus2D) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+	return ssbos
 }
 
 // CircularArray2D is the circular domain repetition operation around the origin (x,y)=(0,0).
@@ -1073,4 +1147,8 @@ func (ca *circarray2D) AppendShaderBody(b []byte) []byte {
 	b = glbuild.AppendDistanceDecl(b, "d1", "p1", ca.s)
 	b = append(b, "return min(d0, d1);"...)
 	return b
+}
+
+func (u *circarray2D) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+	return ssbos
 }

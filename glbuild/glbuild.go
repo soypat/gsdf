@@ -7,7 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"reflect"
 	"strconv"
+	"unsafe"
 
 	"github.com/soypat/glgl/math/ms2"
 	"github.com/soypat/glgl/math/ms3"
@@ -26,6 +28,22 @@ type Shader interface {
 	// AppendShaderBody appends the body of the shader function to the
 	// buffer and returns the result.
 	AppendShaderBody(b []byte) []byte
+	AppendShaderBuffers(ssbos []ShaderBuffer) []ShaderBuffer
+}
+
+type ShaderBuffer struct {
+	// NamePtr is a pointer to the name of the buffer inside of the [Shader].
+	// This lets the programmer edit the name if a naming conflict is found before generating the shader bodies.
+	NamePtr []byte
+
+	// Element is the element of the buffer.
+	Element reflect.Type
+	// Ptr points to the start of buffer data.
+	Ptr unsafe.Pointer
+	// Size of buffer in bytes.
+	Size int
+	Read bool
+	// Write bool
 }
 
 // Shader3D can create SDF shader source code for an arbitrary 3D shape.
@@ -773,6 +791,11 @@ func (c3 *CachedShader3D) ForEach2DChild(userData any, fn func(userData any, s *
 	return err
 }
 
+// AppendShaderBuffers returns the underlying [Shader]'s buffer declarations.
+func (c3 *CachedShader3D) AppendShaderBuffers(ssbos []ShaderBuffer) []ShaderBuffer {
+	return c3.Shader.AppendShaderBuffers(ssbos)
+}
+
 // Evaluate implements the gleval.SDF3 interface.
 func (c3 *CachedShader3D) Evaluate(pos []ms3.Vec, dist []float32, userData any) error {
 	sdf, ok := c3.Shader.(sdf3)
@@ -827,6 +850,11 @@ func (c2 *CachedShader2D) Evaluate(pos []ms2.Vec, dist []float32, userData any) 
 	return sdf.Evaluate(pos, dist, userData)
 }
 
+// AppendShaderBuffers returns the underlying [Shader]'s buffer declarations.
+func (c2 *CachedShader2D) AppendShaderBuffers(ssbos []ShaderBuffer) []ShaderBuffer {
+	return c2.Shader.AppendShaderBuffers(ssbos)
+}
+
 type nameOverloadShader3D struct {
 	Shader Shader3D
 	name   []byte
@@ -853,6 +881,11 @@ func (nos3 *nameOverloadShader3D) ForEach2DChild(userData any, fn func(userData 
 		err = s2.ForEach2DChild(userData, fn)
 	}
 	return err
+}
+
+// AppendShaderBuffers returns the underlying [Shader]'s buffer declarations.
+func (nos3 *nameOverloadShader3D) AppendShaderBuffers(ssbos []ShaderBuffer) []ShaderBuffer {
+	return nos3.Shader.AppendShaderBuffers(ssbos)
 }
 
 type (
@@ -901,6 +934,11 @@ func (nos2 *nameOverloadShader2D) Evaluate(pos []ms2.Vec, dist []float32, userDa
 		return fmt.Errorf("%T does not implement gleval.SDF2", nos2.Shader)
 	}
 	return sdf.Evaluate(pos, dist, userData)
+}
+
+// AppendShaderBuffers returns the underlying [Shader]'s buffer declarations.
+func (nos2 *nameOverloadShader2D) AppendShaderBuffers(ssbos []ShaderBuffer) []ShaderBuffer {
+	return nos2.Shader.AppendShaderBuffers(ssbos)
 }
 
 func hash(b []byte, in uint64) uint64 {

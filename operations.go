@@ -100,6 +100,12 @@ func (u *OpUnion) AppendShaderBody(b []byte) []byte {
 	return b
 }
 
+// AppendShaderBuffers implements [glbuild.Shader]. This method returns the argument buffer with no modifications. See [glbuild.Shader] for more information.
+func (u *OpUnion) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+	u.mustValidate()
+	return ssbos
+}
+
 func (u *OpUnion) mustValidate() {
 	if len(u.joined) < 2 {
 		panic("OpUnion must have at least 2 elements. please prefer using gsdf.Union over gsdf.OpUnion")
@@ -145,6 +151,10 @@ func (s *diff) AppendShaderBody(b []byte) []byte {
 	return b
 }
 
+func (u *diff) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+	return ssbos
+}
+
 // Intersection is the SDF intersection of a ^ b. Does not produce an exact SDF.
 func Intersection(a, b glbuild.Shader3D) glbuild.Shader3D {
 	if a == nil || b == nil {
@@ -186,6 +196,10 @@ func (s *intersect) AppendShaderBody(b []byte) []byte {
 	return b
 }
 
+func (u *intersect) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+	return ssbos
+}
+
 // Xor is the mutually exclusive boolean operation and results in an exact SDF.
 func Xor(s1, s2 glbuild.Shader3D) glbuild.Shader3D {
 	if s1 == nil || s2 == nil {
@@ -225,6 +239,10 @@ func (s *xor) AppendShaderBody(b []byte) []byte {
 	return b
 }
 
+func (u *xor) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+	return ssbos
+}
+
 // Scale scales s by scaleFactor around the origin.
 func Scale(s glbuild.Shader3D, scaleFactor float32) glbuild.Shader3D {
 	return &scale{s: s, scale: scaleFactor}
@@ -256,6 +274,10 @@ func (s *scale) AppendShaderBody(b []byte) []byte {
 	b = s.s.AppendShaderName(b)
 	b = append(b, "(p/s)*s;"...)
 	return b
+}
+
+func (u *scale) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+	return ssbos
 }
 
 // Symmetry reflects the SDF around one or more cartesian planes.
@@ -309,6 +331,10 @@ func (s *symmetry) AppendShaderBody(b []byte) []byte {
 	return b
 }
 
+func (u *symmetry) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+	return ssbos
+}
+
 // Transform applies a 4x4 matrix transformation to the argument shader by
 // inverting the argument matrix.
 func Transform(s glbuild.Shader3D, m ms3.Mat4) (glbuild.Shader3D, error) {
@@ -356,6 +382,10 @@ func (r *transform) AppendShaderBody(b []byte) []byte {
 	return b
 }
 
+func (u *transform) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+	return ssbos
+}
+
 // Rotate is the rotation of radians angle around an axis vector.
 func Rotate(s glbuild.Shader3D, radians float32, axis ms3.Vec) (glbuild.Shader3D, error) {
 	if axis == (ms3.Vec{}) {
@@ -400,6 +430,10 @@ func (s *translate) AppendShaderBody(b []byte) []byte {
 	return b
 }
 
+func (u *translate) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+	return ssbos
+}
+
 // Offset adds sdfAdd to the entire argument SDF. If sdfAdd is negative this will
 // round edges and increase the dimension of flat surfaces of the SDF by the absolute magnitude.
 // See [Inigo's youtube video] on the subject.
@@ -440,6 +474,10 @@ func (s *offset) AppendShaderBody(b []byte) []byte {
 	b = glbuild.AppendFloat(b, '-', '.', s.off)
 	b = append(b, ')', ';')
 	return b
+}
+
+func (u *offset) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+	return ssbos
 }
 
 // Array is the domain repetition operation. It repeats domain centered around the origin (x,y,z)=(0,0,0).
@@ -512,6 +550,10 @@ return d;`, s.d.X, s.d.Y, s.d.Z,
 	return b
 }
 
+func (u *array) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+	return ssbos
+}
+
 // SmoothUnion joins the shapes of two shaders into one with a smoothing blend.
 func SmoothUnion(k float32, s1, s2 glbuild.Shader3D) glbuild.Shader3D {
 	if s1 == nil || s2 == nil {
@@ -554,6 +596,10 @@ func (s *smoothUnion) AppendShaderBody(b []byte) []byte {
 	b = append(b, `float h = clamp( 0.5 + 0.5*(d2-d1)/k, 0.0, 1.0 );
 return mix( d2, d1, h ) - k*h*(1.0-h);`...)
 	return b
+}
+
+func (u *smoothUnion) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+	return ssbos
 }
 
 // SmoothDifference performs the difference of two SDFs with a smoothing parameter.
@@ -664,6 +710,10 @@ func (s *elongate) AppendShaderBody(b []byte) []byte {
 	return b
 }
 
+func (u *elongate) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+	return ssbos
+}
+
 // Shell carves the interior of the SDF leaving only the exterior shell of the part.
 func Shell(s glbuild.Shader3D, thickness float32) glbuild.Shader3D {
 	return &shell{s: s, thick: thickness}
@@ -697,6 +747,10 @@ func (s *shell) AppendShaderBody(b []byte) []byte {
 	b = s.s.AppendShaderName(b)
 	b = append(b, "(p/t))-t);"...)
 	return b
+}
+
+func (u *shell) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+	return ssbos
 }
 
 // CircularArray is the circular domain repetition operation around the origin (x,y,z)=(0,0,0).
@@ -780,4 +834,8 @@ func (ca *circarray) AppendShaderBody(b []byte) []byte {
 	b = glbuild.AppendDistanceDecl(b, "d1", "vec3(p1.x,p1.y,p.z)", ca.s)
 	b = append(b, "return min(d0, d1);"...)
 	return b
+}
+
+func (u *circarray) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+	return ssbos
 }
