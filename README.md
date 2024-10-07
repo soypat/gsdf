@@ -19,7 +19,7 @@ All images and shapes in readme were generated using this library.
 
 - GPU and CPU implementations for all shapes and operations. CPU implementations are actually faster for simple parts.
 
-- Include arbitrary buffers into GPU calculation. See [`NewLines2D`](./gsdf2d.go).
+- Include arbitrary buffers into GPU calculation. See [`Shader` interface](./glbuild/glbuild.go).
 
 - Heapless algorithms for everything. No usage of GC in happy path.
 

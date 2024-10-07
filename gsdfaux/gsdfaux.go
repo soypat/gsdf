@@ -74,7 +74,7 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 			return errors.New("zero or negative GPU invocation size")
 		}
 		prog.SetComputeInvocations(invoc, 1, 1)
-		var ssbos []glbuild.ShaderBuffer
+		var ssbos []glbuild.ShaderObject
 		_, ssbos, err = prog.WriteComputeSDF3(source, s)
 		if err != nil {
 			return err
@@ -136,7 +136,7 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 		sz := bb.Size()
 		visual = gsdf.Translate(visual, center.X, center.Y, center.Z-sz.Z)
 		visual = gsdf.Scale(visual, sceneSize/bb.Diagonal())
-		var ssbos []glbuild.ShaderBuffer
+		var ssbos []glbuild.ShaderObject
 		_, ssbos, err = glbuild.NewDefaultProgrammer().WriteFragVisualizerSDF3(cfg.VisualOutput, visual)
 		if err != nil {
 			return fmt.Errorf("writing visual GLSL: %s", err)
@@ -233,7 +233,7 @@ func MakeGPUSDF2(s glbuild.Shader2D) (sdf gleval.SDF2, err error) {
 	prog := glbuild.NewDefaultProgrammer()
 	prog.SetComputeInvocations(invoc, 1, 1)
 
-	var ssbos []glbuild.ShaderBuffer
+	var ssbos []glbuild.ShaderObject
 	n, ssbos, err = prog.WriteComputeSDF2(&buf, s)
 	if err != nil {
 		return nil, err

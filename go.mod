@@ -5,7 +5,7 @@ go 1.22.1
 require (
 	github.com/chewxy/math32 v1.11.1
 	github.com/go-gl/gl v0.0.0-20231021071112-07e5d0ea2e71
-	github.com/soypat/glgl v0.0.0-20241005144144-20e590a649e7
+	github.com/soypat/glgl v0.0.0-20241007020858-78b69f528d70
 )
 
 require (

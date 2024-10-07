@@ -17,12 +17,8 @@ import (
 	"github.com/soypat/glgl/math/ms3"
 )
 
-const decimalDigits = 9
-
-//go:embed visualizer_footer.tmpl
-var visualizerFooter []byte
-
-// Shader stores information for automatically generating SDF Shader pipelines.
+// Shader stores information for automatically generating SDF Shader pipelines
+// and evaluating them correctly on a GPU.
 type Shader interface {
 	// AppendShaderName appends the name of the GL shader function
 	// to the buffer and returns the result. It should be unique to that shader.
@@ -30,10 +26,18 @@ type Shader interface {
 	// AppendShaderBody appends the body of the shader function to the
 	// buffer and returns the result.
 	AppendShaderBody(b []byte) []byte
-	AppendShaderBuffers(ssbos []ShaderBuffer) []ShaderBuffer
+	// AppendShaderObject appends "objects" (read as data) needed to
+	// evaluate the shader correctly. See [ShaderObject] for more information
+	// on what an object can represent.
+	AppendShaderObjects(ssbos []ShaderObject) []ShaderObject
 }
 
-type ShaderBuffer struct {
+// ShaderObject is a handle to data needed to evaluate a [Shader] correctly.
+// A ShaderObject could represent any of the following:
+//   - Shader Storage Buffer Object (SSBO). Is a 1D array of structured data.
+//   - Texture. Represents 2D data, usually images.
+//   - Shader uniform. Is a single structured value.
+type ShaderObject struct {
 	// NamePtr is a pointer to the name of the buffer inside of the [Shader].
 	// This lets the programmer edit the name if a naming conflict is found before generating the shader bodies.
 	NamePtr []byte
@@ -85,16 +89,16 @@ type Programmer struct {
 	scratchNodes  []Shader
 	scratch       []byte
 	computeHeader []byte
-	ssbosScratch  []ShaderBuffer
+	ssbosScratch  []ShaderObject
 	// names maps shader names to body hashes for checking duplicates.
 	names map[uint64]uint64
 	// Invocations size in X (local group size) to give each compute work group.
 	invocX int
 }
 
-func MakeShaderBufferReadOnly[T any](namePtr []byte, data []T) (ssbo ShaderBuffer, err error) {
+func MakeShaderBufferReadOnly[T any](namePtr []byte, data []T) (ssbo ShaderObject, err error) {
 	var z T
-	ssbo = ShaderBuffer{
+	ssbo = ShaderObject{
 		NamePtr: namePtr,
 		Element: reflect.TypeOf(z),
 		Data:    unsafe.Pointer(&data[0]),
@@ -103,7 +107,7 @@ func MakeShaderBufferReadOnly[T any](namePtr []byte, data []T) (ssbo ShaderBuffe
 	}
 	err = ssbo.Validate()
 	if err != nil {
-		return ShaderBuffer{}, err
+		return ShaderObject{}, err
 	}
 	// Until shader pipeline we do not know where our buffer will be binded.
 	// Programmer expects -1 binding until then.
@@ -141,7 +145,7 @@ func (p *Programmer) ComputeInvocations() (int, int, int) {
 
 // WriteDistanceIO creates the bare bones I/O compute program for calculating SDF
 // and writes it to the writer.
-func (p *Programmer) WriteComputeSDF3(w io.Writer, obj Shader3D) (int, []ShaderBuffer, error) {
+func (p *Programmer) WriteComputeSDF3(w io.Writer, obj Shader3D) (int, []ShaderObject, error) {
 	baseName, nodes, err := ParseAppendNodes(p.scratchNodes[:0], obj)
 	if err != nil {
 		return 0, nil, err
@@ -184,7 +188,7 @@ void main() {
 
 // WriteDistanceIO creates the bare bones I/O compute program for calculating SDF
 // and writes it to the writer.
-func (p *Programmer) WriteComputeSDF2(w io.Writer, obj Shader2D) (int, []ShaderBuffer, error) {
+func (p *Programmer) WriteComputeSDF2(w io.Writer, obj Shader2D) (int, []ShaderObject, error) {
 	baseName, nodes, err := ParseAppendNodes(p.scratchNodes[:0], obj)
 	if err != nil {
 		return 0, nil, err
@@ -225,8 +229,11 @@ void main() {
 	return n, ssbos, err
 }
 
+//go:embed visualizer_footer.tmpl
+var visualizerFooter []byte
+
 // WriteFragVisualizerSDF3 generates a OpenGL program that can be visualized in most shader visualizers such as ShaderToy.
-func (p *Programmer) WriteFragVisualizerSDF3(w io.Writer, obj Shader3D) (n int, ssbos []ShaderBuffer, err error) {
+func (p *Programmer) WriteFragVisualizerSDF3(w io.Writer, obj Shader3D) (n int, ssbos []ShaderObject, err error) {
 	baseName, n, ssbos, err := p.WriteSDFDecl(w, obj)
 	if err != nil {
 		return 0, ssbos, err
@@ -245,7 +252,7 @@ func (p *Programmer) WriteFragVisualizerSDF3(w io.Writer, obj Shader3D) (n int, 
 }
 
 // WriteShaderDecl writes the SDF shader function declarations and returns the top-level SDF function name.
-func (p *Programmer) WriteSDFDecl(w io.Writer, obj Shader) (baseName string, n int, ssbos []ShaderBuffer, err error) {
+func (p *Programmer) WriteSDFDecl(w io.Writer, obj Shader) (baseName string, n int, ssbos []ShaderObject, err error) {
 	baseName, nodes, err := ParseAppendNodes(p.scratchNodes[:0], obj)
 	if err != nil {
 		return "", 0, nil, err
@@ -257,7 +264,7 @@ func (p *Programmer) WriteSDFDecl(w io.Writer, obj Shader) (baseName string, n i
 	return baseName, n, ssbos, nil
 }
 
-func (p *Programmer) writeShaders(w io.Writer, nodes []Shader) (n int, ssbos []ShaderBuffer, err error) {
+func (p *Programmer) writeShaders(w io.Writer, nodes []Shader) (n int, ssbos []ShaderObject, err error) {
 	clear(p.names)
 	p.scratch = p.scratch[:0]
 	p.ssbosScratch = p.ssbosScratch[:0]
@@ -266,7 +273,7 @@ func (p *Programmer) writeShaders(w io.Writer, nodes []Shader) (n int, ssbos []S
 		// Start by generating SSBOs.
 		node := nodes[i]
 		prevIdx := len(p.ssbosScratch)
-		p.ssbosScratch = node.AppendShaderBuffers(p.ssbosScratch)
+		p.ssbosScratch = node.AppendShaderObjects(p.ssbosScratch)
 		newSSBOs := p.ssbosScratch[prevIdx:]
 		for i := range newSSBOs {
 			if newSSBOs[i].Binding != -1 {
@@ -450,7 +457,7 @@ func WriteShader(w io.Writer, s Shader, scratch []byte) (int, []byte, error) {
 //	layout(<ssbo.std>, binding = <base>) buffer <BlockName> {
 //		<ssbo.Element> <ssbo.NamePtr>[];
 //	} <instanceName>;
-func AppendShaderBufferDecl(dst []byte, BlockName, instanceName string, ssbo ShaderBuffer) ([]byte, error) {
+func AppendShaderBufferDecl(dst []byte, BlockName, instanceName string, ssbo ShaderObject) ([]byte, error) {
 	err := ssbo.Validate()
 	if err != nil {
 		return dst, err
@@ -483,7 +490,7 @@ func AppendShaderBufferDecl(dst []byte, BlockName, instanceName string, ssbo Sha
 	return dst, nil
 }
 
-func (ssbo ShaderBuffer) Validate() error {
+func (ssbo ShaderObject) Validate() error {
 	if ssbo.Data == nil {
 		return errors.New("ssbo nil data pointer")
 	} else if ssbo.Size == 0 {
@@ -771,6 +778,8 @@ func appendMatDecl(b []byte, typename, name string, row, col int, arr []float32)
 	return b
 }
 
+const decimalDigits = 9
+
 func AppendFloat(b []byte, neg, decimal byte, v float32) []byte {
 	start := len(b)
 	b = strconv.AppendFloat(b, float64(v), 'f', decimalDigits, 32)
@@ -972,9 +981,9 @@ func (c3 *CachedShader3D) ForEach2DChild(userData any, fn func(userData any, s *
 	return err
 }
 
-// AppendShaderBuffers returns the underlying [Shader]'s buffer declarations.
-func (c3 *CachedShader3D) AppendShaderBuffers(ssbos []ShaderBuffer) []ShaderBuffer {
-	return c3.Shader.AppendShaderBuffers(ssbos)
+// AppendShaderObjects returns the underlying [Shader]'s buffer declarations.
+func (c3 *CachedShader3D) AppendShaderObjects(ssbos []ShaderObject) []ShaderObject {
+	return c3.Shader.AppendShaderObjects(ssbos)
 }
 
 // Evaluate implements the gleval.SDF3 interface.
@@ -1031,9 +1040,9 @@ func (c2 *CachedShader2D) Evaluate(pos []ms2.Vec, dist []float32, userData any) 
 	return sdf.Evaluate(pos, dist, userData)
 }
 
-// AppendShaderBuffers returns the underlying [Shader]'s buffer declarations.
-func (c2 *CachedShader2D) AppendShaderBuffers(ssbos []ShaderBuffer) []ShaderBuffer {
-	return c2.Shader.AppendShaderBuffers(ssbos)
+// AppendShaderObjects returns the underlying [Shader]'s buffer declarations.
+func (c2 *CachedShader2D) AppendShaderObjects(ssbos []ShaderObject) []ShaderObject {
+	return c2.Shader.AppendShaderObjects(ssbos)
 }
 
 type nameOverloadShader3D struct {
@@ -1064,9 +1073,9 @@ func (nos3 *nameOverloadShader3D) ForEach2DChild(userData any, fn func(userData 
 	return err
 }
 
-// AppendShaderBuffers returns the underlying [Shader]'s buffer declarations.
-func (nos3 *nameOverloadShader3D) AppendShaderBuffers(ssbos []ShaderBuffer) []ShaderBuffer {
-	return nos3.Shader.AppendShaderBuffers(ssbos)
+// AppendShaderObjects returns the underlying [Shader]'s buffer declarations.
+func (nos3 *nameOverloadShader3D) AppendShaderObjects(ssbos []ShaderObject) []ShaderObject {
+	return nos3.Shader.AppendShaderObjects(ssbos)
 }
 
 type (
@@ -1117,9 +1126,9 @@ func (nos2 *nameOverloadShader2D) Evaluate(pos []ms2.Vec, dist []float32, userDa
 	return sdf.Evaluate(pos, dist, userData)
 }
 
-// AppendShaderBuffers returns the underlying [Shader]'s buffer declarations.
-func (nos2 *nameOverloadShader2D) AppendShaderBuffers(ssbos []ShaderBuffer) []ShaderBuffer {
-	return nos2.Shader.AppendShaderBuffers(ssbos)
+// AppendShaderObjects returns the underlying [Shader]'s buffer declarations.
+func (nos2 *nameOverloadShader2D) AppendShaderObjects(ssbos []ShaderObject) []ShaderObject {
+	return nos2.Shader.AppendShaderObjects(ssbos)
 }
 
 func hash(b []byte, in uint64) uint64 {

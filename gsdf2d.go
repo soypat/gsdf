@@ -89,8 +89,8 @@ func (u *OpUnion2D) AppendShaderBody(b []byte) []byte {
 	return b
 }
 
-// AppendShaderBuffers implements [glbuild.Shader]. This method returns the argument buffer with no modifications. See [glbuild.Shader] for more information.
-func (u *OpUnion2D) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+// AppendShaderObjects implements [glbuild.Shader]. This method returns the argument buffer with no modifications. See [glbuild.Shader] for more information.
+func (u *OpUnion2D) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
 	u.mustValidate()
 	return ssbos
 }
@@ -153,7 +153,7 @@ func (l *line2D) ForEach2DChild(userData any, fn func(userData any, s *glbuild.S
 	return nil
 }
 
-func (u *line2D) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+func (u *line2D) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
 	return ssbos
 }
 
@@ -225,7 +225,7 @@ func (l *lines2D) ForEach2DChild(userData any, fn func(userData any, s *glbuild.
 	return nil
 }
 
-func (u *lines2D) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+func (u *lines2D) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
 	ssbo, err := glbuild.MakeShaderBufferReadOnly(u.bufName, u.points)
 	if err != nil {
 		panic(err)
@@ -282,7 +282,7 @@ func (a *arc2D) ForEach2DChild(userData any, fn func(userData any, s *glbuild.Sh
 	return nil
 }
 
-func (u *arc2D) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+func (u *arc2D) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
 	return ssbos
 }
 
@@ -319,7 +319,7 @@ func (c *circle2D) ForEach2DChild(userData any, fn func(userData any, s *glbuild
 	return nil
 }
 
-func (u *circle2D) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+func (u *circle2D) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
 	return ssbos
 }
 
@@ -367,7 +367,7 @@ func (t *equilateralTri2d) ForEach2DChild(userData any, fn func(userData any, s 
 	return nil
 }
 
-func (u *equilateralTri2d) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+func (u *equilateralTri2d) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
 	return ssbos
 }
 
@@ -410,7 +410,7 @@ func (c *rect2D) ForEach2DChild(userData any, fn func(userData any, s *glbuild.S
 	return nil
 }
 
-func (u *rect2D) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+func (u *rect2D) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
 	return ssbos
 }
 
@@ -451,7 +451,7 @@ func (c *hex2D) ForEach2DChild(userData any, fn func(userData any, s *glbuild.Sh
 	return nil
 }
 
-func (u *hex2D) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+func (u *hex2D) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
 	return ssbos
 }
 
@@ -522,7 +522,7 @@ func (c *ellipse2D) ForEach2DChild(userData any, fn func(userData any, s *glbuil
 	return nil
 }
 
-func (u *ellipse2D) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+func (u *ellipse2D) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
 	return ssbos
 }
 
@@ -599,7 +599,7 @@ func (c *poly2D) ForEach2DChild(userData any, fn func(userData any, s *glbuild.S
 	return nil
 }
 
-func (u *poly2D) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+func (u *poly2D) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
 	return ssbos // TODO: implement shader buffer storage here!
 }
 
@@ -633,7 +633,7 @@ func (e *extrusion) ForEach2DChild(userData any, fn func(userData any, s *glbuil
 func (e *extrusion) ForEachChild(userData any, fn func(userData any, s *glbuild.Shader3D) error) error {
 	return nil
 }
-func (u *extrusion) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+func (u *extrusion) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
 	return ssbos
 }
 
@@ -681,7 +681,7 @@ func (r *revolution) ForEach2DChild(userData any, fn func(userData any, s *glbui
 func (r *revolution) ForEachChild(userData any, fn func(userData any, s *glbuild.Shader3D) error) error {
 	return nil
 }
-func (u *revolution) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+func (u *revolution) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
 	return ssbos
 }
 
@@ -739,7 +739,7 @@ func (s *diff2D) AppendShaderBody(b []byte) []byte {
 	b = append(b, "(p));"...)
 	return b
 }
-func (u *diff2D) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+func (u *diff2D) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
 	return ssbos
 }
 
@@ -783,7 +783,7 @@ func (s *intersect2D) AppendShaderBody(b []byte) []byte {
 	b = append(b, "(p));"...)
 	return b
 }
-func (u *intersect2D) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+func (u *intersect2D) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
 	return ssbos
 }
 
@@ -825,7 +825,7 @@ func (s *xor2D) AppendShaderBody(b []byte) []byte {
 	b = append(b, "return max(min(d1,d2),-max(d1,d2));"...)
 	return b
 }
-func (u *xor2D) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+func (u *xor2D) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
 	return ssbos
 }
 
@@ -904,7 +904,7 @@ return d;`, s.d.X, s.d.Y,
 	b = append(b, body...)
 	return b
 }
-func (u *array2D) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+func (u *array2D) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
 	return ssbos
 }
 
@@ -953,7 +953,7 @@ func (s *offset2D) AppendShaderBody(b []byte) []byte {
 	b = append(b, ')', ';')
 	return b
 }
-func (u *offset2D) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+func (u *offset2D) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
 	return ssbos
 }
 
@@ -991,7 +991,7 @@ func (s *translate2D) AppendShaderBody(b []byte) []byte {
 	b = append(b, "(p-t);"...)
 	return b
 }
-func (u *translate2D) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+func (u *translate2D) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
 	return ssbos
 }
 
@@ -1051,7 +1051,7 @@ func (r *rotation2D) AppendShaderBody(b []byte) []byte {
 	return b
 }
 
-func (u *rotation2D) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+func (u *rotation2D) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
 	return ssbos
 }
 
@@ -1103,7 +1103,7 @@ func (s *symmetry2D) AppendShaderBody(b []byte) []byte {
 	return b
 }
 
-func (u *symmetry2D) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+func (u *symmetry2D) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
 	return ssbos
 }
 
@@ -1144,7 +1144,7 @@ func (s *annulus2D) AppendShaderBody(b []byte) []byte {
 	return b
 }
 
-func (u *annulus2D) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+func (u *annulus2D) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
 	return ssbos
 }
 
@@ -1225,6 +1225,6 @@ func (ca *circarray2D) AppendShaderBody(b []byte) []byte {
 	return b
 }
 
-func (u *circarray2D) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+func (u *circarray2D) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
 	return ssbos
 }

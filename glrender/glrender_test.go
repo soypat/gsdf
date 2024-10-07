@@ -95,7 +95,7 @@ func levelsVisual(filename string, startCube icube, targetLvl int, origin ms3.Ve
 	if err != nil {
 		panic(err)
 	}
-	var ssbo []glbuild.ShaderBuffer
+	var ssbo []glbuild.ShaderObject
 	_, ssbo, err = prog.WriteFragVisualizerSDF3(fp, s)
 	if err != nil {
 		panic(err)

@@ -100,8 +100,8 @@ func (u *OpUnion) AppendShaderBody(b []byte) []byte {
 	return b
 }
 
-// AppendShaderBuffers implements [glbuild.Shader]. This method returns the argument buffer with no modifications. See [glbuild.Shader] for more information.
-func (u *OpUnion) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+// AppendShaderObjects implements [glbuild.Shader]. This method returns the argument buffer with no modifications. See [glbuild.Shader] for more information.
+func (u *OpUnion) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
 	u.mustValidate()
 	return ssbos
 }
@@ -151,7 +151,7 @@ func (s *diff) AppendShaderBody(b []byte) []byte {
 	return b
 }
 
-func (u *diff) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+func (u *diff) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
 	return ssbos
 }
 
@@ -196,7 +196,7 @@ func (s *intersect) AppendShaderBody(b []byte) []byte {
 	return b
 }
 
-func (u *intersect) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+func (u *intersect) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
 	return ssbos
 }
 
@@ -239,7 +239,7 @@ func (s *xor) AppendShaderBody(b []byte) []byte {
 	return b
 }
 
-func (u *xor) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+func (u *xor) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
 	return ssbos
 }
 
@@ -276,7 +276,7 @@ func (s *scale) AppendShaderBody(b []byte) []byte {
 	return b
 }
 
-func (u *scale) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+func (u *scale) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
 	return ssbos
 }
 
@@ -331,7 +331,7 @@ func (s *symmetry) AppendShaderBody(b []byte) []byte {
 	return b
 }
 
-func (u *symmetry) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+func (u *symmetry) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
 	return ssbos
 }
 
@@ -382,7 +382,7 @@ func (r *transform) AppendShaderBody(b []byte) []byte {
 	return b
 }
 
-func (u *transform) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+func (u *transform) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
 	return ssbos
 }
 
@@ -430,7 +430,7 @@ func (s *translate) AppendShaderBody(b []byte) []byte {
 	return b
 }
 
-func (u *translate) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+func (u *translate) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
 	return ssbos
 }
 
@@ -476,7 +476,7 @@ func (s *offset) AppendShaderBody(b []byte) []byte {
 	return b
 }
 
-func (u *offset) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+func (u *offset) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
 	return ssbos
 }
 
@@ -550,7 +550,7 @@ return d;`, s.d.X, s.d.Y, s.d.Z,
 	return b
 }
 
-func (u *array) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+func (u *array) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
 	return ssbos
 }
 
@@ -598,7 +598,7 @@ return mix( d2, d1, h ) - k*h*(1.0-h);`...)
 	return b
 }
 
-func (u *smoothUnion) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+func (u *smoothUnion) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
 	return ssbos
 }
 
@@ -710,7 +710,7 @@ func (s *elongate) AppendShaderBody(b []byte) []byte {
 	return b
 }
 
-func (u *elongate) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+func (u *elongate) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
 	return ssbos
 }
 
@@ -749,7 +749,7 @@ func (s *shell) AppendShaderBody(b []byte) []byte {
 	return b
 }
 
-func (u *shell) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+func (u *shell) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
 	return ssbos
 }
 
@@ -836,6 +836,6 @@ func (ca *circarray) AppendShaderBody(b []byte) []byte {
 	return b
 }
 
-func (u *circarray) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+func (u *circarray) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
 	return ssbos
 }

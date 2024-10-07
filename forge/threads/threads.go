@@ -94,7 +94,7 @@ func Screw(length float32, thread Threader) (glbuild.Shader3D, error) {
 	return &s, nil
 }
 
-func (s *screw) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+func (s *screw) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
 	return ssbos
 }
 

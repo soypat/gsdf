@@ -65,7 +65,7 @@ type ComputeConfig struct {
 	//  layout(local_size_x = <InvocX>, local_size_y = 1, local_size_z = 1) in;
 	InvocX int
 	// SSBOs contains buffer data and definitions required by shader for correct evaluation.
-	SSBOs []glbuild.ShaderBuffer
+	SSBOs []glbuild.ShaderObject
 }
 
 func (sdf *SDF3Compute) Bounds() ms3.Box {
@@ -85,11 +85,7 @@ func (sdf *SDF3Compute) Evaluate(pos []ms3.Vec, dist []float32, userData any) er
 	if len(sdf.alignAuxiliary) < len(pos) {
 		sdf.alignAuxiliary = append(sdf.alignAuxiliary, make([]ms3.Quat, len(pos)-len(sdf.alignAuxiliary))...)
 	}
-	aligned := sdf.alignAuxiliary[:len(pos)]
-	for i := range aligned {
-		aligned[i].V = pos[i]
-	}
-	err = computeEvaluate(aligned, dist, sdf.invocX, nil)
+	err = computeEvaluate(pos, dist, sdf.invocX, nil)
 	if err != nil {
 		return err
 	}
@@ -124,7 +120,7 @@ type SDF2Compute struct {
 	bb     ms2.Box
 	evals  uint64
 	invocX int
-	ssbos  []glbuild.ShaderBuffer
+	ssbos  []glbuild.ShaderObject
 }
 
 func (sdf *SDF2Compute) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {

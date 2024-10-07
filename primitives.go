@@ -54,7 +54,7 @@ func (s *sphere) AppendShaderBody(b []byte) []byte {
 	return b
 }
 
-func (u *sphere) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+func (u *sphere) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
 	return ssbos
 }
 
@@ -100,7 +100,7 @@ return length(max(q,0.0)) + min(max(q.x,max(q.y,q.z)),0.0)-r;`...)
 	return b
 }
 
-func (u *box) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+func (u *box) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
 	return ssbos
 }
 
@@ -164,7 +164,7 @@ func (c *cylinder) args() (r, h, round float32) {
 	return c.r, (c.h - 2*c.round) / 2, c.round
 }
 
-func (u *cylinder) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+func (u *cylinder) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
 	return ssbos
 }
 
@@ -214,7 +214,7 @@ return min(max(d.x,d.y),0.0) + length(max(d,0.0));`...)
 	return b
 }
 
-func (u *hex) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+func (u *hex) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
 	return ssbos
 }
 
@@ -278,7 +278,7 @@ func (s *torus) Bounds() ms3.Box {
 	}
 }
 
-func (u *torus) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+func (u *torus) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
 	return ssbos
 }
 
@@ -336,6 +336,6 @@ func (bf *boxframe) args() (e float32, b ms3.Vec) {
 	return e, dd
 }
 
-func (u *boxframe) AppendShaderBuffers(ssbos []glbuild.ShaderBuffer) []glbuild.ShaderBuffer {
+func (u *boxframe) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
 	return ssbos
 }

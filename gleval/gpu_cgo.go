@@ -159,7 +159,7 @@ func copySSBO[T any](dst []T, ssbo uint32) error {
 	return glgl.Err()
 }
 
-func computeEvaluate[T ms2.Vec | ms3.Quat](pos []T, dist []float32, invocX int, ssbos []glbuild.ShaderBuffer) (err error) {
+func computeEvaluate[T ms2.Vec | ms3.Vec](pos []T, dist []float32, invocX int, ssbos []glbuild.ShaderObject) (err error) {
 	if len(pos) != len(dist) {
 		return errors.New("positional and distance buffers not equal in length")
 	} else if len(dist) == 0 {
@@ -179,9 +179,6 @@ func computeEvaluate[T ms2.Vec | ms3.Quat](pos []T, dist []float32, invocX int, 
 			gl.BindBuffer(gl.SHADER_STORAGE_BUFFER, id)
 			gl.BufferData(gl.SHADER_STORAGE_BUFFER, ssbo.Size, ssbo.Data, gl.STATIC_DRAW)
 			gl.BindBufferBase(gl.SHADER_STORAGE_BUFFER, uint32(ssbo.Binding), id)
-			// buf := unsafe.Slice((*[2]ms2.Vec)(ssbo.Data), ssbo.Size/16)
-			// fmt.Println(buf)
-			// println(ssbo.Binding, ssbo.Size, ssbo.Data)
 		}
 		err := glgl.Err()
 		if err != nil {
@@ -222,10 +219,5 @@ func computeEvaluate[T ms2.Vec | ms3.Quat](pos []T, dist []float32, invocX int, 
 	if err != nil {
 		return err
 	}
-	return nil
-}
-
-func bindSSBOs(ssbos []glbuild.ShaderBuffer) error {
-
 	return nil
 }
