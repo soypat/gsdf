@@ -24,7 +24,7 @@ func TestShaderNameDeduplication(t *testing.T) {
 	for _, obj := range []glbuild.Shader3D{s1s1, s1s2} {
 		programmer := glbuild.NewDefaultProgrammer()
 		source := new(bytes.Buffer)
-		n, ssbos, err := programmer.WriteFragVisualizerSDF3(source, obj)
+		n, ssbos, err := programmer.WriteShaderToyVisualizerSDF3(source, obj)
 		if n != source.Len() {
 			t.Fatal("written length mismatch", err)
 		} else if len(ssbos) > 0 {

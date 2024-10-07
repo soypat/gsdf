@@ -137,7 +137,7 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 		visual = gsdf.Translate(visual, center.X, center.Y, center.Z-sz.Z)
 		visual = gsdf.Scale(visual, sceneSize/bb.Diagonal())
 		var ssbos []glbuild.ShaderObject
-		_, ssbos, err = glbuild.NewDefaultProgrammer().WriteFragVisualizerSDF3(cfg.VisualOutput, visual)
+		_, ssbos, err = glbuild.NewDefaultProgrammer().WriteShaderToyVisualizerSDF3(cfg.VisualOutput, visual)
 		if err != nil {
 			return fmt.Errorf("writing visual GLSL: %s", err)
 		} else if len(ssbos) > 0 {

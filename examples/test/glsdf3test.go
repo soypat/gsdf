@@ -731,7 +731,7 @@ func visualize(sdf glbuild.Shader3D, filename string) error {
 	const desiredScale = 2.0
 	diag := ms3.Norm(bb.Size())
 	sdf = gsdf.Scale(sdf, desiredScale/diag)
-	written, ssbos, err := programmer.WriteFragVisualizerSDF3(fp, sdf)
+	written, ssbos, err := programmer.WriteShaderToyVisualizerSDF3(fp, sdf)
 	if err != nil {
 		return err
 	} else if len(ssbos) > 0 {

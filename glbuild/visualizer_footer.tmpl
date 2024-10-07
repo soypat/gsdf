@@ -26,65 +26,85 @@ vec3 calcNormal( in vec3 pos )
 
 // Antialiasing.
 #define AA 3
-
-void mainImage( out vec4 fragColor, in vec2 fragCoord )
+void mainImage(out vec4 fragColor, in vec2 fragCoord)
 {
-     // camera movement	
-	float an = 0.2*sin(iTime);
-	vec3 ro = vec3( 1.0*sin(an), 0.4, 1.0*cos(an) );
-    vec3 ta = vec3( 0.0, 0.0, 0.0 );
-    // camera matrix
-    vec3 ww = normalize( ta - ro );
-    vec3 uu = normalize( cross(ww,vec3(0.0,1.0,0.0) ) );
-    vec3 vv = normalize( cross(uu,ww));
+    // Mouse input for camera control
+    const float PI = 3.14159265359;
+    vec2 mouse = iMouse.xy / iResolution.xy;
 
-        
-    vec3 tot = vec3(0.0);
-    
-    #if AA>1
-    for( int m=0; m<AA; m++ )
-    for( int n=0; n<AA; n++ )
+    // Set default mouse position if not available
+    if (iMouse.xy == vec2(0.0))
     {
-        // pixel coordinates
-        vec2 o = vec2(float(m),float(n)) / float(AA) - 0.5;
-        vec2 p = (2.0*(fragCoord+o)-iResolution.xy)/iResolution.y;
-        #else    
-        vec2 p = (2.0*fragCoord-iResolution.xy)/iResolution.y;
-        #endif
-
-	    // create view ray
-        vec3 rd = normalize( p.x*uu + p.y*vv + 1.5*ww );
-
-        // raymarch
-        const float tmax = 3.0;
-        float t = 0.0;
-        for( int i=0; i<256; i++ )
-        {
-            vec3 pos = ro + t*rd;
-            float h = sdf(pos);
-            if( h<0.0001 || t>tmax ) break;
-            t += h;
-        }
-        
-    
-        // shading/lighting	
-        vec3 col = vec3(0.0);
-        if( t<tmax )
-        {
-            vec3 pos = ro + t*rd;
-            vec3 nor = calcNormal(pos);
-            float dif = clamp( dot(nor,vec3(0.57703)), 0.0, 1.0 );
-            float amb = 0.5 + 0.5*dot(nor,vec3(0.0,1.0,0.0));
-            col = vec3(0.2,0.3,0.4)*amb + vec3(0.8,0.7,0.5)*dif;
-        }
-
-        // gamma        
-        col = sqrt( col );
-	    tot += col;
-    #if AA>1
+        mouse = vec2(0.5, 0.5); // Center position
     }
-    tot /= float(AA*AA);
+
+    // Calculate camera angles based on mouse position
+    float yaw = (mouse.x - 0.5) * 2.0 * PI;     // Yaw angle
+    float pitch = (mouse.y - 0.5) * PI;         // Pitch angle
+    pitch = clamp(pitch, -PI/2.0 + 0.01, PI/2.0 - 0.01); // Prevent gimbal lock
+
+    // Camera setup
+    float camDist = 3.0; // Distance from the target
+    vec3 ta = vec3(0.0, 0.0, 0.0); // Camera target at the origin
+
+    // Calculate camera position based on angles
+    vec3 dir;
+    dir.x = cos(pitch) * sin(yaw);
+    dir.y = sin(pitch);
+    dir.z = cos(pitch) * cos(yaw);
+
+    vec3 ro = ta - dir * camDist; // Camera position
+
+    // Camera matrix
+    vec3 ww = normalize(ta - ro);                     // Forward vector
+    vec3 uu = normalize(cross(ww, vec3(0.0, 1.0, 0.0))); // Right vector
+    vec3 vv = cross(uu, ww);                          // Up vector
+
+    vec3 tot = vec3(0.0);
+
+    #if AA > 1
+    for (int m = 0; m < AA; m++)
+    for (int n = 0; n < AA; n++)
+    {
+        // Pixel coordinates
+        vec2 o = vec2(float(m), float(n)) / float(AA) - 0.5;
+        vec2 p = (2.0 * (fragCoord + o) - iResolution.xy) / iResolution.y;
+    #else
+        vec2 p = (2.0 * fragCoord - iResolution.xy) / iResolution.y;
     #endif
 
-	fragColor = vec4( tot, 1.0 );
+        // Create view ray
+        vec3 rd = normalize(p.x * uu + p.y * vv + 1.5 * ww);
+
+        // Ray marching
+        const float tmax = 3.0;
+        float t = 0.0;
+        for (int i = 0; i < 256; i++)
+        {
+            vec3 pos = ro + t * rd;
+            float h = sdf(pos);
+            if (h < 0.0001 || t > tmax) break;
+            t += h;
+        }
+
+        // Shading/lighting
+        vec3 col = vec3(0.0);
+        if (t < tmax)
+        {
+            vec3 pos = ro + t * rd;
+            vec3 nor = calcNormal(pos);
+            float dif = clamp(dot(nor, vec3(0.57703)), 0.0, 1.0);
+            float amb = 0.5 + 0.5 * dot(nor, vec3(0.0, 1.0, 0.0));
+            col = vec3(0.2, 0.3, 0.4) * amb + vec3(0.8, 0.7, 0.5) * dif;
+        }
+
+        // Gamma correction
+        col = sqrt(col);
+        tot += col;
+    #if AA > 1
+    }
+    tot /= float(AA * AA);
+    #endif
+
+    fragColor = vec4(tot, 1.0);
 }
