@@ -159,7 +159,7 @@ func copySSBO[T any](dst []T, ssbo uint32) error {
 	return glgl.Err()
 }
 
-func computeEvaluate[T ms2.Vec | ms3.Vec](pos []T, dist []float32, invocX int, ssbos []glbuild.ShaderObject) (err error) {
+func computeEvaluate[T ms2.Vec | ms3.Vec](pos []T, dist []float32, invocX int, objects []glbuild.ShaderObject) (err error) {
 	if len(pos) != len(dist) {
 		return errors.New("positional and distance buffers not equal in length")
 	} else if len(dist) == 0 {
@@ -169,13 +169,14 @@ func computeEvaluate[T ms2.Vec | ms3.Vec](pos []T, dist []float32, invocX int, s
 	}
 
 	var p runtime.Pinner
-	if len(ssbos) > 0 {
-		ssbosIDs := make([]uint32, len(ssbos))
+	if len(objects) > 0 {
+		// Assume all objects are SSBOs for now.
+		ssbosIDs := make([]uint32, len(objects))
 		p.Pin(&ssbosIDs[0])
 		gl.GenBuffers(int32(len(ssbosIDs)), &ssbosIDs[0])
 		defer gl.DeleteBuffers(int32(len(ssbosIDs)), &ssbosIDs[0])
 		for i, id := range ssbosIDs {
-			ssbo := ssbos[i]
+			ssbo := objects[i]
 			gl.BindBuffer(gl.SHADER_STORAGE_BUFFER, id)
 			gl.BufferData(gl.SHADER_STORAGE_BUFFER, ssbo.Size, ssbo.Data, gl.STATIC_DRAW)
 			gl.BindBufferBase(gl.SHADER_STORAGE_BUFFER, uint32(ssbo.Binding), id)

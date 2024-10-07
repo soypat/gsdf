@@ -74,14 +74,14 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 			return errors.New("zero or negative GPU invocation size")
 		}
 		prog.SetComputeInvocations(invoc, 1, 1)
-		var ssbos []glbuild.ShaderObject
-		_, ssbos, err = prog.WriteComputeSDF3(source, s)
+		var objects []glbuild.ShaderObject
+		_, objects, err = prog.WriteComputeSDF3(source, s)
 		if err != nil {
 			return err
 		}
 		sdf, err = gleval.NewComputeGPUSDF3(source, bb, gleval.ComputeConfig{
-			InvocX: invoc,
-			SSBOs:  ssbos,
+			InvocX:        invoc,
+			ShaderObjects: objects,
 		})
 	} else {
 		log("using CPU")
@@ -136,12 +136,12 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 		sz := bb.Size()
 		visual = gsdf.Translate(visual, center.X, center.Y, center.Z-sz.Z)
 		visual = gsdf.Scale(visual, sceneSize/bb.Diagonal())
-		var ssbos []glbuild.ShaderObject
-		_, ssbos, err = glbuild.NewDefaultProgrammer().WriteShaderToyVisualizerSDF3(cfg.VisualOutput, visual)
+		var objects []glbuild.ShaderObject
+		_, objects, err = glbuild.NewDefaultProgrammer().WriteShaderToyVisualizerSDF3(cfg.VisualOutput, visual)
 		if err != nil {
 			return fmt.Errorf("writing visual GLSL: %s", err)
-		} else if len(ssbos) > 0 {
-			return errors.New("ssbos unsupported for visual outputs")
+		} else if len(objects) > 0 {
+			return errors.New("objectsunsupported for visual outputs")
 		}
 		filename := "GLSL visualization"
 		if fp, ok := cfg.VisualOutput.(*os.File); ok {
@@ -233,8 +233,8 @@ func MakeGPUSDF2(s glbuild.Shader2D) (sdf gleval.SDF2, err error) {
 	prog := glbuild.NewDefaultProgrammer()
 	prog.SetComputeInvocations(invoc, 1, 1)
 
-	var ssbos []glbuild.ShaderObject
-	n, ssbos, err = prog.WriteComputeSDF2(&buf, s)
+	var objects []glbuild.ShaderObject
+	n, objects, err = prog.WriteComputeSDF2(&buf, s)
 	if err != nil {
 		return nil, err
 	} else if n != buf.Len() {
@@ -242,8 +242,8 @@ func MakeGPUSDF2(s glbuild.Shader2D) (sdf gleval.SDF2, err error) {
 	}
 
 	return gleval.NewComputeGPUSDF2(&buf, s.Bounds(), gleval.ComputeConfig{
-		InvocX: invoc,
-		SSBOs:  ssbos,
+		InvocX:        invoc,
+		ShaderObjects: objects,
 	})
 }
 

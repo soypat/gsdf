@@ -94,8 +94,8 @@ func Screw(length float32, thread Threader) (glbuild.Shader3D, error) {
 	return &s, nil
 }
 
-func (s *screw) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
-	return ssbos
+func (s *screw) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
+	return objects
 }
 
 func (s *screw) ForEachChild(any, func(any, *glbuild.Shader3D) error) error {

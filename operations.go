@@ -101,9 +101,9 @@ func (u *OpUnion) AppendShaderBody(b []byte) []byte {
 }
 
 // AppendShaderObjects implements [glbuild.Shader]. This method returns the argument buffer with no modifications. See [glbuild.Shader] for more information.
-func (u *OpUnion) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
+func (u *OpUnion) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
 	u.mustValidate()
-	return ssbos
+	return objects
 }
 
 func (u *OpUnion) mustValidate() {
@@ -151,8 +151,8 @@ func (s *diff) AppendShaderBody(b []byte) []byte {
 	return b
 }
 
-func (u *diff) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
-	return ssbos
+func (u *diff) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
+	return objects
 }
 
 // Intersection is the SDF intersection of a ^ b. Does not produce an exact SDF.
@@ -196,8 +196,8 @@ func (s *intersect) AppendShaderBody(b []byte) []byte {
 	return b
 }
 
-func (u *intersect) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
-	return ssbos
+func (u *intersect) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
+	return objects
 }
 
 // Xor is the mutually exclusive boolean operation and results in an exact SDF.
@@ -239,8 +239,8 @@ func (s *xor) AppendShaderBody(b []byte) []byte {
 	return b
 }
 
-func (u *xor) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
-	return ssbos
+func (u *xor) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
+	return objects
 }
 
 // Scale scales s by scaleFactor around the origin.
@@ -276,8 +276,8 @@ func (s *scale) AppendShaderBody(b []byte) []byte {
 	return b
 }
 
-func (u *scale) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
-	return ssbos
+func (u *scale) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
+	return objects
 }
 
 // Symmetry reflects the SDF around one or more cartesian planes.
@@ -331,8 +331,8 @@ func (s *symmetry) AppendShaderBody(b []byte) []byte {
 	return b
 }
 
-func (u *symmetry) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
-	return ssbos
+func (u *symmetry) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
+	return objects
 }
 
 // Transform applies a 4x4 matrix transformation to the argument shader by
@@ -382,8 +382,8 @@ func (r *transform) AppendShaderBody(b []byte) []byte {
 	return b
 }
 
-func (u *transform) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
-	return ssbos
+func (u *transform) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
+	return objects
 }
 
 // Rotate is the rotation of radians angle around an axis vector.
@@ -430,8 +430,8 @@ func (s *translate) AppendShaderBody(b []byte) []byte {
 	return b
 }
 
-func (u *translate) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
-	return ssbos
+func (u *translate) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
+	return objects
 }
 
 // Offset adds sdfAdd to the entire argument SDF. If sdfAdd is negative this will
@@ -476,8 +476,8 @@ func (s *offset) AppendShaderBody(b []byte) []byte {
 	return b
 }
 
-func (u *offset) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
-	return ssbos
+func (u *offset) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
+	return objects
 }
 
 // Array is the domain repetition operation. It repeats domain centered around the origin (x,y,z)=(0,0,0).
@@ -550,8 +550,8 @@ return d;`, s.d.X, s.d.Y, s.d.Z,
 	return b
 }
 
-func (u *array) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
-	return ssbos
+func (u *array) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
+	return objects
 }
 
 // SmoothUnion joins the shapes of two shaders into one with a smoothing blend.
@@ -598,8 +598,8 @@ return mix( d2, d1, h ) - k*h*(1.0-h);`...)
 	return b
 }
 
-func (u *smoothUnion) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
-	return ssbos
+func (u *smoothUnion) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
+	return objects
 }
 
 // SmoothDifference performs the difference of two SDFs with a smoothing parameter.
@@ -710,8 +710,8 @@ func (s *elongate) AppendShaderBody(b []byte) []byte {
 	return b
 }
 
-func (u *elongate) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
-	return ssbos
+func (u *elongate) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
+	return objects
 }
 
 // Shell carves the interior of the SDF leaving only the exterior shell of the part.
@@ -749,8 +749,8 @@ func (s *shell) AppendShaderBody(b []byte) []byte {
 	return b
 }
 
-func (u *shell) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
-	return ssbos
+func (u *shell) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
+	return objects
 }
 
 // CircularArray is the circular domain repetition operation around the origin (x,y,z)=(0,0,0).
@@ -836,6 +836,6 @@ func (ca *circarray) AppendShaderBody(b []byte) []byte {
 	return b
 }
 
-func (u *circarray) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
-	return ssbos
+func (u *circarray) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
+	return objects
 }

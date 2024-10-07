@@ -418,7 +418,7 @@ func (oc *Octree) debugVisual(filename string, lvlDescent int, merge glbuild.Sha
 	if err != nil {
 		return err
 	} else if len(ssbos) > 0 {
-		return errors.New("ssbos unsupported for visual output")
+		return errors.New("objectsunsupported for visual output")
 	}
 	return nil
 }

@@ -64,8 +64,8 @@ type ComputeConfig struct {
 	// This is configured in a declaration of the following style in the shader:
 	//  layout(local_size_x = <InvocX>, local_size_y = 1, local_size_z = 1) in;
 	InvocX int
-	// SSBOs contains buffer data and definitions required by shader for correct evaluation.
-	SSBOs []glbuild.ShaderObject
+	// ShaderObjects contains buffer data and definitions required by shader for correct evaluation.
+	ShaderObjects []glbuild.ShaderObject
 }
 
 func (sdf *SDF3Compute) Bounds() ms3.Box {
@@ -107,20 +107,20 @@ func NewComputeGPUSDF2(glglSourceCode io.Reader, bb ms2.Box, cfg ComputeConfig) 
 		return nil, errors.New(string(combinedSource.Compute) + "\n" + err.Error())
 	}
 	sdf := SDF2Compute{
-		prog:   glprog,
-		bb:     bb,
-		invocX: cfg.InvocX,
-		ssbos:  cfg.SSBOs,
+		prog:    glprog,
+		bb:      bb,
+		invocX:  cfg.InvocX,
+		objects: cfg.ShaderObjects,
 	}
 	return &sdf, nil
 }
 
 type SDF2Compute struct {
-	prog   glgl.Program
-	bb     ms2.Box
-	evals  uint64
-	invocX int
-	ssbos  []glbuild.ShaderObject
+	prog    glgl.Program
+	bb      ms2.Box
+	evals   uint64
+	invocX  int
+	objects []glbuild.ShaderObject
 }
 
 func (sdf *SDF2Compute) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {
@@ -130,7 +130,7 @@ func (sdf *SDF2Compute) Evaluate(pos []ms2.Vec, dist []float32, userData any) er
 	if err != nil {
 		return fmt.Errorf("binding SDF2Compute program: %w", err)
 	}
-	err = computeEvaluate(pos, dist, sdf.invocX, sdf.ssbos)
+	err = computeEvaluate(pos, dist, sdf.invocX, sdf.objects)
 	if err != nil {
 		return err
 	}
@@ -358,7 +358,7 @@ func (disp *DisplaceMulti2D) Configure(programmer *glbuild.Programmer, element g
 	} else if n != buf.Len() {
 		return errors.New("length written mismatch")
 	} else if len(ssbos) > 0 {
-		return errors.New("ssbos unsupported for displace multi")
+		return errors.New("objectsunsupported for displace multi")
 	}
 	disp.elemBB = element.Bounds()
 	disp.invocX = cfg.InvocX

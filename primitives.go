@@ -54,8 +54,8 @@ func (s *sphere) AppendShaderBody(b []byte) []byte {
 	return b
 }
 
-func (u *sphere) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
-	return ssbos
+func (u *sphere) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
+	return objects
 }
 
 func (s *sphere) Bounds() ms3.Box {
@@ -100,8 +100,8 @@ return length(max(q,0.0)) + min(max(q.x,max(q.y,q.z)),0.0)-r;`...)
 	return b
 }
 
-func (u *box) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
-	return ssbos
+func (u *box) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
+	return objects
 }
 
 func (s *box) Bounds() ms3.Box {
@@ -164,8 +164,8 @@ func (c *cylinder) args() (r, h, round float32) {
 	return c.r, (c.h - 2*c.round) / 2, c.round
 }
 
-func (u *cylinder) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
-	return ssbos
+func (u *cylinder) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
+	return objects
 }
 
 // NewHexagonalPrism creates a hexagonal prism given a face-to-face dimension and height.
@@ -214,8 +214,8 @@ return min(max(d.x,d.y),0.0) + length(max(d,0.0));`...)
 	return b
 }
 
-func (u *hex) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
-	return ssbos
+func (u *hex) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
+	return objects
 }
 
 // NewTriangularPrism creates a 3D triangular prism with a given triangle cross-sectional height (2D)
@@ -278,8 +278,8 @@ func (s *torus) Bounds() ms3.Box {
 	}
 }
 
-func (u *torus) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
-	return ssbos
+func (u *torus) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
+	return objects
 }
 
 // NewBoxFrame creates a framed box with the frame being composed of square beams of thickness e.
@@ -336,6 +336,6 @@ func (bf *boxframe) args() (e float32, b ms3.Vec) {
 	return e, dd
 }
 
-func (u *boxframe) AppendShaderObjects(ssbos []glbuild.ShaderObject) []glbuild.ShaderObject {
-	return ssbos
+func (u *boxframe) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
+	return objects
 }

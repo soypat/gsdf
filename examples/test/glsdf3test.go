@@ -735,7 +735,7 @@ func visualize(sdf glbuild.Shader3D, filename string) error {
 	if err != nil {
 		return err
 	} else if len(ssbos) > 0 {
-		return errors.New("ssbos unsupported in frag visualizer")
+		return errors.New("objectsunsupported in frag visualizer")
 	}
 	stat, err := fp.Stat()
 	if err != nil {
@@ -905,8 +905,8 @@ func makeGPUSDF3(s glbuild.Shader3D) *gleval.SDF3Compute {
 	}
 	invocX, _, _ := programmer.ComputeInvocations()
 	sdfgpu, err := gleval.NewComputeGPUSDF3(&source, s.Bounds(), gleval.ComputeConfig{
-		InvocX: invocX,
-		SSBOs:  ssbos,
+		InvocX:        invocX,
+		ShaderObjects: ssbos,
 	})
 	if err != nil {
 		panic(err)
@@ -928,8 +928,8 @@ func makeGPUSDF2(s glbuild.Shader2D) gleval.SDF2 {
 	}
 	invocX, _, _ := programmer.ComputeInvocations()
 	sdfgpu, err := gleval.NewComputeGPUSDF2(&source, s.Bounds(), gleval.ComputeConfig{
-		InvocX: invocX,
-		SSBOs:  ssbos,
+		InvocX:        invocX,
+		ShaderObjects: ssbos,
 	})
 	if err != nil {
 		panic(err)
