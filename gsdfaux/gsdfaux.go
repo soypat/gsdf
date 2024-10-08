@@ -35,6 +35,17 @@ type RenderConfig struct {
 	EnableCaching bool
 }
 
+type UIConfig struct {
+	Width, Height int
+}
+
+func UI(s glbuild.Shader3D, cfg UIConfig) error {
+	if s == nil {
+		return errors.New("nil shader")
+	}
+	return ui(s, cfg)
+}
+
 // RenderShader3D is an auxiliary function to aid users in getting setup in using gsdf quickly.
 // Ideally users should implement their own rendering functions since applications may vary widely.
 func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {

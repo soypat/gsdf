@@ -17,6 +17,8 @@ All images and shapes in readme were generated using this library.
 
 ## Features
 
+- UI for visualizing parts, rendered directly from shaders. See [UI example](./examples/ui) by running `go run ./examples/ui`
+
 - GPU and CPU implementations for all shapes and operations. CPU implementations are actually faster for simple parts.
 
 - Include arbitrary buffers into GPU calculation. See [`Shader` interface](./glbuild/glbuild.go).

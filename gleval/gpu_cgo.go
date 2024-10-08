@@ -27,7 +27,11 @@ func (lines *Lines2DGPU) evaluate(pos []ms2.Vec, dist []float32, userData any) (
 	}
 	defer prog.Delete()
 	prog.Bind()
-	prog.SetUniform1f("WidthOffset\x00", lines.Width/2)
+	loc, err := prog.UniformLocation("WidthOffset\x00")
+	if err != nil {
+		return err
+	}
+	prog.SetUniformf(loc, lines.Width/2)
 	err = glgl.Err()
 	if err != nil {
 		return fmt.Errorf("binding LinesGPU program: %w", err)
