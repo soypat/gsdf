@@ -55,7 +55,8 @@ type icube struct {
 	lvl int
 }
 
-func (c icube) isSmallest() bool { return c.lvl == 1 }
+func (c icube) isSmallest() bool       { return c.lvl == 1 }
+func (c icube) isSecondSmallest() bool { return c.lvl == 2 }
 
 func (c icube) size(baseRes float32) float32 {
 	dim := 1 << (c.lvl - 1)
