@@ -1,6 +1,7 @@
 package glrender
 
 import (
+	"bytes"
 	"image"
 	"image/png"
 	"os"
@@ -12,6 +13,80 @@ import (
 	"github.com/soypat/gsdf/glbuild"
 	"github.com/soypat/gsdf/gleval"
 )
+
+func TestSphereMarchingTriangles(t *testing.T) {
+	const r = 1.0
+	const bufsize = 1 << 12
+	obj, _ := gsdf.NewSphere(r)
+	sdf, err := gleval.NewCPUSDF3(obj)
+	if err != nil {
+		t.Fatal(err)
+	}
+	renderer, err := NewOctreeRenderer(sdf, r/65, 1<<12+1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tris := testRenderer(t, renderer, nil)
+	const expect = 159284
+	if len(tris) != expect {
+		t.Errorf("expected %d triangles, got %d (diff=%d)", expect, len(tris), len(tris)-expect)
+	}
+	fp, _ := os.Create("spheretest.stl")
+	WriteBinarySTL(fp, tris)
+}
+
+func TestOctree(t *testing.T) {
+	const r = 1.0 // 1.01
+	// A larger Octree Positional buffer and a smaller RenderAll triangle buffer cause bug.
+	const bufsize = 1 << 12
+	obj, _ := gsdf.NewSphere(r)
+	sdf, err := gleval.NewCPUSDF3(obj)
+	if err != nil {
+		t.Fatal(err)
+	}
+	renderer, err := NewOctreeRenderer(sdf, r/64, bufsize)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, res := range []float32{r / 4, r / 8, r / 64, r / 37, r / 4.000001, r / 13, r / 3.5} {
+		err = renderer.Reset(sdf, res)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = testRenderer(t, renderer, nil)
+	}
+}
+
+func testRenderer(t *testing.T, oct Renderer, userData any) []ms3.Triangle {
+	triangles, err := RenderAll(oct, userData)
+	if err != nil {
+		t.Fatal(err)
+	} else if len(triangles) == 0 {
+		t.Fatal("empty triangles")
+	}
+	var buf bytes.Buffer
+	n, err := WriteBinarySTL(&buf, triangles)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != buf.Len() {
+		t.Errorf("want %d bytes written, got %d", buf.Len(), n)
+	}
+	outTriangles, err := ReadBinarySTL(&buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(outTriangles) != len(triangles) {
+		t.Errorf("wrote %d triangles, read back %d", len(triangles), len(outTriangles))
+	}
+	for i, got := range outTriangles {
+		want := triangles[i]
+		if got != want {
+			t.Errorf("triangle %d: got %+v, want %+v", i, got, want)
+		}
+	}
+	return triangles
+}
 
 func TestRenderImage(t *testing.T) {
 	img := image.NewRGBA(image.Rect(0, 0, 256, 256))

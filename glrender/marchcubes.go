@@ -11,6 +11,26 @@ const (
 	marchingCubesMaxTriangles = 5
 )
 
+func marchCubes(dst []ms3.Triangle, pos []ms3.Vec, dist []float32, resolution float32) (nTri int, positionsProcessed int) {
+	if len(pos)%8 != 0 || len(pos) != len(dist) {
+		panic("positional and distance buffers must be equal length and multiple of 8. These contain SDF evaluations at cube corners")
+	}
+	var p [8]ms3.Vec
+	var d [8]float32
+	cubeDiag := 2 * sqrt3 * resolution
+	iPos := 0
+	for iPos < len(pos) && len(dst)-nTri > marchingCubesMaxTriangles {
+		if math32.Abs(dist[iPos]) <= cubeDiag {
+			// Cube may have triangles.
+			copy(p[:], pos[iPos:iPos+8])
+			copy(d[:], dist[iPos:iPos+8])
+			nTri += mcToTriangles(dst[nTri:], p, d, 0)
+		}
+		iPos += 8
+	}
+	return nTri, iPos
+}
+
 func mcToTriangles(dst []ms3.Triangle, p [8]ms3.Vec, v [8]float32, x float32) int {
 	if len(dst) < marchingCubesMaxTriangles {
 		panic("destination triangle buffer must be greater than 5")

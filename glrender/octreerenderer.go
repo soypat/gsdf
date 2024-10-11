@@ -5,7 +5,6 @@ import (
 	"io"
 	"os"
 
-	"github.com/chewxy/math32"
 	"github.com/soypat/glgl/math/ms3"
 	"github.com/soypat/gsdf"
 	"github.com/soypat/gsdf/glbuild"
@@ -53,8 +52,8 @@ func NewOctreeRenderer(s gleval.SDF3, cubeResolution float32, evalBufferSize int
 		return nil, err
 	}
 	var oc Octree
-	oc.posbuf = make([]ms3.Vec, 0, evalBufferSize)
-	oc.distbuf = make([]float32, evalBufferSize)
+	oc.posbuf = make([]ms3.Vec, evalBufferSize)[:0]
+	oc.distbuf = make([]float32, cap(oc.posbuf))
 	err = oc.Reset(s, cubeResolution)
 	if err != nil {
 		return nil, err
@@ -63,7 +62,7 @@ func NewOctreeRenderer(s gleval.SDF3, cubeResolution float32, evalBufferSize int
 }
 
 // TotalPruned returns the amount of minimum resolution cubes pruned throughout the rendering of the current SDF3.
-// This number is reset on a call to Reset. The amount of SDF evaluations omitted is roughly equivalent to 8*TotalPruned.
+// This number is reset on a call to Reset.
 func (oc *Octree) TotalPruned() uint64 {
 	return oc.pruned
 }
@@ -76,8 +75,12 @@ func (oc *Octree) Reset(s gleval.SDF3, cubeResolution float32) error {
 	}
 	// Scale the bounding box about the center to make sure the boundaries
 	// aren't on the object surface.
-	scaling := ms3.Vec{X: 1.01, Y: 1.01, Z: 1.01}
-	bb := s.Bounds().ScaleCentered(scaling)
+
+	bb := s.Bounds()
+	bb = bb.ScaleCentered(ms3.Vec{X: 1.01, Y: 1.01, Z: 1.01})
+	// halfResVec := ms3.Vec{X: 0.5 * cubeResolution, Y: 0.5 * cubeResolution, Z: 0.5 * cubeResolution}
+	// bb.Max = ms3.Add(bb.Max, halfResVec)
+	// bb.Min = ms3.Sub(bb.Min, halfResVec)
 	topCube, origin, err := makeICube(bb, cubeResolution)
 	if err != nil {
 		return err
@@ -97,7 +100,7 @@ func (oc *Octree) Reset(s gleval.SDF3, cubeResolution float32) error {
 	pruneSize := tblPruneSize[min(levels, len(tblPruneSize)-1)]
 	pruneSize = min(pruneSize, aligndown(len(oc.distbuf), 8)) // Can't prune more cubes than distance buffer allows.
 	if cap(oc.prunecubes) < pruneSize {
-		oc.prunecubes = make([]icube, 0, pruneSize)
+		oc.prunecubes = make([]icube, pruneSize)
 	}
 
 	// Each level contains 8 cubes.
@@ -105,7 +108,7 @@ func (oc *Octree) Reset(s gleval.SDF3, cubeResolution float32) error {
 	// Future algorithm may see this number grow to match evaluation buffers for cube culling.
 	minCubesSize := levels * 8
 	if cap(oc.cubes) < minCubesSize {
-		oc.cubes = make([]icube, 0, minCubesSize)
+		oc.cubes = make([]icube, minCubesSize)
 	}
 
 	*oc = Octree{
@@ -121,7 +124,7 @@ func (oc *Octree) Reset(s gleval.SDF3, cubeResolution float32) error {
 		posbuf:  oc.posbuf[:0],
 	}
 
-	oc.cubes[0] = icube{lvl: levels} // Start cube.
+	oc.cubes[0] = topCube // Start cube.
 	return nil
 }
 
@@ -134,12 +137,11 @@ func (oc *Octree) ReadTriangles(dst []ms3.Triangle, userData any) (n int, err er
 	if upi >= 0 && len(oc.prunecubes) == 0 {
 		prunable := oc.cubes[upi]
 		var ok bool
-		oc.prunecubes, ok = decomposeOctreeBFS(oc.prunecubes, prunable, minPrunableLvl)
+		oc.prunecubes, ok = octreeDecomposeBFS(oc.prunecubes, prunable, minPrunableLvl)
 		if ok {
 			oc.cubes[upi].lvl = 0 // Mark as used in prune buffer.
 			oc.markedToPrune++
 		}
-
 	}
 	if len(oc.prunecubes) > 0 {
 		err = oc.prune()
@@ -156,92 +158,42 @@ func (oc *Octree) ReadTriangles(dst []ms3.Triangle, userData any) (n int, err er
 		if len(oc.cubes) == 0 {
 			oc.refillCubesWithUnpruned()
 		}
-		oc.posbuf, oc.cubes = decomposeOctreeDFS(oc.posbuf, oc.cubes, oc.origin, oc.resolution)
+		oc.posbuf, oc.cubes = octreeDecomposeDFS(oc.posbuf, oc.cubes, oc.origin, oc.resolution)
 
 		// Limit evaluation to what is needed by this call to ReadTriangles.
-		posLimit := min(8*(len(dst)-n), aligndown(len(oc.posbuf), 8))
-		if posLimit == 0 {
+		currentLim := min(8*(len(dst)-n), aligndown(len(oc.posbuf), 8))
+		if currentLim == 0 {
 			panic("zero buffer")
 		}
-		err = oc.s.Evaluate(oc.posbuf[:posLimit], oc.distbuf[:posLimit], nil)
+		err = oc.s.Evaluate(oc.posbuf[:currentLim], oc.distbuf[:currentLim], nil)
 		if err != nil {
 			return 0, err
 		}
-		n += oc.marchCubes(dst[n:], posLimit)
+		nt, k := marchCubes(dst[n:], oc.posbuf[:currentLim], oc.distbuf[:currentLim], oc.resolution)
+		n += nt
+		k = copy(oc.posbuf, oc.posbuf[k:])
+		oc.posbuf = oc.posbuf[:k]
 	}
 	return n, nil
 }
 
-func (oc *Octree) prune() error {
-	prune := oc.prunecubes
-	if len(prune) == 0 {
-		return nil
-	}
-	origin, res := oc.origin, oc.resolution
-	// Take care to not step on positions that still need to be marched.
+func (oc *Octree) prune() (err error) {
 	pos := oc.posbuf[len(oc.posbuf):cap(oc.posbuf)]
-	if len(pos) < len(prune) {
-		return nil // Not enough space to prune.
-	}
-	pos = pos[:len(prune)]
-	for i, p := range prune {
-		size := p.size(res)
-		center := p.center(origin, size)
-		pos[i] = center
-	}
-	err := oc.s.Evaluate(pos, oc.distbuf[:len(pos)], nil)
-	if err != nil {
-		return err
-	}
-	// Move filled cubes to front and prune empty cubes.
-	runningIdx := 0
-	for i, p := range prune {
-		halfDiagonal := p.size(res) * (sqrt3 / 2)
-		isEmpty := math32.Abs(oc.distbuf[i]) >= halfDiagonal
-		if !isEmpty {
-			// Cube not empty, do not discard.
-			prune[runningIdx] = p
-			runningIdx++
-		} else {
-			oc.pruned += pow8(p.lvl - 1)
-		}
-	}
-	oc.prunecubes = prune[:runningIdx]
-	return nil
+	unpruned, smallestPruned, err := octreePruneNoSurface1(oc.s, oc.prunecubes, oc.origin, oc.resolution, pos, oc.distbuf[:len(pos)])
+	oc.prunecubes = unpruned
+	oc.pruned += smallestPruned
+	return err
 }
 
 // refillUnpruned takes cubes that were left unpruned and fills empty spots in cubes buffer with them.
 func (oc *Octree) refillCubesWithUnpruned() {
 	if len(oc.prunecubes) == 0 {
 		return
-	} else if len(oc.cubes) == 0 {
-		// Calculate amount of cubes that would be generated in DFS
-		// and check how many cubes may be added without overflowing buffer.
-		pruneLvl := oc.prunecubes[0].lvl
-		genCubes := 1 + pruneLvl*8 // plus one for appended cube.
-		free := cap(oc.cubes) - genCubes
-		trimIdx := max(0, len(oc.prunecubes)-free)
-		oc.cubes = append(oc.cubes, oc.prunecubes[trimIdx:]...)
-		oc.prunecubes = oc.prunecubes[:trimIdx]
-		return
 	}
-
-	i := 0
-	prune := oc.prunecubes
-	prevLvl := oc.levels
-	nextUnpruned := prune[len(prune)-1]
-	for oc.markedToPrune > 0 && len(prune) > 0 && i < len(oc.cubes) {
-		if oc.cubes[i].lvl == 0 && nextUnpruned.lvl < prevLvl {
-			oc.cubes[i] = nextUnpruned
-			prune = prune[:len(prune)-1]
-			nextUnpruned = prune[len(prune)-1]
-			oc.markedToPrune--
-		} else if oc.cubes[i].lvl > 1 {
-			prevLvl = oc.cubes[i].lvl
-		}
-		i++
+	oc.cubes, oc.prunecubes, oc.markedToPrune = octreeSafeSpread(oc.cubes, oc.prunecubes, oc.markedToPrune)
+	if len(oc.cubes) == 0 {
+		oc.cubes, oc.prunecubes = octreeSafeMove(oc.cubes, oc.prunecubes) // TODO(soypat): fix bug that causes safe move to not be so safe, overflows cubes in decomp.
 	}
-	oc.prunecubes = prune
 }
 
 func (oc *Octree) nextUnpruned() int {
@@ -254,32 +206,6 @@ func (oc *Octree) nextUnpruned() int {
 		}
 	}
 	return -1
-}
-
-func (oc *Octree) marchCubes(dst []ms3.Triangle, limit int) int {
-	nTri := 0
-	var p [8]ms3.Vec
-	var d [8]float32
-	cubeDiag := 2 * sqrt3 * oc.resolution
-	iPos := 0
-	for iPos < limit && len(dst)-nTri > marchingCubesMaxTriangles {
-		if math32.Abs(oc.distbuf[iPos]) <= cubeDiag {
-			// Cube may have triangles.
-			copy(p[:], oc.posbuf[iPos:iPos+8])
-			copy(d[:], oc.distbuf[iPos:iPos+8])
-			nTri += mcToTriangles(dst[nTri:], p, d, 0)
-		}
-		iPos += 8
-	}
-	remaining := len(oc.posbuf) - iPos
-	if remaining > 0 {
-		// Discard used positional and distance data.
-		k := copy(oc.posbuf, oc.posbuf[iPos:])
-		oc.posbuf = oc.posbuf[:k]
-	} else {
-		oc.posbuf = oc.posbuf[:0] // Reset buffer.
-	}
-	return nTri
 }
 
 func (oc *Octree) done() bool {
@@ -340,7 +266,7 @@ func (oc *Octree) debugVisual(filename string, lvlDescent int, merge glbuild.Sha
 	return nil
 }
 
-var _pow8 = []uint64{
+var _pow8 = [...]uint64{
 	0:  1,
 	1:  8,
 	2:  8 * 8,
