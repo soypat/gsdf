@@ -14,6 +14,77 @@ import (
 	"github.com/soypat/gsdf/gleval"
 )
 
+func TestDualContour(t *testing.T) {
+	const (
+		shapeDim  = 1.0
+		bbScaling = 1.0
+		divs      = 4
+		res       = shapeDim / divs
+		bbOff     = 0 * -res / 2 //res / 2
+	)
+	shape, _ := gsdf.NewSphere(shapeDim)
+	shape = glbuild.OverloadShader3DBounds(shape, shape.Bounds())
+	sdf, err := gleval.NewCPUSDF3(shape)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tris, err := minecraftRenderer(nil, sdf, res)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tris) == 0 {
+		t.Fatal("no triangles generated")
+	}
+	fp, _ := os.Create("mc.stl")
+	_, err = WriteBinarySTL(fp, tris)
+	if err != nil {
+		t.Error(err)
+	}
+}
+
+type cubeLowEdges struct {
+	active uint8 // bitfield marks active. 0:x, 1:y, 2:z
+}
+
+func contour(s gleval.SDF3, cubes []icube, origin ms3.Vec, res float32, posbuf []ms3.Vec, distbuf []float32, userData any) error {
+	iCubes := 0
+	for ; iCubes < len(cubes) && iCubes*4 < len(posbuf); iCubes++ {
+		cube := cubes[iCubes]
+		cubeCenter := cube.center(origin, res)
+		size := cube.size(res)
+
+		posbuf[iCubes*4] = cubeCenter
+		posbuf[iCubes*4+1] = ms3.Add(cubeCenter, ms3.Vec{X: size})
+		posbuf[iCubes*4+2] = ms3.Add(cubeCenter, ms3.Vec{Y: size})
+		posbuf[iCubes*4+3] = ms3.Add(cubeCenter, ms3.Vec{Z: size})
+	}
+
+	nPos := iCubes * 4
+	err := s.Evaluate(posbuf[:nPos], distbuf[:nPos], userData)
+	if err != nil {
+		return err
+	}
+
+	for j := 0; j < iCubes; j++ {
+		c := distbuf[j*4]
+		x := distbuf[j*4+1]
+		y := distbuf[j*4+2]
+		z := distbuf[j*4+3]
+		cbit := math32.Signbit(c)
+		if cbit != math32.Signbit(x) {
+
+		}
+		if cbit != math32.Signbit(y) {
+
+		}
+		if cbit != math32.Signbit(z) {
+
+		}
+	}
+
+	return nil
+}
+
 func TestSphereMarchingTriangles(t *testing.T) {
 	const r = 1.0
 	const bufsize = 1 << 12

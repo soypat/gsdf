@@ -65,6 +65,18 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 		return fmt.Errorf("shortening shader names: %s", err)
 	}
 
+	bufferEvalSize := 4096 // Default "sensible" value.
+	if cfg.UseGPU {
+		// We set the size of our buffer based on the limitations of
+		// GPU hardware. GPUs have compute work groups which run invocations(warps/threads).
+		// Workers run in parallel, which in turn run the invocations within their work group in parallel.
+		// Typically the number of parallel work groups run in parallel runs between 20 and 64 on modern GPUs.
+		// OpenGL does not expose an API to calculate this number so we take a best guess.
+		// 32 was the optimal guess for a AMD ATI Radeon RX 6800, with 1024 invocations, resulting in 32678 size of buffer (32*32*32).
+		const guessedNumberOfParallelWorkers = 32
+		bufferEvalSize = glgl.MaxComputeInvocations() * guessedNumberOfParallelWorkers
+	}
+
 	bb := s.Bounds()
 	var sdf gleval.SDF3
 	watch := stopwatch()
@@ -96,7 +108,13 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 		})
 	} else {
 		log("using CPU")
-		sdf, err = gleval.NewCPUSDF3(s)
+		cpusdf, err := gleval.NewCPUSDF3(s)
+		if err != nil {
+			return err
+		}
+		// Ensure a regular buffer size so Renderer does not inadvertently allocate lots of small buffers.
+		cpusdf.VecPool().SetMinAllocationLen(bufferEvalSize)
+		sdf = cpusdf
 	}
 
 	if err != nil || sdf == nil {
@@ -116,18 +134,7 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 		}()
 	}
 	log("instantiating evaluation SDF took", watch())
-	size := 4096 // Default "sensible" value.
-	if cfg.UseGPU {
-		// We set the size of our buffer based on the limitations of
-		// GPU hardware. GPUs have compute work groups which run invocations(warps/threads).
-		// Workers run in parallel, which in turn run the invocations within their work group in parallel.
-		// Typically the number of parallel work groups run in parallel runs between 20 and 64 on modern GPUs.
-		// OpenGL does not expose an API to calculate this number so we take a best guess.
-		// 32 was the optimal guess for a AMD ATI Radeon RX 6800, with 1024 invocations, resulting in 32678 size of buffer (32*32*32).
-		const guessedNumberOfParallelWorkers = 32
-		size = glgl.MaxComputeInvocations() * guessedNumberOfParallelWorkers
-	}
-	renderer, err := glrender.NewOctreeRenderer(sdf, cfg.Resolution, size)
+	renderer, err := glrender.NewOctreeRenderer(sdf, cfg.Resolution, bufferEvalSize)
 	if err != nil {
 		return err
 	}

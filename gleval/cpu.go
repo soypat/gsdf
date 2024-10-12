@@ -91,7 +91,7 @@ func (sdf *SDF3CPU) Evaluate(pos []ms3.Vec, dist []float32, userData any) error 
 	err2 := sdf.vp.AssertAllReleased()
 	if err != nil {
 		if err2 != nil {
-			return fmt.Errorf("VecPool leak:(%s) SDF3 error:(%s)", err2, err)
+			return fmt.Errorf("VecPool leak: %s\nSDF3 error: %s", err2, err)
 		}
 		return err
 	}
@@ -129,7 +129,7 @@ func (sdf *SDF2CPU) Evaluate(pos []ms2.Vec, dist []float32, userData any) error 
 	err2 := sdf.vp.AssertAllReleased()
 	if err != nil {
 		if err2 != nil {
-			return fmt.Errorf("VecPool leak:(%s) SDF2 error:(%s)", err2, err)
+			return fmt.Errorf("VecPool leak: %s\nSDF2 error: %s", err2, err)
 		}
 		return err
 	}
@@ -195,9 +195,19 @@ func (vp *VecPool) AssertAllReleased() error {
 	return nil
 }
 
-// TotalAlloc returns the number of bytes allocated by all underlying buffers.
-func (vp *VecPool) TotalAlloc() uint64 {
-	return vp.Float.TotalAlloc() + vp.V2.TotalAlloc() + vp.V3.TotalAlloc()
+// SetMinAllocationLen sets the minimum length allocated when creating a new buffer for all buffer pools.
+func (vp *VecPool) SetMinAllocationLen(minumumAlloca int) {
+	if minumumAlloca < 0 {
+		panic("invalid minimum allocation size")
+	}
+	vp.Float.minAllocation = minumumAlloca
+	vp.V2.minAllocation = minumumAlloca
+	vp.V3.minAllocation = minumumAlloca
+}
+
+// TotalSize returns the number of bytes allocated by all underlying buffers.
+func (vp *VecPool) TotalSize() uint64 {
+	return vp.Float.TotalSize() + vp.V2.TotalSize() + vp.V3.TotalSize()
 }
 
 type bufPool[T any] struct {
@@ -205,6 +215,8 @@ type bufPool[T any] struct {
 	_acquired []bool
 	// releaseErr stores error on Release call since Release is usually used in concert with defer, thus losing the error.
 	releaseErr error
+	// minAllocation sets the minimum size of a buffer allocation.
+	minAllocation int
 }
 
 // Acquire gets a buffer from the pool of the desired length and marks it as used.
@@ -216,7 +228,11 @@ func (bp *bufPool[T]) Acquire(length int) []T {
 			return bp._ins[i][:length]
 		}
 	}
-	newSlice := make([]T, length)
+	allocLen := length
+	if bp.minAllocation > allocLen {
+		allocLen = bp.minAllocation
+	}
+	newSlice := make([]T, allocLen)
 	newSlice = newSlice[:cap(newSlice)]
 	bp._ins = append(bp._ins, newSlice)
 	bp._acquired = append(bp._acquired, true)
@@ -258,13 +274,8 @@ func (bp *bufPool[T]) assertAllReleased() error {
 	return nil
 }
 
-// NumBuffers returns quantity of buffers allocated by the pool.
-func (bp *bufPool[T]) NumBuffers() int {
-	return len(bp._ins)
-}
-
-// TotalAlloc returns total amount of memory used by buffer in bytes.
-func (bp *bufPool[T]) TotalAlloc() uint64 {
+// TotalSize returns total amount of memory used by buffer in bytes.
+func (bp *bufPool[T]) TotalSize() uint64 {
 	var t T
 	size := uint64(reflect.TypeOf(t).Size())
 	var n uint64
@@ -274,8 +285,13 @@ func (bp *bufPool[T]) TotalAlloc() uint64 {
 	return size * n
 }
 
-// Free returns total number of free buffers. To calculate number of used buffers do [bufPool.NumBuffers]() - [bufPool.Free]().
-func (bp *bufPool[T]) Free() (free int) {
+// NumBuffers returns quantity of buffers allocated by the pool.
+func (bp *bufPool[T]) NumBuffers() int {
+	return len(bp._ins)
+}
+
+// NumFree returns total number of free buffers. To calculate number of used buffers do [bufPool.NumBuffers]() - [bufPool.NumFree]().
+func (bp *bufPool[T]) NumFree() (free int) {
 	for _, b := range bp._acquired {
 		if !b {
 			free++
@@ -285,7 +301,7 @@ func (bp *bufPool[T]) Free() (free int) {
 }
 
 func (bp *bufPool[T]) String() string {
-	alloc := bp.TotalAlloc()
+	alloc := bp.TotalSize()
 	const (
 		_ = 1 << (10 * iota)
 		kB
@@ -300,5 +316,5 @@ func (bp *bufPool[T]) String() string {
 		alloc /= kB
 		units = "kB"
 	}
-	return fmt.Sprintf("bufPool{free:%d/%d  mem:%d%s}", bp.Free(), bp.NumBuffers(), alloc, units)
+	return fmt.Sprintf("bufPool{free:%d/%d  mem:%d%s}", bp.NumFree(), bp.NumBuffers(), alloc, units)
 }

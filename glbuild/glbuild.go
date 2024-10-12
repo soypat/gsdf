@@ -937,6 +937,54 @@ func b2i(b bool) int {
 	return 0
 }
 
+// OverloadShader3DBounds overloads a [Shader3D] Bounds method with the argument bounding box.
+func OverloadShader3DBounds(s Shader3D, bb ms3.Box) Shader3D {
+	return &overloadBounds3{
+		Shader3D: s,
+		bb:       bb,
+	}
+}
+
+type overloadBounds3 struct {
+	Shader3D
+	bb ms3.Box
+}
+
+func (ob3 *overloadBounds3) Bounds() ms3.Box { return ob3.bb }
+
+// Evaluate implements the gleval.SDF3 interface.
+func (ob3 *overloadBounds3) Evaluate(pos []ms3.Vec, dist []float32, userData any) error {
+	sdf, ok := ob3.Shader3D.(sdf3)
+	if !ok {
+		return fmt.Errorf("%T does not implement gleval.SDF3", ob3.Shader3D)
+	}
+	return sdf.Evaluate(pos, dist, userData)
+}
+
+// OverloadShader2DBounds overloads a [Shader2D] Bounds method with the argument bounding box.
+func OverloadShader2DBounds(s Shader2D, bb ms2.Box) Shader2D {
+	return &overloadBounds2{
+		Shader2D: s,
+		bb:       bb,
+	}
+}
+
+type overloadBounds2 struct {
+	Shader2D
+	bb ms2.Box
+}
+
+func (ob2 *overloadBounds2) Bounds() ms2.Box { return ob2.bb }
+
+// Evaluate implements the gleval.SDF2 interface.
+func (ob3 *overloadBounds2) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {
+	sdf, ok := ob3.Shader2D.(sdf2)
+	if !ok {
+		return fmt.Errorf("%T does not implement gleval.SDF3", ob3.Shader2D)
+	}
+	return sdf.Evaluate(pos, dist, userData)
+}
+
 var _ Shader3D = (*CachedShader3D)(nil) // Interface implementation compile-time check.
 
 // CachedShader3D implements the Shader3D interface with results it caches for another Shader3D on a call to RefreshCache.
@@ -1080,6 +1128,7 @@ func (nos3 *nameOverloadShader3D) AppendShaderObjects(objs []ShaderObject) []Sha
 	return nos3.Shader.AppendShaderObjects(objs)
 }
 
+// mirrors of gleval.SDF3 and gleval.SDF2 interfaces to avoid cyclic dependencies.
 type (
 	sdf3 interface {
 		Evaluate(pos []ms3.Vec, dist []float32, userData any) error

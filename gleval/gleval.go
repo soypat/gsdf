@@ -81,18 +81,19 @@ func NormalsCentralDiff(s SDF3, pos []ms3.Vec, normals []ms3.Vec, step float32, 
 		if err != nil {
 			return err
 		}
+
 		switch dim {
 		case 0:
-			for i := range normals {
-				normals[i].X = d1[i] - d2[i]
+			for i, d := range d1 {
+				normals[i].X = d - d2[i]
 			}
 		case 1:
-			for i := range normals {
-				normals[i].Y = d1[i] - d2[i]
+			for i, d := range d1 {
+				normals[i].Y = d - d2[i]
 			}
 		case 2:
-			for i := range normals {
-				normals[i].Z = d1[i] - d2[i]
+			for i, d := range d1 {
+				normals[i].Z = d - d2[i]
 			}
 		}
 	}

@@ -41,14 +41,18 @@ type ivec struct {
 	z int
 }
 
-func (a ivec) Add(b ivec) ivec        { return ivec{x: a.x + b.x, y: a.y + b.y, z: a.z + b.z} }
-func (a ivec) AddScalar(f int) ivec   { return ivec{x: a.x + f, y: a.y + f, z: a.z + f} }
-func (a ivec) ScaleMul(f int) ivec    { return ivec{x: a.x * f, y: a.y * f, z: a.z * f} }
-func (a ivec) ScaleDiv(f int) ivec    { return ivec{x: a.x / f, y: a.y / f, z: a.z / f} }
-func (a ivec) ShiftRight(lo int) ivec { return ivec{x: a.x >> lo, y: a.y >> lo, z: a.z >> lo} }
-func (a ivec) ShiftLeft(hi int) ivec  { return ivec{x: a.x << hi, y: a.y << hi, z: a.z << hi} }
-func (a ivec) Sub(b ivec) ivec        { return ivec{x: a.x - b.x, y: a.y - b.y, z: a.z - b.z} }
-func (a ivec) Vec() ms3.Vec           { return ms3.Vec{X: float32(a.x), Y: float32(a.y), Z: float32(a.z)} }
+func (a ivec) Add(b ivec) ivec         { return ivec{x: a.x + b.x, y: a.y + b.y, z: a.z + b.z} }
+func (a ivec) AddScalar(f int) ivec    { return ivec{x: a.x + f, y: a.y + f, z: a.z + f} }
+func (a ivec) MulScalar(f int) ivec    { return ivec{x: a.x * f, y: a.y * f, z: a.z * f} }
+func (a ivec) DivScalar(f int) ivec    { return ivec{x: a.x / f, y: a.y / f, z: a.z / f} }
+func (a ivec) ShiftRight(lo int) ivec  { return ivec{x: a.x >> lo, y: a.y >> lo, z: a.z >> lo} }
+func (a ivec) ShiftLeft(hi int) ivec   { return ivec{x: a.x << hi, y: a.y << hi, z: a.z << hi} }
+func (a ivec) Sub(b ivec) ivec         { return ivec{x: a.x - b.x, y: a.y - b.y, z: a.z - b.z} }
+func (a ivec) Vec() ms3.Vec            { return ms3.Vec{X: float32(a.x), Y: float32(a.y), Z: float32(a.z)} }
+func (a ivec) AndScalar(f int) ivec    { return ivec{x: a.x & f, y: a.y & f, z: a.z & f} }
+func (a ivec) OrScalar(f int) ivec     { return ivec{x: a.x | f, y: a.y | f, z: a.z | f} }
+func (a ivec) XorScalar(f int) ivec    { return ivec{x: a.x ^ f, y: a.y ^ f, z: a.z ^ f} }
+func (a ivec) AndnotScalar(f int) ivec { return ivec{x: a.x &^ f, y: a.y &^ f, z: a.z &^ f} }
 
 type icube struct {
 	ivec
@@ -58,9 +62,27 @@ type icube struct {
 func (c icube) isSmallest() bool       { return c.lvl == 1 }
 func (c icube) isSecondSmallest() bool { return c.lvl == 2 }
 
+// decomposesTo returns the amount of smallest level cubes generated from decomposing this cube completely.
+func (c icube) decomposesTo(targetLvl int) int {
+	if targetLvl > c.lvl {
+		panic("invalid targetLvl to icube.decomposesTo")
+	}
+	return int(pow8(1 + c.lvl - targetLvl))
+}
+
 func (c icube) size(baseRes float32) float32 {
 	dim := 1 << (c.lvl - 1)
 	return float32(dim) * baseRes
+}
+
+// supercube returns the icube's parent octree icube.
+func (c icube) supercube() icube {
+	upLvl := c.lvl + 1
+	bitmask := (1 << upLvl) - 1
+	return icube{
+		ivec: c.ivec.AndnotScalar(bitmask),
+		lvl:  upLvl,
+	}
 }
 
 func (c icube) box(origin ms3.Vec, size float32) ms3.Box {
@@ -81,7 +103,7 @@ func (c icube) lvlIdx() ivec {
 }
 
 func (c icube) center(origin ms3.Vec, size float32) ms3.Vec {
-	return c.box(origin, size).Center()
+	return c.box(origin, size).Center() // TODO(soypat): this can probably be optimized.
 }
 
 // corners returns the cube corners. Be aware size is NOT the minimum cube resolution but

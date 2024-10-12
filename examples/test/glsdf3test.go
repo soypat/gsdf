@@ -184,7 +184,7 @@ func test_sdf_gpu_cpu() error {
 	for _, primitive := range PremadePrimitives2D {
 		log.Printf("evaluate 2D %s\n", getBaseTypename(primitive))
 		bounds := primitive.Bounds()
-		pos := appendMeshgrid2D(scratchPos2[:0], bounds, nx, ny)
+		pos := ms2.AppendGrid(scratchPos2[:0], bounds, nx, ny)
 		distCPU := scratchDistCPU[:len(pos)]
 		distGPU := scratchDistGPU[:len(pos)]
 		sdfcpu, err := gleval.AssertSDF2(primitive)
@@ -215,7 +215,7 @@ func test_sdf_gpu_cpu() error {
 	for _, primitive := range PremadePrimitives {
 		log.Printf("begin evaluating %s", getBaseTypename(primitive))
 		bounds := primitive.Bounds()
-		pos := appendMeshgrid(scratchPos[:0], bounds, nx, ny, nz)
+		pos := ms3.AppendGrid(scratchPos[:0], bounds, nx, ny, nz)
 		distCPU := scratchDistCPU[:len(pos)]
 		distGPU := scratchDistGPU[:len(pos)]
 		sdfcpu, err := gleval.AssertSDF3(primitive)
@@ -249,7 +249,7 @@ func test_sdf_gpu_cpu() error {
 		p2 := PremadePrimitives[1]
 		obj := op(p1, p2)
 		bounds := obj.Bounds()
-		pos := appendMeshgrid(scratchPos[:0], bounds, nx, ny, nz)
+		pos := ms3.AppendGrid(scratchPos[:0], bounds, nx, ny, nz)
 		distCPU := scratchDistCPU[:len(pos)]
 		distGPU := scratchDistGPU[:len(pos)]
 		sdfcpu, err := gleval.AssertSDF3(obj)
@@ -283,7 +283,7 @@ func test_sdf_gpu_cpu() error {
 		p2 := PremadePrimitives[1]
 		obj := op(.1, p1, p2)
 		bounds := obj.Bounds()
-		pos := appendMeshgrid(scratchPos[:0], bounds, nx, ny, nz)
+		pos := ms3.AppendGrid(scratchPos[:0], bounds, nx, ny, nz)
 		distCPU := scratchDistCPU[:len(pos)]
 		distGPU := scratchDistGPU[:len(pos)]
 		sdfcpu, err := gleval.AssertSDF3(obj)
@@ -317,7 +317,7 @@ func test_sdf_gpu_cpu() error {
 			primitive := PremadePrimitives[rng.Intn(len(PremadePrimitives))]
 			obj := op(primitive, rng)
 			bounds := obj.Bounds()
-			pos := appendMeshgrid(scratchPos[:0], bounds, nx, ny, nz)
+			pos := ms3.AppendGrid(scratchPos[:0], bounds, nx, ny, nz)
 			distCPU := scratchDistCPU[:len(pos)]
 			distGPU := scratchDistGPU[:len(pos)]
 			sdfcpu, err := gleval.AssertSDF3(obj)
@@ -357,7 +357,7 @@ func test_sdf_gpu_cpu() error {
 			primitive := PremadePrimitives2D[rng.Intn(len(PremadePrimitives2D))]
 			obj := op(primitive, rng)
 			bounds := obj.Bounds()
-			pos := appendMeshgrid2D(scratchPos2[:0], bounds, nx, ny)
+			pos := ms2.AppendGrid(scratchPos2[:0], bounds, nx, ny)
 			distCPU := scratchDistCPU[:len(pos)]
 			distGPU := scratchDistGPU[:len(pos)]
 			sdfcpu, err := gleval.AssertSDF2(obj)
@@ -399,7 +399,7 @@ func test_sdf_gpu_cpu() error {
 			primitive := PremadePrimitives2D[rng.Intn(len(PremadePrimitives2D))]
 			obj := op(primitive, rng)
 			bounds := obj.Bounds()
-			pos := appendMeshgrid(scratchPos[:0], bounds, nx, ny, nz)
+			pos := ms3.AppendGrid(scratchPos[:0], bounds, nx, ny, nz)
 			distCPU := scratchDistCPU[:len(pos)]
 			distGPU := scratchDistGPU[:len(pos)]
 			sdfcpu, err := gleval.AssertSDF3(obj)
@@ -525,7 +525,7 @@ func test_union2D() error {
 		return err
 	}
 	bb := union.Bounds()
-	pos := appendMeshgrid2D(nil, bb, 32, 32)
+	pos := ms2.AppendGrid(nil, bb, 32, 32)
 	distCPU := make([]float32, len(pos))
 	distGPU := make([]float32, len(pos))
 	err = sdfCPU.Evaluate(pos, distCPU, nil)
@@ -558,7 +558,7 @@ func test_union3D() error {
 	sdfGPU := makeGPUSDF3(union)
 
 	bb := union.Bounds()
-	pos := appendMeshgrid(nil, bb, 32, 32, 32)
+	pos := ms3.AppendGrid(nil, bb, 32, 32, 32)
 	distCPU := make([]float32, len(pos))
 	distGPU := make([]float32, len(pos))
 	err = sdfCPU.Evaluate(pos, distCPU, nil)
@@ -685,7 +685,7 @@ func testsdf2(name string, sdfcpu, sdfgpu gleval.SDF2) (err error) {
 	var pos []ms2.Vec
 	for _, sz := range []int{32, 256, 512} {
 		now := time.Now()
-		pos = appendMeshgrid2D(pos[:0], bbGPU, sz, sz)
+		pos = ms2.AppendGrid(pos[:0], bbGPU, sz, sz)
 		distCPU := make([]float32, len(pos))
 		distGPU := make([]float32, len(pos))
 		err = sdfgpu.Evaluate(pos, distGPU, nil)
@@ -793,13 +793,13 @@ func test_bounds(sdf gleval.SDF3, scratchDist []float32, userData any) (err erro
 	//  - Negative distance, which implies interior of SDF outside the intended bounding box.
 	//  - Normals which point towards the original bounding box, which imply a SDF surface outside the bounding box.
 	var offs = [3]float32{-1, 0, 1}
-	originalPos := meshgrid(bb, nxbb, nybb, nzbb)
+	originalPos := ms3.AppendGrid(nil, bb, nxbb, nybb, nzbb)
 	newPos := make([]ms3.Vec, len(originalPos))
 	normals := make([]ms3.Vec, len(originalPos))
 
 	// Calculate approximate expected normal directions.
 	wantNormals := make([]ms3.Vec, len(originalPos))
-	wantNormals = appendMeshgrid(wantNormals[:0], bb.Add(ms3.Scale(-1, bb.Center())), nxbb, nybb, nzbb)
+	wantNormals = ms3.AppendGrid(wantNormals[:0], bb.Add(ms3.Scale(-1, bb.Center())), nxbb, nybb, nzbb)
 	var normOmitLog sync.Once
 	var offsize ms3.Vec
 	for _, xo := range offs {
@@ -813,7 +813,7 @@ func test_bounds(sdf gleval.SDF3, scratchDist []float32, userData any) (err erro
 				}
 				newBB := bb.Add(offsize)
 				// New mesh lies outside of bounding box.
-				newPos = appendMeshgrid(newPos[:0], newBB, nxbb, nybb, nzbb)
+				newPos = ms3.AppendGrid(newPos[:0], newBB, nxbb, nybb, nzbb)
 				// Calculate expected normal directions.
 
 				err = sdf.Evaluate(newPos, dist, userData)
@@ -855,41 +855,6 @@ func test_bounds(sdf gleval.SDF3, scratchDist []float32, userData any) (err erro
 		}
 	}
 	return nil
-}
-
-func meshgrid(bounds ms3.Box, nx, ny, nz int) []ms3.Vec {
-	return appendMeshgrid(make([]ms3.Vec, 0, nx*ny*nz), bounds, nx, ny, nz)
-}
-
-func appendMeshgrid(dst []ms3.Vec, bounds ms3.Box, nx, ny, nz int) []ms3.Vec {
-	nxyz := ms3.Vec{X: float32(nx), Y: float32(ny), Z: float32(nz)}
-	dxyz := ms3.DivElem(bounds.Size(), nxyz)
-	var xyz ms3.Vec
-	for k := 0; k < nz; k++ {
-		xyz.Z = bounds.Min.Z + dxyz.Z*float32(k)
-		for j := 0; j < ny; j++ {
-			xyz.Y = bounds.Min.Y + dxyz.Y*float32(j)
-			for i := 0; i < nx; i++ {
-				xyz.X = bounds.Min.X + dxyz.X*float32(i)
-				dst = append(dst, xyz)
-			}
-		}
-	}
-	return dst
-}
-
-func appendMeshgrid2D(dst []ms2.Vec, bounds ms2.Box, nx, ny int) []ms2.Vec {
-	nxyz := ms2.Vec{X: float32(nx), Y: float32(ny)}
-	dxyz := ms2.DivElem(bounds.Size(), nxyz)
-	var xy ms2.Vec
-	for j := 0; j < ny; j++ {
-		xy.Y = bounds.Min.Y + dxyz.Y*float32(j)
-		for i := 0; i < nx; i++ {
-			xy.X = bounds.Min.X + dxyz.X*float32(i)
-			dst = append(dst, xy)
-		}
-	}
-	return dst
 }
 
 func makeGPUSDF3(s glbuild.Shader3D) *gleval.SDF3Compute {
