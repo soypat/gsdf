@@ -4,17 +4,46 @@ import (
 	"bytes"
 	"image"
 	"image/png"
+	"math"
 	"os"
 	"testing"
 
 	"github.com/chewxy/math32"
 	"github.com/soypat/glgl/math/ms3"
 	"github.com/soypat/gsdf"
+	"github.com/soypat/gsdf/forge/threads"
 	"github.com/soypat/gsdf/glbuild"
 	"github.com/soypat/gsdf/gleval"
 )
 
-func TestDualContour(t *testing.T) {
+func TestDualRender(t *testing.T) {
+	const (
+		shapeDim = 1.0
+		divs     = 6
+		res      = shapeDim / divs
+	)
+
+	shape, _ := gsdf.NewSphere(shapeDim)
+	shape = makeBolt(t)
+	sdf, err := gleval.NewCPUSDF3(shape)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tris, err := dualRender(nil, sdf, res, &gleval.VecPool{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tris) == 0 {
+		t.Fatal("no triangles generated")
+	}
+	fp, _ := os.Create("dual.stl")
+	_, err = WriteBinarySTL(fp, tris)
+	if err != nil {
+		t.Error(err)
+	}
+}
+
+func TestMinecraftRender(t *testing.T) {
 	const (
 		shapeDim  = 1.0
 		bbScaling = 1.0
@@ -28,7 +57,7 @@ func TestDualContour(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tris, err := minecraftRenderer(nil, sdf, res)
+	tris, err := minecraftRender(nil, sdf, res)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -248,4 +277,23 @@ func levelsVisual(filename string, startCube icube, targetLvl int, origin ms3.Ve
 	} else if len(ssbo) > 0 {
 		panic("unexpected ssbo")
 	}
+}
+
+func makeBolt(t *testing.T) glbuild.Shader3D {
+	const L, shank = 8, 3
+	threader := threads.ISO{D: 3, P: 0.5, Ext: true}
+	M3, err := threads.Bolt(threads.BoltParams{
+		Thread:      threader,
+		Style:       threads.NutHex,
+		TotalLength: L + shank,
+		ShankLength: shank,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	M3, err = gsdf.Rotate(M3, 2.5*math.Pi/2, ms3.Vec{X: 1, Z: 0.1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return M3
 }

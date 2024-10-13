@@ -67,7 +67,7 @@ func (c icube) decomposesTo(targetLvl int) int {
 	if targetLvl > c.lvl {
 		panic("invalid targetLvl to icube.decomposesTo")
 	}
-	return int(pow8(1 + c.lvl - targetLvl))
+	return int(pow8(c.lvl - targetLvl))
 }
 
 func (c icube) size(baseRes float32) float32 {
