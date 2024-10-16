@@ -66,17 +66,6 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 	}
 
 	bufferEvalSize := 4096 // Default "sensible" value.
-	if cfg.UseGPU {
-		// We set the size of our buffer based on the limitations of
-		// GPU hardware. GPUs have compute work groups which run invocations(warps/threads).
-		// Workers run in parallel, which in turn run the invocations within their work group in parallel.
-		// Typically the number of parallel work groups run in parallel runs between 20 and 64 on modern GPUs.
-		// OpenGL does not expose an API to calculate this number so we take a best guess.
-		// 32 was the optimal guess for a AMD ATI Radeon RX 6800, with 1024 invocations, resulting in 32678 size of buffer (32*32*32).
-		const guessedNumberOfParallelWorkers = 32
-		bufferEvalSize = glgl.MaxComputeInvocations() * guessedNumberOfParallelWorkers
-	}
-
 	bb := s.Bounds()
 	var sdf gleval.SDF3
 	watch := stopwatch()
@@ -89,9 +78,19 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 			}
 			defer terminate()
 		}
+		// We set the size of our buffer based on the limitations of
+		// GPU hardware. GPUs have compute work groups which run invocations(warps/threads).
+		// Workers run in parallel, which in turn run the invocations within their work group in parallel.
+		// Typically the number of parallel work groups run in parallel runs between 20 and 64 on modern GPUs.
+		// OpenGL does not expose an API to calculate this number so we take a best guess.
+		// 32 was the optimal guess for a AMD ATI Radeon RX 6800, with 1024 invocations, resulting in 32678 size of buffer (32*32*32).
+		const guessedNumberOfParallelWorkers = 32
+		invoc := glgl.MaxComputeInvocations()
+		bufferEvalSize = invoc * guessedNumberOfParallelWorkers
+
 		source := new(bytes.Buffer)
 		prog := glbuild.NewDefaultProgrammer()
-		invoc := glgl.MaxComputeInvocations()
+
 		log("compute invocation size ", invoc)
 		if invoc < 1 {
 			return errors.New("zero or negative GPU invocation size")
