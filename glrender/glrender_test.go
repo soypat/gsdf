@@ -19,7 +19,7 @@ import (
 func TestDualRender(t *testing.T) {
 	const (
 		shapeDim = 1.0
-		divs     = 6
+		divs     = 5
 		res      = shapeDim / divs
 	)
 

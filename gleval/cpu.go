@@ -82,13 +82,18 @@ type SDF3CPU struct {
 }
 
 func (sdf *SDF3CPU) Evaluate(pos []ms3.Vec, dist []float32, userData any) error {
-	if userData == nil {
+	useOwnVecPool := userData == nil
+	if useOwnVecPool {
 		userData = &sdf.vp
 	} else if len(pos) != len(dist) {
 		return errors.New("position and distance buffer length mismatch")
 	}
 	err := sdf.SDF.Evaluate(pos, dist, userData)
-	err2 := sdf.vp.AssertAllReleased()
+	var err2 error
+	if useOwnVecPool {
+		// If sdf uses own vec pool then we also make sure all resources released on end.
+		err2 = sdf.vp.AssertAllReleased()
+	}
 	if err != nil {
 		if err2 != nil {
 			return fmt.Errorf("VecPool leak: %s\nSDF3 error: %s", err2, err)
@@ -120,13 +125,17 @@ type SDF2CPU struct {
 
 // Evaluate performs CPU evaluation of the underlying SDF2.
 func (sdf *SDF2CPU) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {
-	if userData == nil {
+	useOwnVecPool := userData == nil
+	if useOwnVecPool {
 		userData = &sdf.vp
 	} else if len(pos) != len(dist) {
 		return errors.New("position and distance buffer length mismatch")
 	}
 	err := sdf.SDF.Evaluate(pos, dist, userData)
-	err2 := sdf.vp.AssertAllReleased()
+	var err2 error
+	if useOwnVecPool {
+		err2 = sdf.vp.AssertAllReleased()
+	}
 	if err != nil {
 		if err2 != nil {
 			return fmt.Errorf("VecPool leak: %s\nSDF2 error: %s", err2, err)
