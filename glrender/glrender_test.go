@@ -31,7 +31,7 @@ func TestDualRender(t *testing.T) {
 	}
 	var dcr DualContourRenderer
 	var vp gleval.VecPool
-	err = dcr.Reset(sdf, &vp, res, DualContourConfig{})
+	err = dcr.Reset(sdf, res, &DualContourLeastSquaresLocal{}, &vp)
 	if err != nil {
 		t.Fatal(err)
 	}

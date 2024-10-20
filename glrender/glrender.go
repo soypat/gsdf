@@ -54,6 +54,8 @@ func (a ivec) OrScalar(f int) ivec     { return ivec{x: a.x | f, y: a.y | f, z: 
 func (a ivec) XorScalar(f int) ivec    { return ivec{x: a.x ^ f, y: a.y ^ f, z: a.z ^ f} }
 func (a ivec) AndnotScalar(f int) ivec { return ivec{x: a.x &^ f, y: a.y &^ f, z: a.z &^ f} }
 
+const minIcubeLvl = 1
+
 type icube struct {
 	ivec
 	lvl int

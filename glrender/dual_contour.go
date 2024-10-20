@@ -8,23 +8,30 @@ import (
 	"github.com/soypat/gsdf/gleval"
 )
 
+type DualContourer interface {
+	// PlaceVertices should edit the FinalVertex field of all [DualCube]s in the cubes buffer.
+	// These resulting vertices are then used for quad/triangle meshing.
+	PlaceVertices(cubes []DualCube, origin ms3.Vec, res float32, sdf gleval.SDF3, posbuf []ms3.Vec, distbuf []float32, userData any) error
+}
+
 type DualContourRenderer struct {
-	sdf     gleval.SDF3
-	cubeMap map[ivec]int
-	cubebuf []icube
-	posbuf  []ms3.Vec
-	distbuf []float32
+	sdf       gleval.SDF3
+	contourer DualContourer
+	cubeMap   map[ivec]int
+	cubebuf   []icube
+	posbuf    []ms3.Vec
+	distbuf   []float32
 	// cubeinfo stores both cube and edge information for dual contouring algorithm.
 	// Edge information corresponds to the edges that coincide in the cube origin.
-	cubeinfo []dualCube
+	cubeinfo []DualCube
 	res      float32
 	origin   ms3.Vec
 }
 
-type DualContourConfig struct {
-}
-
-func (dcr *DualContourRenderer) Reset(sdf gleval.SDF3, userData any, res float32, cfg DualContourConfig) error {
+func (dcr *DualContourRenderer) Reset(sdf gleval.SDF3, res float32, vertexPlacer DualContourer, userData any) error {
+	if vertexPlacer == nil {
+		return errors.New("nil DualContourer argument to Reset")
+	}
 	bbSub := res / 2
 	bb := sdf.Bounds().Add(ms3.Vec{X: -bbSub, Y: -bbSub, Z: -bbSub})
 	// bb.Min = ms3.Sub(bb.Min, ms3.Vec{X: bbSub, Y: bbSub, Z: bbSub})
@@ -60,7 +67,7 @@ func (dcr *DualContourRenderer) Reset(sdf gleval.SDF3, userData any, res float32
 	// New number of cubes due to reduction by pruning.
 	nCubes = len(dcr.cubebuf)
 	if cap(dcr.cubeinfo) < nCubes {
-		dcr.cubeinfo = make([]dualCube, nCubes)
+		dcr.cubeinfo = make([]DualCube, nCubes)
 	}
 	if dcr.cubeMap == nil {
 		dcr.cubeMap = make(map[ivec]int)
@@ -69,6 +76,7 @@ func (dcr *DualContourRenderer) Reset(sdf gleval.SDF3, userData any, res float32
 	dcr.res = res
 	dcr.origin = origin
 	dcr.sdf = sdf
+	dcr.contourer = vertexPlacer
 	return nil
 }
 
@@ -79,6 +87,7 @@ func (dcr *DualContourRenderer) RenderAll(dst []ms3.Triangle, userData any) ([]m
 	origin := dcr.origin
 	posbuf := dcr.posbuf[:0]
 	sdf := dcr.sdf
+	cubes := dcr.cubeinfo[:len(edges)]
 
 	for e, edge := range edges {
 		sz := edge.size(res)
@@ -89,8 +98,8 @@ func (dcr *DualContourRenderer) RenderAll(dst []ms3.Triangle, userData any) ([]m
 			ms3.Add(edgeOrig, ms3.Vec{X: sz}),
 			ms3.Add(edgeOrig, ms3.Vec{Y: sz}),
 			ms3.Add(edgeOrig, ms3.Vec{Z: sz}),
-			edge.center(origin, sz),
 		)
+		cubes[e].FinalVertex = edgeOrig // By default set to center.
 		cubeMap[edge.ivec] = e
 	}
 
@@ -100,137 +109,69 @@ func (dcr *DualContourRenderer) RenderAll(dst []ms3.Triangle, userData any) ([]m
 	if err != nil {
 		return dst, err
 	}
+
 	// posbuf will contain edge intersection position.
 	posbuf = posbuf[:0]
-	cubes := dcr.cubeinfo[:len(edges)]
 	for e, edge := range edges {
 		// First for loop accumulates edge biases into voxels/cubes.
-		cube := makeDualCube(edge.ivec, distbuf[e*5:])
-		if !cube.isActive() {
-			continue
-		}
+		cube := makeDualCube(edge.ivec, distbuf[e*4:])
 		cubes[e] = cube
-		sz := edge.size(res)
-		edgeOrigin := edge.origin(origin, sz)
-		if cube.xActive() {
-			t := cube.xIsectLinear()
-			x := ms3.Add(edgeOrigin, ms3.Vec{X: sz * t})
-			posbuf = append(posbuf, x)
-			idx := len(posbuf) - 1
-			for _, iv := range dualEdgeCubeNeighbors(edge.ivec, 0) {
-				cubes[cubeMap[iv]].addBiasVert(x, idx)
-			}
-		}
-		if cube.yActive() {
-			t := cube.yIsectLinear()
-			y := ms3.Add(edgeOrigin, ms3.Vec{Y: sz * t})
-			posbuf = append(posbuf, y)
-			idx := len(posbuf) - 1
-			for _, iv := range dualEdgeCubeNeighbors(edge.ivec, 1) {
-				cubes[cubeMap[iv]].addBiasVert(y, idx)
-			}
-		}
-		if cube.zActive() {
-			t := cube.zIsectLinear()
-			z := ms3.Add(edgeOrigin, ms3.Vec{Z: sz * t})
-			posbuf = append(posbuf, z)
-			idx := len(posbuf) - 1
-			for _, iv := range dualEdgeCubeNeighbors(edge.ivec, 2) {
-				cubes[cubeMap[iv]].addBiasVert(z, idx)
-			}
-		}
-	}
-
-	normals := make([]ms3.Vec, len(posbuf))
-	const normStep = 2e-5
-	err = gleval.NormalsCentralDiff(sdf, posbuf, normals, normStep, userData)
-	if err != nil {
-		return dst, err
-	}
-	for e, dc := range cubes {
-		if len(dc.BiasVerts) == 0 {
+		if !cube.IsActive() {
 			continue
 		}
-		edge := edges[e]
-		sz := edge.size(res)
-		cubeOrigin := edge.origin(origin, sz)
-
-		// Initialize AtA and Atb
-		var AtA ms3.Mat3
-		var Atb ms3.Vec
-		// For each bias vert and corresponding normal
-		for i := 0; i < len(dc.BiasVerts); i++ {
-			pi := dc.BiasVerts[i]
-			qi := ms3.Sub(pi, cubeOrigin) // Local coordinates within the cube
-			ni := normals[dc.BiasVertIdxs[i]]
-			ni = ms3.Unit(ni)
-			// Compute outer product ni * ni^T
-			outer := ms3.Prod(ni, ni)
-			AtA = ms3.AddMat3(AtA, outer)
-			// Compute ni * (ni^T * qi)
-			dot := ms3.Dot(ni, qi)
-			scaledNi := ms3.Scale(dot, ni)
-			Atb = ms3.Add(Atb, scaledNi)
+		if cube.ActiveX() {
+			for _, iv := range cube.EdgeNeighborsX() {
+				cubes[cubeMap[iv]].Neighbors = append(cubes[cubeMap[iv]].Neighbors, [3]int{e, 0, -1})
+			}
 		}
-		bias := dc.vertMean()
-		// Regularization to handle singular matrices
-		lambda := float32(3e-3)
-		AtA = ms3.AddMat3(AtA, ms3.ScaleMat3(ms3.IdentityMat3(), lambda))
-		Atb = ms3.Add(Atb, ms3.Scale(lambda, ms3.Sub(bias, cubeOrigin)))
-		// Solve AtA x = Atb
-		det := AtA.Determinant()
-		if math32.Abs(det) < 1e-5 {
-			// Singular or near-singular matrix; fall back to mean position
-			cubes[e].FinalVertex = bias
-			// dc.vert = vert
-		} else {
-			// U, S, _ := AtA.SVD()
-			// diag := S.VecDiag()
-			// UtAtb := ms3.MulMatVec(U.Transpose(), Atb)
-			// sInvUtAtb := ms3.MulElem(ms3.Vec{X: 1. / diag.X, Y: 1. / diag.Y, Z: 1. / diag.Z}, UtAtb)
-			// x := ms3.MulMatVec(U, sInvUtAtb)
-			AtAInv := AtA.Inverse()
-			x := ms3.MulMatVec(AtAInv, Atb)
-			// x = ms3.ClampElem(x, ms3.Vec{}, ms3.Vec{X: sz, Y: sz, Z: sz}) // Limit vertex to be within voxel.
-			vert := ms3.Add(x, cubeOrigin) // Convert back to global coordinates
-			cubes[e].FinalVertex = vert
+		if cube.ActiveY() {
+			for _, iv := range cube.EdgeNeighborsY() {
+				cubes[cubeMap[iv]].Neighbors = append(cubes[cubeMap[iv]].Neighbors, [3]int{e, 1, -1})
+			}
+		}
+		if cube.ActiveZ() {
+			for _, iv := range cube.EdgeNeighborsZ() {
+				cubes[cubeMap[iv]].Neighbors = append(cubes[cubeMap[iv]].Neighbors, [3]int{e, 2, -1})
+			}
 		}
 	}
-
+	err = dcr.contourer.PlaceVertices(cubes, origin, res, sdf, posbuf, distbuf, userData)
+	if err != nil {
+		return nil, err
+	}
 	var quads [][4]ms3.Vec
-	for e := range edges {
+	for _, cube := range cubes {
 		// Loop over edges once all biases have been accumulated into cubes.
-		cube := cubes[e]
-		if !cube.isActive() {
+		if !cube.IsActive() {
 			continue
 		}
 		var quad [4]ms3.Vec
-		if cube.xActive() {
-			for iq, iv := range cube.cubeNeighborsToEdge(0) {
+		if cube.ActiveX() {
+			for iq, iv := range cube.EdgeNeighborsX() {
 				cinfo := cubes[cubeMap[iv]]
 				quad[iq] = cinfo.FinalVertex
 			}
-			if cube.xFlip() {
+			if cube.FlipX() {
 				quad = [4]ms3.Vec{quad[3], quad[2], quad[1], quad[0]}
 			}
 			quads = append(quads, quad)
 		}
-		if cube.yActive() {
-			for iq, iv := range cube.cubeNeighborsToEdge(1) {
+		if cube.ActiveY() {
+			for iq, iv := range cube.EdgeNeighborsY() {
 				cinfo := cubes[cubeMap[iv]]
 				quad[iq] = cinfo.FinalVertex
 			}
-			if cube.yFlip() {
+			if cube.FlipY() {
 				quad = [4]ms3.Vec{quad[3], quad[2], quad[1], quad[0]}
 			}
 			quads = append(quads, quad)
 		}
-		if cube.zActive() {
-			for iq, iv := range cube.cubeNeighborsToEdge(2) {
+		if cube.ActiveZ() {
+			for iq, iv := range cube.EdgeNeighborsZ() {
 				cinfo := cubes[cubeMap[iv]]
 				quad[iq] = cinfo.FinalVertex
 			}
-			if cube.zFlip() {
+			if cube.FlipZ() {
 				quad = [4]ms3.Vec{quad[3], quad[2], quad[1], quad[0]}
 			}
 			quads = append(quads, quad)
@@ -243,14 +184,13 @@ func (dcr *DualContourRenderer) RenderAll(dst []ms3.Triangle, userData any) ([]m
 		)
 	}
 	return dst, nil
-
 }
 
-func makeDualCube(ivec ivec, data []float32) dualCube {
+func makeDualCube(ivec ivec, data []float32) DualCube {
 	if len(data) < 4 {
 		panic("short dual cube info buffer")
 	}
-	return dualCube{
+	return DualCube{
 		OrigDist: data[0],
 		XDist:    data[1],
 		YDist:    data[2],
@@ -259,86 +199,70 @@ func makeDualCube(ivec ivec, data []float32) dualCube {
 	}
 }
 
-type dualCube struct {
+// DualCube corresponds to a voxel anmd contains both cube and edge data.
+type DualCube struct {
+	ivec ivec
+	// Neighbors contains neighboring index into dualCube buffer and contributing edge intersect axis.
+	//  - Neighbors[0]: Index into dualCube buffer to cube neighbor with edge.
+	//  - Neighbors[1]: Intersecting axis. 0 is x; 1 is y; 2 is z.
+	//  - Neighbors[2]: Auxiliary index for use by user, such as normal indexing.
+	Neighbors [][3]int
 	// Distance from cube origin to SDF.
 	OrigDist float32
 	// Distance from (x,y,z) edge vertices to SDF.
 	XDist, YDist, ZDist float32
-	BiasVerts           []ms3.Vec
-	BiasVertIdxs        []int
 	// FinalVertex set by vertex strategy. Decides the final resting place of the vertex of the cube
 	// which will be the vertex meshed.
 	FinalVertex ms3.Vec
-	ivec        ivec
 }
 
-func (dc *dualCube) addBiasVert(v ms3.Vec, idx int) {
-	dc.BiasVerts = append(dc.BiasVerts, v)
-	dc.BiasVertIdxs = append(dc.BiasVertIdxs, idx)
-}
-
-func (dc *dualCube) vertMean() (mean ms3.Vec) {
-	for i := 0; i < len(dc.BiasVerts); i++ {
-		mean = ms3.Add(mean, dc.BiasVerts[i])
+func vertMean(verts []ms3.Vec) (mean ms3.Vec) {
+	for i := 0; i < len(verts); i++ {
+		mean = ms3.Add(mean, verts[i])
 	}
-	return ms3.Scale(1./float32(len(dc.BiasVerts)), mean)
+	return ms3.Scale(1./float32(len(verts)), mean)
 }
 
-func (dc *dualCube) cubeNeighborsToEdge(axis int) [4]ivec {
-	v := dc.ivec
-	const sub = -2
-	switch axis {
-	case 0: // x
-		return [4]ivec{}
-	case 1: // y
-		return [4]ivec{
-			v.Add(ivec{x: sub, z: sub}), v.Add(ivec{x: sub}), v, v.Add(ivec{z: sub}),
-		}
-	case 2: // z
-		return [4]ivec{
-			v.Add(ivec{x: sub, y: sub}), v.Add(ivec{y: sub}), v, v.Add(ivec{x: sub}),
-		}
-	}
-	panic("invalid axis")
+func (dc *DualCube) SizeAndOrigin(res float32, modelOrigin ms3.Vec) (float32, ms3.Vec) {
+	return res, icube{ivec: dc.ivec, lvl: 1}.origin(modelOrigin, res)
 }
 
-func (dc *dualCube) isActive() bool {
-	return dc.xActive() || dc.yActive() || dc.zActive()
+func (dc *DualCube) IsActive() bool {
+	return dc.ActiveX() || dc.ActiveY() || dc.ActiveZ()
 }
 
-func (dc *dualCube) xActive() bool {
+func (dc *DualCube) ActiveX() bool {
 	return math32.Float32bits(dc.OrigDist)&(1<<31) != math32.Float32bits(dc.XDist)&(1<<31) // Sign bit differs.
 }
-func (dc *dualCube) yActive() bool {
+func (dc *DualCube) ActiveY() bool {
 	return math32.Float32bits(dc.OrigDist)&(1<<31) != math32.Float32bits(dc.YDist)&(1<<31)
 }
-func (dc *dualCube) zActive() bool {
+func (dc *DualCube) ActiveZ() bool {
 	return math32.Float32bits(dc.OrigDist)&(1<<31) != math32.Float32bits(dc.ZDist)&(1<<31)
 }
-func (dc *dualCube) xIsectLinear() float32 { return -dc.OrigDist / (dc.XDist - dc.OrigDist) }
-func (dc *dualCube) yIsectLinear() float32 { return -dc.OrigDist / (dc.YDist - dc.OrigDist) }
-func (dc *dualCube) zIsectLinear() float32 { return -dc.OrigDist / (dc.ZDist - dc.OrigDist) }
-func (dc *dualCube) xFlip() bool           { return dc.XDist-dc.OrigDist < 0 }
-func (dc *dualCube) yFlip() bool           { return dc.YDist-dc.OrigDist < 0 }
-func (dc *dualCube) zFlip() bool           { return dc.ZDist-dc.OrigDist < 0 }
+func (dc *DualCube) IsectLinearX() float32 { return -dc.OrigDist / (dc.XDist - dc.OrigDist) }
+func (dc *DualCube) IsectLinearY() float32 { return -dc.OrigDist / (dc.YDist - dc.OrigDist) }
+func (dc *DualCube) IsectLinearZ() float32 { return -dc.OrigDist / (dc.ZDist - dc.OrigDist) }
+func (dc *DualCube) FlipX() bool           { return dc.XDist-dc.OrigDist < 0 }
+func (dc *DualCube) FlipY() bool           { return dc.YDist-dc.OrigDist < 0 }
+func (dc *DualCube) FlipZ() bool           { return dc.ZDist-dc.OrigDist < 0 }
 
-func dualEdgeCubeNeighbors(v ivec, axis int) [4]ivec {
-	const sub = -2
-	switch axis {
-	case 0: // x
-		return [4]ivec{
-			v.Add(ivec{y: sub, z: sub}), v.Add(ivec{z: sub}), v, v.Add(ivec{y: sub}),
-		}
-	case 1: // y
-		return [4]ivec{
-			v.Add(ivec{x: sub, z: sub}), v.Add(ivec{x: sub}), v, v.Add(ivec{z: sub}),
-		}
-	case 2: // z
-		return [4]ivec{
-			v.Add(ivec{x: sub, y: sub}), v.Add(ivec{y: sub}), v, v.Add(ivec{x: sub}),
-		}
-	}
-	panic("invalid axis")
+func (dc *DualCube) EdgeNeighborsX() [4]ivec {
+	const sub = -(1 << minIcubeLvl)
+	v := dc.ivec
+	return [4]ivec{v.Add(ivec{y: sub, z: sub}), v.Add(ivec{z: sub}), v, v.Add(ivec{y: sub})}
+}
+
+func (dc *DualCube) EdgeNeighborsY() [4]ivec {
+	const sub = -(1 << minIcubeLvl)
+	v := dc.ivec
+	return [4]ivec{v.Add(ivec{x: sub, z: sub}), v.Add(ivec{x: sub}), v, v.Add(ivec{z: sub})}
+}
+
+func (dc *DualCube) EdgeNeighborsZ() [4]ivec {
+	const sub = -(1 << minIcubeLvl)
+	v := dc.ivec
+	return [4]ivec{v.Add(ivec{x: sub, y: sub}), v.Add(ivec{y: sub}), v, v.Add(ivec{x: sub})}
 }
 
 // minecraftRender performs a minecraft-like render of the SDF using a dual contour method.
@@ -384,7 +308,7 @@ func minecraftRender(dst []ms3.Triangle, sdf gleval.SDF3, res float32) ([]ms3.Tr
 		srcOrig := cube.origin(origin, sz)
 		dci := makeDualCube(cube.ivec, distbuf[j*4:])
 		origOff := sz
-		if dci.xActive() {
+		if dci.ActiveX() {
 			xOrig := ms3.Add(srcOrig, ms3.Vec{X: origOff})
 			dst = append(dst,
 				ms3.Triangle{
@@ -398,12 +322,12 @@ func minecraftRender(dst []ms3.Triangle, sdf gleval.SDF3, res float32) ([]ms3.Tr
 					xOrig,
 				},
 			)
-			if dci.xFlip() {
+			if dci.FlipX() {
 				dst[len(dst)-1][0], dst[len(dst)-1][2] = dst[len(dst)-1][2], dst[len(dst)-1][0]
 				dst[len(dst)-2][0], dst[len(dst)-2][2] = dst[len(dst)-2][2], dst[len(dst)-2][0]
 			}
 		}
-		if dci.yActive() {
+		if dci.ActiveY() {
 			yOrig := ms3.Add(srcOrig, ms3.Vec{Y: origOff})
 			dst = append(dst,
 				ms3.Triangle{
@@ -417,12 +341,12 @@ func minecraftRender(dst []ms3.Triangle, sdf gleval.SDF3, res float32) ([]ms3.Tr
 					yOrig,
 				},
 			)
-			if dci.yFlip() {
+			if dci.FlipY() {
 				dst[len(dst)-1][0], dst[len(dst)-1][2] = dst[len(dst)-1][2], dst[len(dst)-1][0]
 				dst[len(dst)-2][0], dst[len(dst)-2][2] = dst[len(dst)-2][2], dst[len(dst)-2][0]
 			}
 		}
-		if dci.zActive() {
+		if dci.ActiveZ() {
 			zOrig := ms3.Add(srcOrig, ms3.Vec{Z: origOff})
 			dst = append(dst,
 				ms3.Triangle{
@@ -436,7 +360,7 @@ func minecraftRender(dst []ms3.Triangle, sdf gleval.SDF3, res float32) ([]ms3.Tr
 					zOrig,
 				},
 			)
-			if dci.zFlip() {
+			if dci.FlipZ() {
 				dst[len(dst)-1][0], dst[len(dst)-1][2] = dst[len(dst)-1][2], dst[len(dst)-1][0]
 				dst[len(dst)-2][0], dst[len(dst)-2][2] = dst[len(dst)-2][2], dst[len(dst)-2][0]
 			}
