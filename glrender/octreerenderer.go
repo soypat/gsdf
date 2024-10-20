@@ -144,7 +144,7 @@ func (oc *Octree) ReadTriangles(dst []ms3.Triangle, userData any) (n int, err er
 		}
 	}
 	if len(oc.prunecubes) > 0 {
-		err = oc.prune()
+		err = oc.prune(userData)
 		if err != nil {
 			return 0, err
 		}
@@ -165,7 +165,7 @@ func (oc *Octree) ReadTriangles(dst []ms3.Triangle, userData any) (n int, err er
 		if currentLim == 0 {
 			panic("zero buffer")
 		}
-		err = oc.s.Evaluate(oc.posbuf[:currentLim], oc.distbuf[:currentLim], nil)
+		err = oc.s.Evaluate(oc.posbuf[:currentLim], oc.distbuf[:currentLim], userData)
 		if err != nil {
 			return 0, err
 		}
@@ -177,9 +177,14 @@ func (oc *Octree) ReadTriangles(dst []ms3.Triangle, userData any) (n int, err er
 	return n, nil
 }
 
-func (oc *Octree) prune() (err error) {
-	pos := oc.posbuf[len(oc.posbuf):cap(oc.posbuf)]
-	unpruned, smallestPruned, err := octreePruneNoSurface1(oc.s, oc.prunecubes, oc.origin, oc.resolution, pos, oc.distbuf[:len(pos)])
+func (oc *Octree) prune(userData any) (err error) {
+	// The cubes pruned must not contain a surface within.
+	const szDistMult = sqrt3 / 2
+	pos := oc.posbuf[len(oc.posbuf):cap(oc.posbuf)] // Use free space in position buffer.
+	if len(pos) < len(oc.prunecubes) {
+		return nil
+	}
+	unpruned, smallestPruned, err := octreePrune(oc.s, oc.prunecubes, oc.origin, oc.resolution, pos, oc.distbuf[:len(pos)], userData, szDistMult, false)
 	oc.prunecubes = unpruned
 	oc.pruned += smallestPruned
 	return err

@@ -62,12 +62,12 @@ type icube struct {
 func (c icube) isSmallest() bool       { return c.lvl == 1 }
 func (c icube) isSecondSmallest() bool { return c.lvl == 2 }
 
-// decomposesTo returns the amount of smallest level cubes generated from decomposing this cube completely.
-func (c icube) decomposesTo(targetLvl int) int {
+// decomposesTo returns the amount of cubes generated from decomposing the cube down to cubes of the argument target level.
+func (c icube) decomposesTo(targetLvl int) uint64 {
 	if targetLvl > c.lvl {
 		panic("invalid targetLvl to icube.decomposesTo")
 	}
-	return int(pow8(c.lvl - targetLvl))
+	return pow8(c.lvl - targetLvl)
 }
 
 func (c icube) size(baseRes float32) float32 {

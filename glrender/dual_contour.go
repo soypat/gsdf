@@ -8,31 +8,79 @@ import (
 	"github.com/soypat/gsdf/gleval"
 )
 
-// dualRender dual contouring implementation.
-func dualRender(dst []ms3.Triangle, sdf gleval.SDF3, res float32, userData any) ([]ms3.Triangle, error) {
+type DualContourRenderer struct {
+	sdf     gleval.SDF3
+	cubeMap map[ivec]int
+	cubebuf []icube
+	posbuf  []ms3.Vec
+	distbuf []float32
+	// cubeinfo stores both cube and edge information for dual contouring algorithm.
+	// Edge information corresponds to the edges that coincide in the cube origin.
+	cubeinfo []dualCube
+	res      float32
+	origin   ms3.Vec
+}
+
+type DualContourConfig struct {
+}
+
+func (dcr *DualContourRenderer) Reset(sdf gleval.SDF3, userData any, res float32, cfg DualContourConfig) error {
 	bbSub := res / 2
 	bb := sdf.Bounds().Add(ms3.Vec{X: -bbSub, Y: -bbSub, Z: -bbSub})
 	// bb.Min = ms3.Sub(bb.Min, ms3.Vec{X: bbSub, Y: bbSub, Z: bbSub})
 	topCube, origin, err := makeICube(bb, res)
 	if err != nil {
-		return dst, err
+		return err
 	}
-	nEdges := topCube.decomposesTo(1)
-	edges := make([]icube, 0, nEdges*2)
-	edges, ok := octreeDecomposeBFS(edges, topCube, 1)
+	nCubes := int(topCube.decomposesTo(1))
+	if cap(dcr.cubebuf) < nCubes*2 {
+		dcr.cubebuf = make([]icube, 0, nCubes*2) // Want to fully decompose cube.
+	}
+	var ok bool
+	dcr.cubebuf, ok = octreeDecomposeBFS(dcr.cubebuf[:0], topCube, 1)
 	if !ok {
-		return dst, errors.New("unable to decompose top level cube")
-	} else if edges[0].lvl != 1 {
-		return dst, errors.New("short buffer decomposing all cubes")
-	} else if len(edges) != nEdges {
+		return errors.New("unable to decompose top level cube")
+	} else if dcr.cubebuf[0].lvl != 1 {
+		return errors.New("short buffer decomposing all cubes")
+	} else if len(dcr.cubebuf) != nCubes {
 		panic("failed to decompose all edges?")
 	}
+	if cap(dcr.posbuf) < nCubes {
+		dcr.posbuf = make([]ms3.Vec, nCubes)
+		dcr.distbuf = make([]float32, nCubes)
+	}
+	dcr.posbuf = dcr.posbuf[:0]
+	posbuf := dcr.posbuf[:cap(dcr.posbuf)]
 
-	var posbuf []ms3.Vec
+	// Keep cubes that contain a surface and their neighbors.
+	dcr.cubebuf, _, err = octreePrune(sdf, dcr.cubebuf, origin, res, posbuf, dcr.distbuf[:len(posbuf)], userData, 2, true)
+	if err != nil {
+		return err
+	}
+	// New number of cubes due to reduction by pruning.
+	nCubes = len(dcr.cubebuf)
+	if cap(dcr.cubeinfo) < nCubes {
+		dcr.cubeinfo = make([]dualCube, nCubes)
+	}
+	if dcr.cubeMap == nil {
+		dcr.cubeMap = make(map[ivec]int)
+	}
+	clear(dcr.cubeMap)
+	dcr.res = res
+	dcr.origin = origin
+	dcr.sdf = sdf
+	return nil
+}
 
-	edgeMap := make(map[ivec]int) // Maps a icube vec to an index.
-	for e := 0; e < nEdges; e++ {
-		edge := edges[e]
+func (dcr *DualContourRenderer) RenderAll(dst []ms3.Triangle, userData any) ([]ms3.Triangle, error) {
+	cubeMap := dcr.cubeMap
+	edges := dcr.cubebuf
+	res := dcr.res
+	origin := dcr.origin
+	posbuf := dcr.posbuf[:0]
+	sdf := dcr.sdf
+
+	for e, edge := range edges {
 		sz := edge.size(res)
 		edgeOrig := edge.origin(origin, sz)
 		// posbuf has edge origin, edge extremes in x,y,z and the center of the voxel.
@@ -43,63 +91,64 @@ func dualRender(dst []ms3.Triangle, sdf gleval.SDF3, res float32, userData any) 
 			ms3.Add(edgeOrig, ms3.Vec{Z: sz}),
 			edge.center(origin, sz),
 		)
-		edgeMap[edge.ivec] = e
+		cubeMap[edge.ivec] = e
 	}
+
 	lenPos := len(posbuf)
 	distbuf := make([]float32, lenPos)
-	err = sdf.Evaluate(posbuf, distbuf, nil)
+	err := sdf.Evaluate(posbuf, distbuf, nil)
 	if err != nil {
 		return dst, err
 	}
 	// posbuf will contain edge intersection position.
 	posbuf = posbuf[:0]
-	edgeInfo := make([]dualEdgeInfo, nEdges)
-	cubeInfo := make([]dualCubeInfo, nEdges)
+	cubes := dcr.cubeinfo[:len(edges)]
 	for e, edge := range edges {
 		// First for loop accumulates edge biases into voxels/cubes.
-		einfo := makeDualEdgeInfo(distbuf[e*5:])
-		if !einfo.isActive() {
+		cube := makeDualCube(edge.ivec, distbuf[e*5:])
+		if !cube.isActive() {
 			continue
 		}
-		edgeInfo[e] = einfo
+		cubes[e] = cube
 		sz := edge.size(res)
 		edgeOrigin := edge.origin(origin, sz)
-		if einfo.xActive() {
-			t := einfo.xIsectLinear()
+		if cube.xActive() {
+			t := cube.xIsectLinear()
 			x := ms3.Add(edgeOrigin, ms3.Vec{X: sz * t})
 			posbuf = append(posbuf, x)
 			idx := len(posbuf) - 1
 			for _, iv := range dualEdgeCubeNeighbors(edge.ivec, 0) {
-				cubeInfo[edgeMap[iv]].addBiasVert(x, idx)
+				cubes[cubeMap[iv]].addBiasVert(x, idx)
 			}
 		}
-		if einfo.yActive() {
-			t := einfo.yIsectLinear()
+		if cube.yActive() {
+			t := cube.yIsectLinear()
 			y := ms3.Add(edgeOrigin, ms3.Vec{Y: sz * t})
 			posbuf = append(posbuf, y)
 			idx := len(posbuf) - 1
 			for _, iv := range dualEdgeCubeNeighbors(edge.ivec, 1) {
-				cubeInfo[edgeMap[iv]].addBiasVert(y, idx)
+				cubes[cubeMap[iv]].addBiasVert(y, idx)
 			}
 		}
-		if einfo.zActive() {
-			t := einfo.zIsectLinear()
+		if cube.zActive() {
+			t := cube.zIsectLinear()
 			z := ms3.Add(edgeOrigin, ms3.Vec{Z: sz * t})
 			posbuf = append(posbuf, z)
 			idx := len(posbuf) - 1
 			for _, iv := range dualEdgeCubeNeighbors(edge.ivec, 2) {
-				cubeInfo[edgeMap[iv]].addBiasVert(z, idx)
+				cubes[cubeMap[iv]].addBiasVert(z, idx)
 			}
 		}
 	}
+
 	normals := make([]ms3.Vec, len(posbuf))
-	err = gleval.NormalsCentralDiff(sdf, posbuf, normals, res/1000, userData)
+	const normStep = 2e-5
+	err = gleval.NormalsCentralDiff(sdf, posbuf, normals, normStep, userData)
 	if err != nil {
 		return dst, err
 	}
-
-	for e, dc := range cubeInfo {
-		if len(dc.biasVerts) == 0 {
+	for e, dc := range cubes {
+		if len(dc.BiasVerts) == 0 {
 			continue
 		}
 		edge := edges[e]
@@ -110,15 +159,14 @@ func dualRender(dst []ms3.Triangle, sdf gleval.SDF3, res float32, userData any) 
 		var AtA ms3.Mat3
 		var Atb ms3.Vec
 		// For each bias vert and corresponding normal
-		for i := 0; i < len(dc.biasVerts); i++ {
-			pi := dc.biasVerts[i]
+		for i := 0; i < len(dc.BiasVerts); i++ {
+			pi := dc.BiasVerts[i]
 			qi := ms3.Sub(pi, cubeOrigin) // Local coordinates within the cube
-			ni := normals[dc.biasVertIdxs[i]]
+			ni := normals[dc.BiasVertIdxs[i]]
 			ni = ms3.Unit(ni)
 			// Compute outer product ni * ni^T
 			outer := ms3.Prod(ni, ni)
 			AtA = ms3.AddMat3(AtA, outer)
-
 			// Compute ni * (ni^T * qi)
 			dot := ms3.Dot(ni, qi)
 			scaledNi := ms3.Scale(dot, ni)
@@ -126,57 +174,63 @@ func dualRender(dst []ms3.Triangle, sdf gleval.SDF3, res float32, userData any) 
 		}
 		bias := dc.vertMean()
 		// Regularization to handle singular matrices
-		lambda := float32(1e-2)
+		lambda := float32(3e-3)
 		AtA = ms3.AddMat3(AtA, ms3.ScaleMat3(ms3.IdentityMat3(), lambda))
 		Atb = ms3.Add(Atb, ms3.Scale(lambda, ms3.Sub(bias, cubeOrigin)))
 		// Solve AtA x = Atb
 		det := AtA.Determinant()
 		if math32.Abs(det) < 1e-5 {
 			// Singular or near-singular matrix; fall back to mean position
-			cubeInfo[e].vert = bias
+			cubes[e].FinalVertex = bias
 			// dc.vert = vert
 		} else {
+			// U, S, _ := AtA.SVD()
+			// diag := S.VecDiag()
+			// UtAtb := ms3.MulMatVec(U.Transpose(), Atb)
+			// sInvUtAtb := ms3.MulElem(ms3.Vec{X: 1. / diag.X, Y: 1. / diag.Y, Z: 1. / diag.Z}, UtAtb)
+			// x := ms3.MulMatVec(U, sInvUtAtb)
 			AtAInv := AtA.Inverse()
 			x := ms3.MulMatVec(AtAInv, Atb)
+			// x = ms3.ClampElem(x, ms3.Vec{}, ms3.Vec{X: sz, Y: sz, Z: sz}) // Limit vertex to be within voxel.
 			vert := ms3.Add(x, cubeOrigin) // Convert back to global coordinates
-			cubeInfo[e].vert = vert
+			cubes[e].FinalVertex = vert
 		}
 	}
 
 	var quads [][4]ms3.Vec
-	for e, edge := range edges {
+	for e := range edges {
 		// Loop over edges once all biases have been accumulated into cubes.
-		einfo := edgeInfo[e]
-		if !einfo.isActive() {
+		cube := cubes[e]
+		if !cube.isActive() {
 			continue
 		}
 		var quad [4]ms3.Vec
-		if einfo.xActive() {
-			for iq, iv := range dualEdgeCubeNeighbors(edge.ivec, 0) {
-				cinfo := cubeInfo[edgeMap[iv]]
-				quad[iq] = cinfo.vert
+		if cube.xActive() {
+			for iq, iv := range cube.cubeNeighborsToEdge(0) {
+				cinfo := cubes[cubeMap[iv]]
+				quad[iq] = cinfo.FinalVertex
 			}
-			if einfo.xFlip() {
+			if cube.xFlip() {
 				quad = [4]ms3.Vec{quad[3], quad[2], quad[1], quad[0]}
 			}
 			quads = append(quads, quad)
 		}
-		if einfo.yActive() {
-			for iq, iv := range dualEdgeCubeNeighbors(edge.ivec, 1) {
-				cinfo := cubeInfo[edgeMap[iv]]
-				quad[iq] = cinfo.vert
+		if cube.yActive() {
+			for iq, iv := range cube.cubeNeighborsToEdge(1) {
+				cinfo := cubes[cubeMap[iv]]
+				quad[iq] = cinfo.FinalVertex
 			}
-			if einfo.yFlip() {
+			if cube.yFlip() {
 				quad = [4]ms3.Vec{quad[3], quad[2], quad[1], quad[0]}
 			}
 			quads = append(quads, quad)
 		}
-		if einfo.zActive() {
-			for iq, iv := range dualEdgeCubeNeighbors(edge.ivec, 2) {
-				cinfo := cubeInfo[edgeMap[iv]]
-				quad[iq] = cinfo.vert
+		if cube.zActive() {
+			for iq, iv := range cube.cubeNeighborsToEdge(2) {
+				cinfo := cubes[cubeMap[iv]]
+				quad[iq] = cinfo.FinalVertex
 			}
-			if einfo.zFlip() {
+			if cube.zFlip() {
 				quad = [4]ms3.Vec{quad[3], quad[2], quad[1], quad[0]}
 			}
 			quads = append(quads, quad)
@@ -189,83 +243,84 @@ func dualRender(dst []ms3.Triangle, sdf gleval.SDF3, res float32, userData any) 
 		)
 	}
 	return dst, nil
+
 }
 
-type dualCubeInfo struct {
-	biasVerts    []ms3.Vec
-	biasVertIdxs []int
-	normal       ms3.Vec
-	vert         ms3.Vec
-}
-
-func (dc *dualCubeInfo) addBiasVert(v ms3.Vec, idx int) {
-	dc.biasVerts = append(dc.biasVerts, v)
-	dc.biasVertIdxs = append(dc.biasVertIdxs, idx)
-}
-
-func (dc dualCubeInfo) vertMean() (mean ms3.Vec) {
-	for i := 0; i < len(dc.biasVerts); i++ {
-		mean = ms3.Add(mean, dc.biasVerts[i])
-	}
-	return ms3.Scale(1./float32(len(dc.biasVerts)), mean)
-}
-
-func makeDualEdgeInfo(data []float32) dualEdgeInfo {
+func makeDualCube(ivec ivec, data []float32) dualCube {
 	if len(data) < 4 {
 		panic("short dual cube info buffer")
 	}
-	return dualEdgeInfo{
-		cSDF: data[0],
-		xSDF: data[1],
-		ySDF: data[2],
-		zSDF: data[3],
+	return dualCube{
+		OrigDist: data[0],
+		XDist:    data[1],
+		YDist:    data[2],
+		ZDist:    data[3],
+		ivec:     ivec,
 	}
 }
 
-type dualEdgeInfo struct {
-	// SDF evaluation at edge vertices.
-	cSDF, xSDF, ySDF, zSDF float32
+type dualCube struct {
+	// Distance from cube origin to SDF.
+	OrigDist float32
+	// Distance from (x,y,z) edge vertices to SDF.
+	XDist, YDist, ZDist float32
+	BiasVerts           []ms3.Vec
+	BiasVertIdxs        []int
+	// FinalVertex set by vertex strategy. Decides the final resting place of the vertex of the cube
+	// which will be the vertex meshed.
+	FinalVertex ms3.Vec
+	ivec        ivec
 }
 
-func (dc dualEdgeInfo) appendIsectLinearCoords(dst []ms3.Vec, edgeOrigin ms3.Vec, size float32) []ms3.Vec {
-	if dc.xActive() {
-		dst = append(dst, ms3.Add(edgeOrigin, ms3.Vec{X: size * dc.xIsectLinear()}))
-	}
-	if dc.yActive() {
-		dst = append(dst, ms3.Add(edgeOrigin, ms3.Vec{Y: size * dc.yIsectLinear()}))
-	}
-	if dc.zActive() {
-		dst = append(dst, ms3.Add(edgeOrigin, ms3.Vec{Z: size * dc.zIsectLinear()}))
-	}
-	return dst
+func (dc *dualCube) addBiasVert(v ms3.Vec, idx int) {
+	dc.BiasVerts = append(dc.BiasVerts, v)
+	dc.BiasVertIdxs = append(dc.BiasVertIdxs, idx)
 }
 
-func (dc dualEdgeInfo) xIsectLinear() float32 { return -dc.cSDF / (dc.xSDF - dc.cSDF) }
-func (dc dualEdgeInfo) yIsectLinear() float32 { return -dc.cSDF / (dc.ySDF - dc.cSDF) }
-func (dc dualEdgeInfo) zIsectLinear() float32 { return -dc.cSDF / (dc.zSDF - dc.cSDF) }
+func (dc *dualCube) vertMean() (mean ms3.Vec) {
+	for i := 0; i < len(dc.BiasVerts); i++ {
+		mean = ms3.Add(mean, dc.BiasVerts[i])
+	}
+	return ms3.Scale(1./float32(len(dc.BiasVerts)), mean)
+}
 
-func (dc dualEdgeInfo) isActive() bool {
+func (dc *dualCube) cubeNeighborsToEdge(axis int) [4]ivec {
+	v := dc.ivec
+	const sub = -2
+	switch axis {
+	case 0: // x
+		return [4]ivec{}
+	case 1: // y
+		return [4]ivec{
+			v.Add(ivec{x: sub, z: sub}), v.Add(ivec{x: sub}), v, v.Add(ivec{z: sub}),
+		}
+	case 2: // z
+		return [4]ivec{
+			v.Add(ivec{x: sub, y: sub}), v.Add(ivec{y: sub}), v, v.Add(ivec{x: sub}),
+		}
+	}
+	panic("invalid axis")
+}
+
+func (dc *dualCube) isActive() bool {
 	return dc.xActive() || dc.yActive() || dc.zActive()
 }
 
-func (dc dualEdgeInfo) xActive() bool {
-	return math32.Float32bits(dc.cSDF)&(1<<31) != math32.Float32bits(dc.xSDF)&(1<<31) // Sign bit differs.
+func (dc *dualCube) xActive() bool {
+	return math32.Float32bits(dc.OrigDist)&(1<<31) != math32.Float32bits(dc.XDist)&(1<<31) // Sign bit differs.
 }
-func (dc dualEdgeInfo) yActive() bool {
-	return math32.Float32bits(dc.cSDF)&(1<<31) != math32.Float32bits(dc.ySDF)&(1<<31)
+func (dc *dualCube) yActive() bool {
+	return math32.Float32bits(dc.OrigDist)&(1<<31) != math32.Float32bits(dc.YDist)&(1<<31)
 }
-func (dc dualEdgeInfo) zActive() bool {
-	return math32.Float32bits(dc.cSDF)&(1<<31) != math32.Float32bits(dc.zSDF)&(1<<31)
+func (dc *dualCube) zActive() bool {
+	return math32.Float32bits(dc.OrigDist)&(1<<31) != math32.Float32bits(dc.ZDist)&(1<<31)
 }
-func (dc dualEdgeInfo) xFlip() bool {
-	return dc.xSDF-dc.cSDF < 0
-}
-func (dc dualEdgeInfo) yFlip() bool {
-	return dc.ySDF-dc.cSDF < 0
-}
-func (dc dualEdgeInfo) zFlip() bool {
-	return dc.zSDF-dc.cSDF < 0
-}
+func (dc *dualCube) xIsectLinear() float32 { return -dc.OrigDist / (dc.XDist - dc.OrigDist) }
+func (dc *dualCube) yIsectLinear() float32 { return -dc.OrigDist / (dc.YDist - dc.OrigDist) }
+func (dc *dualCube) zIsectLinear() float32 { return -dc.OrigDist / (dc.ZDist - dc.OrigDist) }
+func (dc *dualCube) xFlip() bool           { return dc.XDist-dc.OrigDist < 0 }
+func (dc *dualCube) yFlip() bool           { return dc.YDist-dc.OrigDist < 0 }
+func (dc *dualCube) zFlip() bool           { return dc.ZDist-dc.OrigDist < 0 }
 
 func dualEdgeCubeNeighbors(v ivec, axis int) [4]ivec {
 	const sub = -2
@@ -295,7 +350,7 @@ func minecraftRender(dst []ms3.Triangle, sdf gleval.SDF3, res float32) ([]ms3.Tr
 		return dst, err
 	}
 	decomp := topCube.decomposesTo(1)
-	cubes := make([]icube, 0, decomp)
+	cubes := make([]icube, 0, decomp*2)
 	cubes, ok := octreeDecomposeBFS(cubes, topCube, 1)
 	if !ok {
 		return dst, errors.New("unable to decompose top level cube")
@@ -327,7 +382,7 @@ func minecraftRender(dst []ms3.Triangle, sdf gleval.SDF3, res float32) ([]ms3.Tr
 		cube := cubes[j]
 		sz := cube.size(res)
 		srcOrig := cube.origin(origin, sz)
-		dci := makeDualEdgeInfo(distbuf[j*4:])
+		dci := makeDualCube(cube.ivec, distbuf[j*4:])
 		origOff := sz
 		if dci.xActive() {
 			xOrig := ms3.Add(srcOrig, ms3.Vec{X: origOff})

@@ -27,7 +27,7 @@ func makeICube(bb ms3.Box, minResolution float32) (topCube icube, origin ms3.Vec
 
 // octreeDecomposeDFS decomposes icubes from the end of cubes into their octree sub-icubes
 // and appends them to the cubes buffer, resulting in a depth-first traversal (DFS) of the octree.
-// This way cubes will contain the largest cubes at the start and the smallest cubes at the end (highest index).
+// This way cubes will contain the largest cubes at the start (low index) and the smallest cubes at the end (high index).
 // Cubes that reach the smallest size will be consumed and their 3D corners appended to dst. Smallest size cubes do not decompose into more icubes.
 // cubes with level of zero are discarded and no action is taken.
 //
@@ -71,7 +71,8 @@ func octreeDecomposeDFS(dst []ms3.Vec, cubes []icube, origin ms3.Vec, res float3
 	return dst, cubes
 }
 
-// octreeDecomposeBFS decomposes start into octree cubes and appends them to dst without surpassing dst's slice capacity.
+// octreeDecomposeBFS decomposes start into octree cubes and appends them to dst without surpassing dst's slice capacity
+// and continues to decompose the resulting cubes until all cubes are minimumDecomposedLvl or dst capacity reached.
 // Smallest cubes will remain at the highest index of dst. The boolean value returned indicates whether the
 // argument start icube was able to be decomposed and its children added to dst.
 func octreeDecomposeBFS(dst []icube, start icube, minimumDecomposedLvl int) ([]icube, bool) {
@@ -107,38 +108,44 @@ func octreeDecomposeBFS(dst []icube, start icube, minimumDecomposedLvl int) ([]i
 	return dst, true
 }
 
-// octreePruneNoSurface1 discards cubes in prune that contain no surface within its bounds by evaluating SDF once in the cube center.
-// It returns the modified prune buffer and the calculated number of smallest-level cubes pruned in the process.
-func octreePruneNoSurface1(s gleval.SDF3, toPrune []icube, origin ms3.Vec, res float32, pos []ms3.Vec, distbuf []float32) (unpruned []icube, smallestPruned uint64, err error) {
+// octreePrune discards cubes in prune that contain no surface within a distance of CubeDimension * szMultMaxDist of the cube center.
+// It returns the modified prune buffer containing unpruned cubes and the calculated number of smallest-level cubes pruned in the process.
+// If useOriginInsteadOfCenter is set to true the distance comparison is done against the voxel/cube origin instead of center.
+func octreePrune(s gleval.SDF3, toPrune []icube, origin ms3.Vec, res float32, posBuf []ms3.Vec, distbuf []float32, userData any, szMultMaxDist float32, useOriginInsteadOfCenter bool) (unpruned []icube, smallestPruned uint64, err error) {
 	if len(toPrune) == 0 {
 		return toPrune, 0, nil
-	} else if len(pos) < len(toPrune) {
-		return toPrune, 0, nil // errors.New("positional buffer length must be greater than prune cubes length")
-	} else if len(pos) != len(distbuf) {
+	} else if len(posBuf) < len(toPrune) {
+		return toPrune, 0, errors.New("positional buffer length must be greater than prune cubes length")
+	} else if len(posBuf) != len(distbuf) {
 		return toPrune, 0, errors.New("positional buffer must match distance buffer length")
 	}
-	pos = pos[:len(toPrune)]
+	posBuf = posBuf[:len(toPrune)]
 	distbuf = distbuf[:len(toPrune)]
-	for i, p := range toPrune {
-		size := p.size(res)
-		center := p.center(origin, size)
-		pos[i] = center
+	if useOriginInsteadOfCenter {
+		for i, p := range toPrune {
+			posBuf[i] = p.origin(origin, p.size(res))
+		}
+	} else {
+		for i, p := range toPrune {
+			posBuf[i] = p.center(origin, p.size(res))
+		}
 	}
-	err = s.Evaluate(pos, distbuf, nil)
+
+	err = s.Evaluate(posBuf, distbuf, userData)
 	if err != nil {
 		return toPrune, 0, err
 	}
 	// Move filled cubes to front and prune empty cubes.
 	runningIdx := 0
 	for i, p := range toPrune {
-		halfDiagonal := p.size(res) * (sqrt3 / 2)
-		isEmpty := math32.Abs(distbuf[i]) >= halfDiagonal
-		if !isEmpty {
+		maxDist := p.size(res) * szMultMaxDist
+		isPrunable := math32.Abs(distbuf[i]) >= maxDist
+		if !isPrunable {
 			// Cube not empty, do not discard.
 			toPrune[runningIdx] = p
 			runningIdx++
 		} else {
-			smallestPruned += pow8(p.lvl - 1)
+			smallestPruned += p.decomposesTo(1)
 		}
 	}
 	toPrune = toPrune[:runningIdx]

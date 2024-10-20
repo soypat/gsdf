@@ -19,7 +19,7 @@ import (
 func TestDualRender(t *testing.T) {
 	const (
 		shapeDim = 1.0
-		divs     = 5
+		divs     = 11
 		res      = shapeDim / divs
 	)
 
@@ -29,7 +29,13 @@ func TestDualRender(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tris, err := dualRender(nil, sdf, res, &gleval.VecPool{})
+	var dcr DualContourRenderer
+	var vp gleval.VecPool
+	err = dcr.Reset(sdf, &vp, res, DualContourConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tris, err := dcr.RenderAll(nil, &vp)
 	if err != nil {
 		t.Fatal(err)
 	}
