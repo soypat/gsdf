@@ -6,12 +6,18 @@ import (
 	"github.com/soypat/gsdf/gleval"
 )
 
-// DualContourLeastSquaresLocal is a vertex placement strategy which solves the least squares problem
-// to place vertices locally.
-type DualContourLeastSquaresLocal struct {
+type DualContourer interface {
+	// PlaceVertices should edit the FinalVertex field of all [DualCube]s in the cubes buffer.
+	// These resulting vertices are then used for quad/triangle meshing.
+	PlaceVertices(cubes []DualCube, origin ms3.Vec, res float32, sdf gleval.SDF3, posbuf []ms3.Vec, distbuf []float32, userData any) error
 }
 
-func (lsq *DualContourLeastSquaresLocal) PlaceVertices(cubes []DualCube, origin ms3.Vec, res float32, sdf gleval.SDF3, posbuf []ms3.Vec, distbuf []float32, userData any) error {
+// DualContourLeastSquares is a vertex placement strategy which solves the least squares problem
+// to place vertices.
+type DualContourLeastSquares struct {
+}
+
+func (lsq *DualContourLeastSquares) PlaceVertices(cubes []DualCube, origin ms3.Vec, res float32, sdf gleval.SDF3, posbuf []ms3.Vec, distbuf []float32, userData any) error {
 	// Prepare for normal calculation.
 	posbuf = posbuf[:0]
 	for c := range cubes {
@@ -83,7 +89,6 @@ func (lsq *DualContourLeastSquaresLocal) PlaceVertices(cubes []DualCube, origin 
 		if math32.Abs(det) < 1e-5 {
 			// Singular or near-singular matrix; fall back to mean position
 			cubes[e].FinalVertex = bias
-			// dc.vert = vert
 		} else {
 			// U, S, _ := AtA.SVD()
 			// diag := S.VecDiag()
@@ -98,4 +103,11 @@ func (lsq *DualContourLeastSquaresLocal) PlaceVertices(cubes []DualCube, origin 
 		}
 	}
 	return nil
+}
+
+func vertMean(verts []ms3.Vec) (mean ms3.Vec) {
+	for i := 0; i < len(verts); i++ {
+		mean = ms3.Add(mean, verts[i])
+	}
+	return ms3.Scale(1./float32(len(verts)), mean)
 }

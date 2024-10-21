@@ -8,12 +8,6 @@ import (
 	"github.com/soypat/gsdf/gleval"
 )
 
-type DualContourer interface {
-	// PlaceVertices should edit the FinalVertex field of all [DualCube]s in the cubes buffer.
-	// These resulting vertices are then used for quad/triangle meshing.
-	PlaceVertices(cubes []DualCube, origin ms3.Vec, res float32, sdf gleval.SDF3, posbuf []ms3.Vec, distbuf []float32, userData any) error
-}
-
 type DualContourRenderer struct {
 	sdf       gleval.SDF3
 	contourer DualContourer
@@ -201,6 +195,7 @@ func makeDualCube(ivec ivec, data []float32) DualCube {
 
 // DualCube corresponds to a voxel anmd contains both cube and edge data.
 type DualCube struct {
+	// ivec stores the octree index of the cube, used to find neighboring cube ivec indices and the absolute position of the cube.
 	ivec ivec
 	// Neighbors contains neighboring index into dualCube buffer and contributing edge intersect axis.
 	//  - Neighbors[0]: Index into dualCube buffer to cube neighbor with edge.
@@ -209,22 +204,15 @@ type DualCube struct {
 	Neighbors [][3]int
 	// Distance from cube origin to SDF.
 	OrigDist float32
-	// Distance from (x,y,z) edge vertices to SDF.
+	// Distance from (x,y,z) edge vertices to SDF. These edges are coincident with cube origin.
 	XDist, YDist, ZDist float32
-	// FinalVertex set by vertex strategy. Decides the final resting place of the vertex of the cube
+	// FinalVertex set by vertex placement strategy. Decides the final resting place of the vertex of the cube
 	// which will be the vertex meshed.
 	FinalVertex ms3.Vec
 }
 
-func vertMean(verts []ms3.Vec) (mean ms3.Vec) {
-	for i := 0; i < len(verts); i++ {
-		mean = ms3.Add(mean, verts[i])
-	}
-	return ms3.Scale(1./float32(len(verts)), mean)
-}
-
-func (dc *DualCube) SizeAndOrigin(res float32, modelOrigin ms3.Vec) (float32, ms3.Vec) {
-	return res, icube{ivec: dc.ivec, lvl: 1}.origin(modelOrigin, res)
+func (dc *DualCube) SizeAndOrigin(res float32, octreeOrigin ms3.Vec) (float32, ms3.Vec) {
+	return res, icube{ivec: dc.ivec, lvl: 1}.origin(octreeOrigin, res)
 }
 
 func (dc *DualCube) IsActive() bool {

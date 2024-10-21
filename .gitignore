@@ -1,6 +1,7 @@
 # Go workspaces.
 go.work
 go.work.sum
+!examples/_dualcontour/go.work
 # Test binary, built with `go test -c`
 *.test
 # Dependency directories after running `go mod vendor`
