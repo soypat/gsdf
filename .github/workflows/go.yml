@@ -15,7 +15,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
-    
+
+    - name: Setup OpenGL
+      uses: openrndr/setup-opengl@v1.1
+
     - name: Env disable Cgo 
       run: echo "CGO_ENABLED=0" >> $GITHUB_ENV
 
