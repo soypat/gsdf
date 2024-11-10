@@ -16,8 +16,8 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
-    - name: Setup OpenGL
-      uses: openrndr/setup-opengl@v1.1
+    - name: Setup GPU drivers
+      run: apt install libgl1-mesa-dev xorg-dev
 
     - name: Env disable Cgo 
       run: echo "CGO_ENABLED=0" >> $GITHUB_ENV

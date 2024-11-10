@@ -26,6 +26,7 @@ func Init1x1GLFW() (terminate func(), err error) {
 		Width:         1,
 		Height:        1,
 		HideWindow:    true,
+		ForwardCompat: true,
 	})
 	return terminate, err
 }
