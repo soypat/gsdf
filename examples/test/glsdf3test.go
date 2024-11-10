@@ -339,8 +339,7 @@ func test_sdf_gpu_cpu() error {
 				return fmt.Errorf("%d %s: %s", i, description, err)
 			}
 			// log.Printf("allocated v3=%dMB v2=%dMB f32=%dMB", vp.V3.TotalAlloc()/MB, vp.V2.TotalAlloc()/MB, vp.Float.TotalAlloc()/MB)
-			if getBaseTypename(primitive) == "screw" ||
-				(getBaseTypename(primitive) == "tri" && getFnName(op) == "randomRotation") {
+			if getBaseTypename(primitive) == "screw" {
 				log.Println("omit screw unary testbounds checks")
 				continue
 			}
@@ -372,11 +371,6 @@ func test_sdf_gpu_cpu() error {
 			err = sdfgpu.Evaluate(pos, distGPU, nil)
 			if err != nil {
 				return err
-			}
-			if getBaseTypename(primitive) == "poly2d" ||
-				(getBaseTypename(primitive) == "tri" && getFnName(op) == "randomRotation") {
-				log.Println("omit 2d dist checks")
-				continue
 			}
 			err = cmpDist(pos, distCPU, distGPU)
 			if err != nil {
