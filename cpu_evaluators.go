@@ -349,7 +349,7 @@ func (a *array) Evaluate(pos []ms3.Vec, dist []float32, userData any) error {
 	auxdist := vp.Float.Acquire(len(dist))
 	defer vp.Float.Release(auxdist)
 	s := a.d
-	n := a.nvec3()
+	n := ms3.AddScalar(-1, a.nvec3())
 	minlim := ms3.Vec{}
 	_ = n
 	_ = minlim
@@ -782,6 +782,10 @@ func (u *xor2D) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {
 }
 
 func (a *array2D) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {
+	sdf, err := gleval.AssertSDF2(a.s)
+	if err != nil {
+		return err
+	}
 	vp, err := gleval.GetVecPool(userData)
 	if err != nil {
 		return err
@@ -791,12 +795,9 @@ func (a *array2D) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {
 	auxdist := vp.Float.Acquire(len(dist))
 	defer vp.Float.Release(auxdist)
 	s := a.d
-	n := a.nvec2()
+	n := ms2.AddScalar(-1, a.nvec2())
 	minlim := ms2.Vec{}
-	sdf, err := gleval.AssertSDF2(a.s)
-	if err != nil {
-		return err
-	}
+
 	for i := range dist {
 		dist[i] = largenum
 	}

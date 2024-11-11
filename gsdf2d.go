@@ -847,13 +847,11 @@ type array2D struct {
 }
 
 func (u *array2D) Bounds() ms2.Box {
+	// TODO(soypat): use more accurate algorithm for bounds calculation.
+	sbb := u.s.Bounds()
 	size := ms2.MulElem(u.nvec2(), u.d)
-	bb := ms2.Box{Max: size}
-	halfd := ms2.Scale(0.5, u.d)
-	halfSize := ms2.Scale(-0.5, size)
-	offset := ms2.Add(halfSize, halfd)
-	bb = bb.Add(offset)
-	return bb
+	sbb.Max = ms2.Add(sbb.Max, size)
+	return sbb
 }
 
 func (s *array2D) ForEach2DChild(userData any, fn func(userData any, s *glbuild.Shader2D) error) error {
@@ -881,7 +879,7 @@ func (s *array2D) AppendShaderBody(b []byte) []byte {
 	// o is neighbor offset direction (which neighboring tile is closest in 3 directions)
 	// s is scaling factors in 3 directions.
 	// rid is the neighboring tile index, which is then corrected for limited repetition using clamp.
-	body := fmt.Sprintf(`
+	b = fmt.Appendf(b, `
 vec2 s = vec2(%f,%f);
 vec2 n = vec2(%d.,%d.);
 vec2 minlim = vec2(0.,0.);
@@ -899,9 +897,7 @@ for( int i=0; i<2; i++ )
 }
 return d;`, s.d.X, s.d.Y,
 		s.nx-1, s.ny-1,
-		largenum, sdf,
-	)
-	b = append(b, body...)
+		largenum, sdf)
 	return b
 }
 func (u *array2D) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {

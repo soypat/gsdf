@@ -497,11 +497,11 @@ type array struct {
 }
 
 func (u *array) Bounds() ms3.Box {
+	// TODO(soypat): use more accurate algorithm for bounds calculation.
+	sbb := u.s.Bounds()
 	size := ms3.MulElem(u.nvec3(), u.d)
-	bb := ms3.Box{Max: size}
-	halfd := ms3.Scale(0.5, u.d)
-	offset := ms3.Sub(halfd, size)
-	return bb.Add(offset)
+	sbb.Max = ms3.Add(sbb.Max, size)
+	return sbb
 }
 
 func (s *array) ForEachChild(userData any, fn func(userData any, s *glbuild.Shader3D) error) error {
