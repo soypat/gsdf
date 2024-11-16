@@ -1,8 +1,6 @@
 package gsdf
 
 import (
-	"errors"
-
 	"github.com/chewxy/math32"
 	"github.com/soypat/glgl/math/ms3"
 	"github.com/soypat/gsdf/glbuild"
@@ -10,18 +8,15 @@ import (
 
 // NewBoundsBoxFrame creates a BoxFrame from a bb ([ms3.Box]) such that the BoxFrame envelops the bb.
 // Useful for debugging bounding boxes of [glbuild.Shader3D] primitives and operations.
-func NewBoundsBoxFrame(bb ms3.Box) (glbuild.Shader3D, error) {
+func (bld *Builder) NewBoundsBoxFrame(bb ms3.Box) glbuild.Shader3D {
 	size := bb.Size()
 	frameThickness := size.Max() / 256
 	// Bounding box's frames protrude.
 	size = ms3.AddScalar(2*frameThickness, size)
-	bounding, err := NewBoxFrame(size.X, size.Y, size.Z, frameThickness)
-	if err != nil {
-		return nil, err
-	}
+	bounding := bld.NewBoxFrame(size.X, size.Y, size.Z, frameThickness)
 	center := bb.Center()
-	bounding = Translate(bounding, center.X, center.Y, center.Z)
-	return bounding, nil
+	bounding = bld.Translate(bounding, center.X, center.Y, center.Z)
+	return bounding
 }
 
 type sphere struct {
@@ -29,12 +24,12 @@ type sphere struct {
 }
 
 // NewSphere creates a sphere centered at the origin of radius r.
-func NewSphere(r float32) (glbuild.Shader3D, error) {
+func (bld *Builder) NewSphere(r float32) glbuild.Shader3D {
 	valid := r > 0
 	if !valid {
-		return nil, errors.New("zero or negative sphere radius")
+		bld.shapeErrorf("zero or negative sphere radius")
 	}
-	return &sphere{r: r}, nil
+	return &sphere{r: r}
 }
 
 func (s *sphere) ForEachChild(userData any, fn func(userData any, s *glbuild.Shader3D) error) error {
@@ -66,13 +61,14 @@ func (s *sphere) Bounds() ms3.Box {
 }
 
 // NewBox creates a box centered at the origin with x,y,z dimensions and a rounding parameter to round edges.
-func NewBox(x, y, z, round float32) (glbuild.Shader3D, error) {
+func (bld *Builder) NewBox(x, y, z, round float32) glbuild.Shader3D {
 	if round < 0 || round > x/2 || round > y/2 || round > z/2 {
-		return nil, errors.New("invalid box rounding value")
-	} else if x <= 0 || y <= 0 || z <= 0 {
-		return nil, errors.New("zero or negative box dimension")
+		bld.shapeErrorf("invalid box rounding value")
 	}
-	return &box{dims: ms3.Vec{X: x, Y: y, Z: z}, round: round}, nil
+	if x <= 0 || y <= 0 || z <= 0 {
+		bld.shapeErrorf("zero or negative box dimension")
+	}
+	return &box{dims: ms3.Vec{X: x, Y: y, Z: z}, round: round}
 }
 
 type box struct {
@@ -110,15 +106,16 @@ func (s *box) Bounds() ms3.Box {
 
 // NewCylinder creates a cylinder centered at the origin with given radius and height.
 // The cylinder's axis points in z direction.
-func NewCylinder(r, h, rounding float32) (glbuild.Shader3D, error) {
+func (bld *Builder) NewCylinder(r, h, rounding float32) glbuild.Shader3D {
 	okRounding := rounding >= 0 && rounding < r && rounding < h/2
 	if !okRounding {
-		return nil, errors.New("invalid cylinder rounding")
+		bld.shapeErrorf("invalid cylinder rounding")
 	}
-	if r > 0 && h > 0 {
-		return &cylinder{r: r, h: h, round: rounding}, nil
+	okDim := r > 0 && h > 0
+	if !okDim {
+		bld.shapeErrorf("bad cylinder dimension")
 	}
-	return nil, errors.New("bad cylinder dimension")
+	return &cylinder{r: r, h: h, round: rounding}
 }
 
 type cylinder struct {
@@ -170,11 +167,11 @@ func (u *cylinder) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild
 
 // NewHexagonalPrism creates a hexagonal prism given a face-to-face dimension and height.
 // The hexagon's length is in the z axis.
-func NewHexagonalPrism(face2Face, h float32) (glbuild.Shader3D, error) {
+func (bld *Builder) NewHexagonalPrism(face2Face, h float32) glbuild.Shader3D {
 	if face2Face <= 0 || h <= 0 {
-		return nil, errors.New("invalid hexagonal prism parameter")
+		bld.shapeErrorf("invalid hexagonal prism parameter")
 	}
-	return &hex{side: face2Face, h: h}, nil
+	return &hex{side: face2Face, h: h}
 }
 
 type hex struct {
@@ -220,15 +217,13 @@ func (u *hex) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.Shad
 
 // NewTriangularPrism creates a 3D triangular prism with a given triangle cross-sectional height (2D)
 // and a extrude length. The prism's extrude axis is in the z axis direction.
-func NewTriangularPrism(triHeight, extrudeLength float32) (glbuild.Shader3D, error) {
-	if extrudeLength > 0 && !math32.IsInf(extrudeLength, 1) {
-		tri, err := NewEquilateralTriangle(triHeight)
-		if err != nil {
-			return nil, err
-		}
-		return Extrude(tri, extrudeLength)
+func (bld *Builder) NewTriangularPrism(triHeight, extrudeLength float32) glbuild.Shader3D {
+	okExtrude := extrudeLength > 0 && !math32.IsInf(extrudeLength, 1)
+	if !okExtrude {
+		bld.shapeErrorf("bad triangular prism extrude length")
 	}
-	return nil, errors.New("bad triangular prism extrude length")
+	tri := bld.NewEquilateralTriangle(triHeight)
+	return bld.Extrude(tri, extrudeLength)
 }
 
 type torus struct {
@@ -240,13 +235,14 @@ type torus struct {
 // If the radius were cut and stretched straight to form a cylinder the lesser
 // radius would be the radius of the cylinder.
 // The torus' axis is in the z axis.
-func NewTorus(greaterRadius, lesserRadius float32) (glbuild.Shader3D, error) {
+func (bld *Builder) NewTorus(greaterRadius, lesserRadius float32) glbuild.Shader3D {
 	if greaterRadius < 2*lesserRadius {
-		return nil, errors.New("too large torus lesser radius")
-	} else if greaterRadius <= 0 || lesserRadius <= 0 {
-		return nil, errors.New("invalid torus parameter")
+		bld.shapeErrorf("too large torus lesser radius")
 	}
-	return &torus{rLesser: lesserRadius, rGreater: greaterRadius}, nil
+	if greaterRadius <= 0 || lesserRadius <= 0 {
+		bld.shapeErrorf("invalid torus parameter")
+	}
+	return &torus{rLesser: lesserRadius, rGreater: greaterRadius}
 }
 
 func (s *torus) ForEachChild(userData any, fn func(userData any, s *glbuild.Shader3D) error) error {
@@ -283,16 +279,16 @@ func (u *torus) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.Sh
 }
 
 // NewBoxFrame creates a framed box with the frame being composed of square beams of thickness e.
-func NewBoxFrame(dimX, dimY, dimZ, e float32) (glbuild.Shader3D, error) {
+func (bld *Builder) NewBoxFrame(dimX, dimY, dimZ, e float32) glbuild.Shader3D {
 	e /= 2
 	if dimX <= 0 || dimY <= 0 || dimZ <= 0 || e <= 0 {
-		return nil, errors.New("negative or zero BoxFrame dimension")
+		bld.shapeErrorf("negative or zero BoxFrame dimension")
 	}
 	d := ms3.Vec{X: dimX, Y: dimY, Z: dimZ}
 	if 2*e > d.Min() {
-		return nil, errors.New("BoxFrame edge thickness too large")
+		bld.shapeErrorf("BoxFrame edge thickness too large")
 	}
-	return &boxframe{dims: d, e: e}, nil
+	return &boxframe{dims: d, e: e}
 }
 
 type boxframe struct {

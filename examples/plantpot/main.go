@@ -30,7 +30,7 @@ func init() {
 }
 
 // scenePotBase returns the plant pot base object.
-func scenePotBase() (glbuild.Shader3D, error) {
+func scenePotBase(bld *gsdf.Builder) (glbuild.Shader3D, error) {
 	const (
 		baseHeight         = 10.
 		baseInclinationDeg = 45.
@@ -51,10 +51,8 @@ func scenePotBase() (glbuild.Shader3D, error) {
 	if err != nil {
 		return nil, err
 	}
-	poly2, err := gsdf.NewPolygon(verts)
-	if err != nil {
-		return nil, err
-	}
+	poly2 := bld.NewPolygon(verts)
+
 	sdf, err := gleval.NewCPUSDF2(poly2)
 	if err != nil {
 		return nil, err
@@ -63,7 +61,7 @@ func scenePotBase() (glbuild.Shader3D, error) {
 	if err != nil {
 		return nil, err
 	}
-	return gsdf.Revolve(poly2, 0)
+	return bld.Revolve(poly2, 0), bld.Err()
 }
 
 func run() error {
@@ -76,7 +74,8 @@ func run() error {
 	flag.Float64Var(&resolution, "res", 0, "Set resolution in shape units. Useful for setting the minimum level of detail to a fixed amount for final result. If not set resdiv used [mm/in]")
 	flag.UintVar(&flagResDiv, "resdiv", 350, "Set resolution in bounding box diagonal divisions. Useful for prototyping when constant speed of rendering is desired.")
 	flag.Parse()
-	object, err := scenePotBase()
+	var bld gsdf.Builder
+	object, err := scenePotBase(&bld)
 	if err != nil {
 		return err
 	}

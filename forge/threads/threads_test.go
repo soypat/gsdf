@@ -5,8 +5,11 @@ import (
 	"testing"
 
 	"github.com/soypat/glgl/math/ms2"
+	"github.com/soypat/gsdf"
 	"github.com/soypat/gsdf/gleval"
 )
+
+var bld gsdf.Builder
 
 func TestScrew(t *testing.T) {
 	iso := ISO{ // Negative normal.
@@ -14,7 +17,7 @@ func TestScrew(t *testing.T) {
 		P:   0.1,
 		Ext: true,
 	}
-	shape, err := iso.Thread()
+	shape, err := iso.Thread(&bld)
 	if err != nil {
 		t.Fatal(err)
 	}

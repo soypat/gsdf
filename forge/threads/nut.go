@@ -38,7 +38,7 @@ type NutParams struct {
 }
 
 // Nut returns a simple nut suitable for 3d printing.
-func Nut(k NutParams) (s glbuild.Shader3D, err error) {
+func Nut(bld *gsdf.Builder, k NutParams) (s glbuild.Shader3D, err error) {
 	switch {
 	case k.Thread == nil:
 		err = errors.New("nil threader")
@@ -59,11 +59,11 @@ func Nut(k NutParams) (s glbuild.Shader3D, err error) {
 	}
 	switch k.Style {
 	case NutHex:
-		nut, err = HexHead(nr, nh, true, true)
+		nut, err = HexHead(bld, nr, nh, true, true)
 	case NutKnurl:
-		nut, err = KnurledHead(nr, nh, nr*0.25)
+		nut, err = KnurledHead(bld, nr, nh, nr*0.25)
 	case NutCircular:
-		nut, err = gsdf.NewCylinder(nr*1.1, nh, 0)
+		nut = bld.NewCylinder(nr*1.1, nh, 0)
 	default:
 		err = errors.New("passed argument NutStyle not defined for Nut")
 	}
@@ -71,10 +71,10 @@ func Nut(k NutParams) (s glbuild.Shader3D, err error) {
 		return nil, err
 	}
 	// internal thread
-	thread, err := Screw(nh*(1+1e-2), k.Thread)
+	thread, err := Screw(bld, nh*(1+1e-2), k.Thread)
 	if err != nil {
 		return nil, err
 	}
-	return gsdf.Difference(nut, thread), nil
+	return bld.Difference(nut, thread), nil
 
 }

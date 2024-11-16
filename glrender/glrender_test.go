@@ -16,6 +16,8 @@ import (
 	"github.com/soypat/gsdf/gleval"
 )
 
+var bld gsdf.Builder
+
 func TestDualRender(t *testing.T) {
 	const (
 		shapeDim = 1.0
@@ -23,7 +25,7 @@ func TestDualRender(t *testing.T) {
 		res      = shapeDim / divs
 	)
 
-	shape, _ := gsdf.NewSphere(shapeDim)
+	shape := bld.NewSphere(shapeDim)
 	shape = makeBolt(t)
 	sdf, err := gleval.NewCPUSDF3(shape)
 	if err != nil {
@@ -57,7 +59,7 @@ func TestMinecraftRender(t *testing.T) {
 		res       = shapeDim / divs
 		bbOff     = 0 * -res / 2 //res / 2
 	)
-	shape, _ := gsdf.NewSphere(shapeDim)
+	shape := bld.NewSphere(shapeDim)
 	shape = glbuild.OverloadShader3DBounds(shape, shape.Bounds())
 	sdf, err := gleval.NewCPUSDF3(shape)
 	if err != nil {
@@ -80,7 +82,7 @@ func TestMinecraftRender(t *testing.T) {
 func TestSphereMarchingTriangles(t *testing.T) {
 	const r = 1.0
 	const bufsize = 1 << 12
-	obj, _ := gsdf.NewSphere(r)
+	obj := bld.NewSphere(r)
 	sdf, err := gleval.NewCPUSDF3(obj)
 	if err != nil {
 		t.Fatal(err)
@@ -102,7 +104,7 @@ func TestOctree(t *testing.T) {
 	const r = 1.0 // 1.01
 	// A larger Octree Positional buffer and a smaller RenderAll triangle buffer cause bug.
 	const bufsize = 1 << 12
-	obj, _ := gsdf.NewSphere(r)
+	obj := bld.NewSphere(r)
 	sdf, err := gleval.NewCPUSDF3(obj)
 	if err != nil {
 		t.Fatal(err)
@@ -157,7 +159,7 @@ func TestRenderImage(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	s, _ := gsdf.NewCircle(0.5)
+	s := bld.NewCircle(0.5)
 	sdf, err := gleval.NewCPUSDF2(s)
 	if err != nil {
 		t.Fatal(err)
@@ -215,18 +217,15 @@ func levelsVisual(filename string, startCube icube, targetLvl int, origin ms3.Ve
 		i++
 	}
 	cubes = cubes[i:]
-	bb, _ := gsdf.NewBoundsBoxFrame(topBB)
-	s, _ := gsdf.NewSphere(res)
-	s = gsdf.Translate(s, origin.X, origin.Y, origin.Z)
-	s = gsdf.Union(bb, s)
+	bb := bld.NewBoundsBoxFrame(topBB)
+	s := bld.NewSphere(res)
+	s = bld.Translate(s, origin.X, origin.Y, origin.Z)
+	s = bld.Union(bb, s)
 	for _, c := range cubes {
-		bb, err := gsdf.NewBoundsBoxFrame(c.box(origin, c.size(res)))
-		if err != nil {
-			panic(err)
-		}
-		s = gsdf.Union(s, bb)
+		bb := bld.NewBoundsBoxFrame(c.box(origin, c.size(res)))
+		s = bld.Union(s, bb)
 	}
-	s = gsdf.Scale(s, 0.5/s.Bounds().Size().Max())
+	s = bld.Scale(s, 0.5/s.Bounds().Size().Max())
 	glbuild.ShortenNames3D(&s, 8)
 	prog := glbuild.NewDefaultProgrammer()
 	fp, err := os.Create(filename)
@@ -245,7 +244,7 @@ func levelsVisual(filename string, startCube icube, targetLvl int, origin ms3.Ve
 func makeBolt(t *testing.T) glbuild.Shader3D {
 	const L, shank = 8, 3
 	threader := threads.ISO{D: 3, P: 0.5, Ext: true}
-	M3, err := threads.Bolt(threads.BoltParams{
+	M3, err := threads.Bolt(&bld, threads.BoltParams{
 		Thread:      threader,
 		Style:       threads.NutHex,
 		TotalLength: L + shank,
@@ -254,9 +253,6 @@ func makeBolt(t *testing.T) glbuild.Shader3D {
 	if err != nil {
 		t.Fatal(err)
 	}
-	M3, err = gsdf.Rotate(M3, 2.5*math.Pi/2, ms3.Vec{X: 1, Z: 0.1})
-	if err != nil {
-		t.Fatal(err)
-	}
+	M3 = bld.Rotate(M3, 2.5*math.Pi/2, ms3.Vec{X: 1, Z: 0.1})
 	return M3
 }

@@ -218,7 +218,7 @@ func (oc *Octree) done() bool {
 }
 
 // DebugVisual not guaranteed to stay.
-func (oc *Octree) debugVisual(filename string, lvlDescent int, merge glbuild.Shader3D) error {
+func (oc *Octree) debugVisual(filename string, lvlDescent int, merge glbuild.Shader3D, bld *gsdf.Builder) error {
 	if lvlDescent > 3 {
 		return errors.New("too large level descent")
 	}
@@ -241,21 +241,18 @@ func (oc *Octree) debugVisual(filename string, lvlDescent int, merge glbuild.Sha
 		i++
 	}
 	cubes = cubes[i:]
-	bb, _ := gsdf.NewBoundsBoxFrame(topBB)
-	s, _ := gsdf.NewSphere(res / 2)
-	s = gsdf.Translate(s, origin.X, origin.Y, origin.Z)
-	s = gsdf.Union(s, bb)
+	bb := bld.NewBoundsBoxFrame(topBB)
+	s := bld.NewSphere(res / 2)
+	s = bld.Translate(s, origin.X, origin.Y, origin.Z)
+	s = bld.Union(s, bb)
 	if merge != nil {
-		s = gsdf.Union(s, merge)
+		s = bld.Union(s, merge)
 	}
 	for _, c := range cubes {
-		bb, err := gsdf.NewBoundsBoxFrame(c.box(origin, c.size(res)))
-		if err != nil {
-			return err
-		}
-		s = gsdf.Union(s, bb)
+		bb := bld.NewBoundsBoxFrame(c.box(origin, c.size(res)))
+		s = bld.Union(s, bb)
 	}
-	s = gsdf.Scale(s, 0.5/s.Bounds().Size().Max())
+	s = bld.Scale(s, 0.5/s.Bounds().Size().Max())
 	glbuild.ShortenNames3D(&s, 8)
 	prog := glbuild.NewDefaultProgrammer()
 	fp, err := os.Create(filename)

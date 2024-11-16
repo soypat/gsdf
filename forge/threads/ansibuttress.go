@@ -24,7 +24,7 @@ func (butt ANSIButtress) ThreadParams() Parameters {
 // https://en.wikipedia.org/wiki/Buttress_thread
 // ASME B1.9-1973
 // radius is radius of thread. pitch is thread-to-thread distance.
-func (ansi ANSIButtress) Thread() (glbuild.Shader2D, error) {
+func (ansi ANSIButtress) Thread(bld *gsdf.Builder) (glbuild.Shader2D, error) {
 	radius := ansi.D / 2
 	t0 := math.Tan(45.0 * math.Pi / 180)
 	t1 := math.Tan(7.0 * math.Pi / 180)
@@ -47,5 +47,5 @@ func (ansi ANSIButtress) Thread() (glbuild.Shader2D, error) {
 	if err != nil {
 		return nil, err
 	}
-	return gsdf.NewPolygon(verts)
+	return bld.NewPolygon(verts), nil
 }

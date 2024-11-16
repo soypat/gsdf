@@ -17,10 +17,10 @@ func init() {
 }
 
 // scene generates the 3D object for rendering.
-func scene() (glbuild.Shader3D, error) {
+func scene(bld *gsdf.Builder) (glbuild.Shader3D, error) {
 	const L, shank = 8, 3
 	threader := threads.ISO{D: 3, P: 0.5, Ext: true}
-	M3, err := threads.Bolt(threads.BoltParams{
+	M3, err := threads.Bolt(bld, threads.BoltParams{
 		Thread:      threader,
 		Style:       threads.NutHex,
 		TotalLength: L + shank,
@@ -29,13 +29,14 @@ func scene() (glbuild.Shader3D, error) {
 	if err != nil {
 		return nil, err
 	}
-	M3, _ = gsdf.Rotate(M3, 2.5*math.Pi/2, ms3.Vec{X: 1, Z: 0.1})
-	return M3, nil
+	M3 = bld.Rotate(M3, 2.5*math.Pi/2, ms3.Vec{X: 1, Z: 0.1})
+	return M3, bld.Err()
 }
 
 func main() {
-	shape, err := scene()
-	shape = gsdf.Scale(shape, 0.3)
+	var bld gsdf.Builder
+	shape, err := scene(&bld)
+	shape = bld.Scale(shape, 0.3)
 	if err != nil {
 		log.Fatal("creating scene:", err)
 	}

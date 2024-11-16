@@ -2,6 +2,8 @@ package gsdf
 
 import (
 	_ "embed"
+	"errors"
+	"fmt"
 
 	"github.com/chewxy/math32"
 	"github.com/soypat/glgl/math/ms2"
@@ -18,6 +20,32 @@ const (
 	// such as lengths used for normalization or transformation matrix determinants.
 	epstol = 6e-7
 )
+
+// Builder wraps all SDF primitive and operation logic generation.
+// Provides error handling strategies with panics or error accumulation during shape generation.
+type Builder struct {
+	NoDimensionPanic bool
+	accumErrs        []error
+}
+
+func (bld *Builder) Err() error {
+	if len(bld.accumErrs) == 0 {
+		return nil
+	}
+	return errors.Join(bld.accumErrs...)
+}
+
+func (bld *Builder) shapeErrorf(msg string, args ...any) {
+	if !bld.NoDimensionPanic {
+		panic(fmt.Sprintf(msg, args...))
+	}
+	// bld.stacks = append(bld.stacks, string(debug.Stack()))
+	bld.accumErrs = append(bld.accumErrs, fmt.Errorf(msg, args...))
+}
+
+func (*Builder) nilsdf(msg string) {
+	panic("nil SDF argument: " + msg)
+}
 
 // These interfaces are implemented by all SDF interfaces such as SDF3/2 and Shader3D/2D.
 // Using these instead of `any` Aids in catching mistakes at compile time such as passing a Shader3D instead of Shader2D as an argument.

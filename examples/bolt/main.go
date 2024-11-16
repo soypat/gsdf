@@ -23,10 +23,10 @@ func init() {
 }
 
 // scene generates the 3D object for rendering.
-func scene() (glbuild.Shader3D, error) {
+func scene(bld *gsdf.Builder) (glbuild.Shader3D, error) {
 	const L, shank = 8, 3
 	threader := threads.ISO{D: 3, P: 0.5, Ext: true}
-	M3, err := threads.Bolt(threads.BoltParams{
+	M3, err := threads.Bolt(bld, threads.BoltParams{
 		Thread:      threader,
 		Style:       threads.NutHex,
 		TotalLength: L + shank,
@@ -35,8 +35,8 @@ func scene() (glbuild.Shader3D, error) {
 	if err != nil {
 		return nil, err
 	}
-	M3, _ = gsdf.Rotate(M3, 2.5*math.Pi/2, ms3.Vec{X: 1, Z: 0.1})
-	return M3, nil
+	M3 = bld.Rotate(M3, 2.5*math.Pi/2, ms3.Vec{X: 1, Z: 0.1})
+	return M3, bld.Err()
 }
 
 func run() error {
@@ -49,7 +49,8 @@ func run() error {
 	flag.Float64Var(&resolution, "res", 0, "Set resolution in shape units. Useful for setting the minimum level of detail to a fixed amount for final result. If not set resdiv used [mm/in]")
 	flag.UintVar(&flagResDiv, "resdiv", 200, "Set resolution in bounding box diagonal divisions. Useful for prototyping when constant speed of rendering is desired.")
 	flag.Parse()
-	object, err := scene()
+	var bld gsdf.Builder
+	object, err := scene(&bld)
 	if err != nil {
 		return err
 	}

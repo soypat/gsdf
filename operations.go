@@ -1,7 +1,6 @@
 package gsdf
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/chewxy/math32"
@@ -31,14 +30,14 @@ type OpUnion struct {
 
 // Union joins the shapes of several 3D SDFs into one. Is exact.
 // Union aggregates nested Union results into its own. To prevent this behaviour use [OpUnion] directly.
-func Union(shaders ...glbuild.Shader3D) glbuild.Shader3D {
+func (bld *Builder) Union(shaders ...glbuild.Shader3D) glbuild.Shader3D {
 	if len(shaders) < 2 {
 		panic("need at least 2 arguments to Union")
 	}
 	var U OpUnion
 	for i, s := range shaders {
 		if s == nil {
-			panic(fmt.Sprintf("nil %d argument to Union", i))
+			bld.nilsdf(fmt.Sprintf("nil %d argument to Union", i))
 		}
 		if subU, ok := s.(*OpUnion); ok {
 			// Discard nested union elements and join their elements.
@@ -113,9 +112,9 @@ func (u *OpUnion) mustValidate() {
 }
 
 // Difference is the SDF difference of a-b. Does not produce a true SDF.
-func Difference(a, b glbuild.Shader3D) glbuild.Shader3D {
+func (bld *Builder) Difference(a, b glbuild.Shader3D) glbuild.Shader3D {
 	if a == nil || b == nil {
-		panic("nil argument to Difference")
+		bld.nilsdf("Difference")
 	}
 	return &diff{s1: a, s2: b}
 }
@@ -156,9 +155,9 @@ func (u *diff) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.Sha
 }
 
 // Intersection is the SDF intersection of a ^ b. Does not produce an exact SDF.
-func Intersection(a, b glbuild.Shader3D) glbuild.Shader3D {
+func (bld *Builder) Intersection(a, b glbuild.Shader3D) glbuild.Shader3D {
 	if a == nil || b == nil {
-		panic("nil argument to Difference")
+		bld.nilsdf("Intersection")
 	}
 	return &intersect{s1: a, s2: b}
 }
@@ -201,9 +200,9 @@ func (u *intersect) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuil
 }
 
 // Xor is the mutually exclusive boolean operation and results in an exact SDF.
-func Xor(s1, s2 glbuild.Shader3D) glbuild.Shader3D {
+func (bld *Builder) Xor(s1, s2 glbuild.Shader3D) glbuild.Shader3D {
 	if s1 == nil || s2 == nil {
-		panic("nil argument to Xor")
+		bld.nilsdf("nil argument to Xor")
 	}
 	return &xor{s1: s1, s2: s2}
 }
@@ -244,7 +243,7 @@ func (u *xor) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.Shad
 }
 
 // Scale scales s by scaleFactor around the origin.
-func Scale(s glbuild.Shader3D, scaleFactor float32) glbuild.Shader3D {
+func (bld *Builder) Scale(s glbuild.Shader3D, scaleFactor float32) glbuild.Shader3D {
 	return &scale{s: s, scale: scaleFactor}
 }
 
@@ -281,11 +280,10 @@ func (u *scale) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.Sh
 }
 
 // Symmetry reflects the SDF around one or more cartesian planes.
-func Symmetry(s glbuild.Shader3D, mirrorX, mirrorY, mirrorZ bool) glbuild.Shader3D {
+func (bld *Builder) Symmetry(s glbuild.Shader3D, mirrorX, mirrorY, mirrorZ bool) glbuild.Shader3D {
 	if !mirrorX && !mirrorY && !mirrorZ {
-		panic("ineffective symmetry")
+		bld.shapeErrorf("ineffective symmetry")
 	}
-
 	return &symmetry{s: s, xyz: glbuild.NewXYZBits(mirrorX, mirrorY, mirrorZ)}
 }
 
@@ -337,12 +335,12 @@ func (u *symmetry) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild
 
 // Transform applies a 4x4 matrix transformation to the argument shader by
 // inverting the argument matrix.
-func Transform(s glbuild.Shader3D, m ms3.Mat4) (glbuild.Shader3D, error) {
+func (bld *Builder) Transform(s glbuild.Shader3D, m ms3.Mat4) glbuild.Shader3D {
 	det := m.Determinant()
 	if math32.Abs(det) < epstol {
-		return nil, errors.New("singular Mat4")
+		bld.shapeErrorf("singular Mat4")
 	}
-	return &transform{s: s, t: m, tInv: m.Inverse()}, nil
+	return &transform{s: s, t: m, tInv: m.Inverse()}
 }
 
 type transform struct {
@@ -387,16 +385,16 @@ func (u *transform) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuil
 }
 
 // Rotate is the rotation of radians angle around an axis vector.
-func Rotate(s glbuild.Shader3D, radians float32, axis ms3.Vec) (glbuild.Shader3D, error) {
+func (bld *Builder) Rotate(s glbuild.Shader3D, radians float32, axis ms3.Vec) glbuild.Shader3D {
 	if axis == (ms3.Vec{}) {
-		return nil, errors.New("null vector")
+		bld.shapeErrorf("null vector")
 	}
 	T := ms3.RotationMat4(radians, axis)
-	return Transform(s, T)
+	return bld.Transform(s, T)
 }
 
 // Translate moves the SDF s in the given direction (dirX, dirY, dirZ) and returns the result.
-func Translate(s glbuild.Shader3D, dirX, dirY, dirZ float32) glbuild.Shader3D {
+func (bld *Builder) Translate(s glbuild.Shader3D, dirX, dirY, dirZ float32) glbuild.Shader3D {
 	return &translate{s: s, p: ms3.Vec{X: dirX, Y: dirY, Z: dirZ}}
 }
 
@@ -439,7 +437,7 @@ func (u *translate) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuil
 // See [Inigo's youtube video] on the subject.
 //
 // [Inigo's youtube video]: https://www.youtube.com/watch?v=s5NGeUV2EyU
-func Offset(s glbuild.Shader3D, sdfAdd float32) glbuild.Shader3D {
+func (bld *Builder) Offset(s glbuild.Shader3D, sdfAdd float32) glbuild.Shader3D {
 	return &offset{s: s, off: sdfAdd}
 }
 
@@ -481,13 +479,14 @@ func (u *offset) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.S
 }
 
 // Array is the domain repetition operation. It repeats domain centered around the origin (x,y,z)=(0,0,0).
-func Array(s glbuild.Shader3D, spacingX, spacingY, spacingZ float32, nx, ny, nz int) (glbuild.Shader3D, error) {
+func (bld *Builder) Array(s glbuild.Shader3D, spacingX, spacingY, spacingZ float32, nx, ny, nz int) glbuild.Shader3D {
 	if nx <= 0 || ny <= 0 || nz <= 0 {
-		return nil, errors.New("invalid array repeat param")
-	} else if spacingX <= 0 || spacingY <= 0 || spacingZ <= 0 {
-		return nil, errors.New("invalid array spacing")
+		bld.shapeErrorf("invalid array repeat param")
 	}
-	return &array{s: s, d: ms3.Vec{X: spacingX, Y: spacingY, Z: spacingZ}, nx: nx, ny: ny, nz: nz}, nil
+	if spacingX <= 0 || spacingY <= 0 || spacingZ <= 0 {
+		bld.shapeErrorf("invalid array spacing")
+	}
+	return &array{s: s, d: ms3.Vec{X: spacingX, Y: spacingY, Z: spacingZ}, nx: nx, ny: ny, nz: nz}
 }
 
 type array struct {
@@ -555,9 +554,9 @@ func (u *array) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.Sh
 }
 
 // SmoothUnion joins the shapes of two shaders into one with a smoothing blend.
-func SmoothUnion(k float32, s1, s2 glbuild.Shader3D) glbuild.Shader3D {
+func (bld *Builder) SmoothUnion(k float32, s1, s2 glbuild.Shader3D) glbuild.Shader3D {
 	if s1 == nil || s2 == nil {
-		panic("nil object")
+		bld.nilsdf("SmoothUnion")
 	}
 	return &smoothUnion{s1: s1, s2: s2, k: k}
 }
@@ -603,9 +602,9 @@ func (u *smoothUnion) AppendShaderObjects(objects []glbuild.ShaderObject) []glbu
 }
 
 // SmoothDifference performs the difference of two SDFs with a smoothing parameter.
-func SmoothDifference(k float32, s1, s2 glbuild.Shader3D) glbuild.Shader3D {
+func (bld *Builder) SmoothDifference(k float32, s1, s2 glbuild.Shader3D) glbuild.Shader3D {
 	if s1 == nil || s2 == nil {
-		panic("nil object")
+		bld.nilsdf("SmoothDifference")
 	}
 	return &smoothDiff{diff: diff{s1: s1, s2: s2}, k: k}
 }
@@ -635,9 +634,9 @@ return mix( d1, -d2, h ) + k*h*(1.0-h);`...)
 }
 
 // SmoothIntersect performs the intesection of two SDFs with a smoothing parameter.
-func SmoothIntersect(k float32, s1, s2 glbuild.Shader3D) glbuild.Shader3D {
+func (bld *Builder) SmoothIntersect(k float32, s1, s2 glbuild.Shader3D) glbuild.Shader3D {
 	if s1 == nil || s2 == nil {
-		panic("nil object")
+		bld.nilsdf("SmoothIntersect")
 	}
 	return &smoothIntersect{intersect: intersect{s1: s1, s2: s2}, k: k}
 }
@@ -671,7 +670,7 @@ return mix( d2, d1, h ) + k*h*(1.0-h);`...)
 // plane is discarded and replaced with the elongated positive part.
 //
 // Arguments are distances, so zero-valued arguments are no-op.
-func Elongate(s glbuild.Shader3D, dirX, dirY, dirZ float32) glbuild.Shader3D {
+func (bld *Builder) Elongate(s glbuild.Shader3D, dirX, dirY, dirZ float32) glbuild.Shader3D {
 	return &elongate{s: s, h: ms3.Vec{X: dirX, Y: dirY, Z: dirZ}}
 }
 
@@ -715,7 +714,7 @@ func (u *elongate) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild
 }
 
 // Shell carves the interior of the SDF leaving only the exterior shell of the part.
-func Shell(s glbuild.Shader3D, thickness float32) glbuild.Shader3D {
+func (bld *Builder) Shell(s glbuild.Shader3D, thickness float32) glbuild.Shader3D {
 	return &shell{s: s, thick: thickness}
 }
 
@@ -756,15 +755,17 @@ func (u *shell) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.Sh
 // CircularArray is the circular domain repetition operation around the origin (x,y,z)=(0,0,0).
 // It repeats the shape numInstances times and the spacing angle is defined by circleDiv such that angle = 2*pi/circleDiv.
 // The operation is defined this way so that the argument shape is evaluated only twice per circular array evaluation, regardless of instances.
-func CircularArray(s glbuild.Shader3D, numInstances, circleDiv int) (glbuild.Shader3D, error) {
-	if circleDiv <= 1 || numInstances <= 0 {
-		return nil, errors.New("invalid circarray repeat param")
-	} else if s == nil {
-		return nil, errors.New("nil argument to circarray")
-	} else if numInstances > circleDiv {
-		return nil, errors.New("bad circular array instances, must be less than or equal to circleDiv")
+func (bld *Builder) CircularArray(s glbuild.Shader3D, numInstances, circleDiv int) glbuild.Shader3D {
+	if s == nil {
+		bld.nilsdf("nil argument to circarray")
 	}
-	return &circarray{s: s, circleDiv: circleDiv, nInst: numInstances}, nil
+	if circleDiv <= 1 || numInstances <= 0 {
+		bld.shapeErrorf("invalid circarray repeat param")
+	}
+	if numInstances > circleDiv {
+		bld.shapeErrorf("bad circular array instances, must be less than or equal to circleDiv")
+	}
+	return &circarray{s: s, circleDiv: circleDiv, nInst: numInstances}
 }
 
 type circarray struct {

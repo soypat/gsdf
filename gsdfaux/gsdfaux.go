@@ -33,6 +33,7 @@ type RenderConfig struct {
 	// EnableCaching uses [gleval.BlockCachedSDF3] to omit potential evaluations.
 	// Can cut down on times for very complex SDFs, mainly when using CPU.
 	EnableCaching bool
+	builder       *gsdf.Builder
 }
 
 type UIConfig struct {
@@ -52,6 +53,10 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 	if cfg.Resolution <= 0 && !math.IsNaN(cfg.Resolution) && !math.IsInf(cfg.Resolution, 0) {
 		return errors.New("RenderConfig resolution must be positive, non-infinity")
 	}
+	if cfg.builder == nil {
+		cfg.builder = &gsdf.Builder{}
+	}
+	bld := cfg.builder
 	if cfg.STLOutput == nil && cfg.VisualOutput == nil {
 		return errors.New("RenderShader3D requires output parameter in config")
 	}
@@ -143,16 +148,14 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 		const sceneSize = 1.4
 		// We include the bounding box in the visualization.
 		bb := s.Bounds()
-		envelope, err := gsdf.NewBoundsBoxFrame(bb)
-		if err != nil {
-			return err
-		}
-		visual := gsdf.Union(s, envelope)
+		envelope := bld.NewBoundsBoxFrame(bb)
+
+		visual := bld.Union(s, envelope)
 		// Scale size and translate to center so visualization is in camera range.
 		center := bb.Center()
 		sz := bb.Size()
-		visual = gsdf.Translate(visual, center.X, center.Y, center.Z-sz.Z)
-		visual = gsdf.Scale(visual, sceneSize/bb.Diagonal())
+		visual = bld.Translate(visual, center.X, center.Y, center.Z-sz.Z)
+		visual = bld.Scale(visual, sceneSize/bb.Diagonal())
 		var objects []glbuild.ShaderObject
 		_, objects, err = glbuild.NewDefaultProgrammer().WriteShaderToyVisualizerSDF3(cfg.VisualOutput, visual)
 		if err != nil {

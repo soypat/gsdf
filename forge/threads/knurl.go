@@ -25,7 +25,7 @@ type KnurlParams struct {
 }
 
 // Thread implements the Threader interface.
-func (k KnurlParams) Thread() (glbuild.Shader2D, error) {
+func (k KnurlParams) Thread(bld *gsdf.Builder) (glbuild.Shader2D, error) {
 	var knurl ms2.PolygonBuilder
 	knurl.AddXY(k.Pitch/2, 0)
 	knurl.AddXY(k.Pitch/2, k.Radius)
@@ -37,7 +37,7 @@ func (k KnurlParams) Thread() (glbuild.Shader2D, error) {
 	if err != nil {
 		return nil, err
 	}
-	return gsdf.NewPolygon(verts)
+	return bld.NewPolygon(verts), nil
 }
 
 // Parameters implements the Threader interface.
@@ -48,7 +48,7 @@ func (k KnurlParams) ThreadParams() Parameters {
 }
 
 // Knurl returns a knurled cylinder.
-func Knurl(k KnurlParams) (s glbuild.Shader3D, err error) {
+func Knurl(bld *gsdf.Builder, k KnurlParams) (s glbuild.Shader3D, err error) {
 	switch {
 	case k.Length <= 0:
 		return nil, errors.New("zero or negative Knurl length")
@@ -67,21 +67,21 @@ func Knurl(k KnurlParams) (s glbuild.Shader3D, err error) {
 	// Work out the number of starts using the desired helix angle.
 	k.starts = int(2 * math.Pi * k.Radius * math.Tan(k.Theta) / k.Pitch)
 	// create the left/right hand spirals
-	knurl0_3d, err := Screw(k.Length, k)
+	knurl0_3d, err := Screw(bld, k.Length, k)
 	if err != nil {
 		return nil, err
 	}
 	k.starts *= -1
-	knurl1_3d, err := Screw(k.Length, k)
+	knurl1_3d, err := Screw(bld, k.Length, k)
 	if err != nil {
 		return nil, err
 	}
 
-	return gsdf.Intersection(knurl0_3d, knurl1_3d), nil
+	return bld.Intersection(knurl0_3d, knurl1_3d), nil
 }
 
 // KnurledHead returns a generic cylindrical knurled head.
-func KnurledHead(radius float32, height float32, pitch float32) (s glbuild.Shader3D, err error) {
+func KnurledHead(bld *gsdf.Builder, radius float32, height float32, pitch float32) (s glbuild.Shader3D, err error) {
 	cylinderRound := radius * 0.05
 	knurlLength := pitch * math.Floor((height-cylinderRound)/pitch)
 	k := KnurlParams{
@@ -91,15 +91,11 @@ func KnurledHead(radius float32, height float32, pitch float32) (s glbuild.Shade
 		Height: pitch * 0.3,
 		Theta:  45.0 * math.Pi / 180,
 	}
-	knurl, err := Knurl(k)
+	knurl, err := Knurl(bld, k)
 	if err != nil {
 		return s, err
 	}
 
-	cylinder, err := gsdf.NewCylinder(radius, height, cylinderRound)
-	if err != nil {
-		return nil, err
-	}
-
-	return gsdf.Union(cylinder, knurl), nil
+	cylinder := bld.NewCylinder(radius, height, cylinderRound)
+	return bld.Union(cylinder, knurl), nil
 }

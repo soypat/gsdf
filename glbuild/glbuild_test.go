@@ -9,12 +9,14 @@ import (
 	"github.com/soypat/gsdf/glbuild"
 )
 
+var bld gsdf.Builder
+
 func TestShaderNameDeduplication(t *testing.T) {
 	// s1 and s2 are identical in name and body but different primitives.
-	s1, _ := gsdf.NewCylinder(1, 2, 0)
-	s2, _ := gsdf.NewCylinder(1, 2, 0)
-	s1s1 := gsdf.Union(s1, s1)
-	s1s2 := gsdf.Union(s1, s2)
+	s1 := bld.NewCylinder(1, 2, 0)
+	s2 := bld.NewCylinder(1, 2, 0)
+	s1s1 := bld.Union(s1, s1)
+	s1s2 := bld.Union(s1, s2)
 	s1Name := string(s1.AppendShaderName(nil))
 	s2Name := string(s2.AppendShaderName(nil))
 	if s1Name != s2Name {

@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	math "github.com/chewxy/math32"
+	"github.com/soypat/gsdf"
 	"github.com/soypat/gsdf/glbuild"
 )
 
@@ -29,8 +30,8 @@ func (npt NPT) ThreadParams() Parameters {
 	return p
 }
 
-func (npt NPT) Thread() (glbuild.Shader2D, error) {
-	return ISO{D: npt.D, P: 1.0 / npt.TPI}.Thread()
+func (npt NPT) Thread(bld *gsdf.Builder) (glbuild.Shader2D, error) {
+	return ISO{D: npt.D, P: 1.0 / npt.TPI}.Thread(bld)
 }
 
 type nptSpec struct {

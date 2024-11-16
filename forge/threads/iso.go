@@ -34,7 +34,7 @@ func (iso ISO) ThreadParams() Parameters {
 	return b.ThreadParams()
 }
 
-func (iso ISO) Thread() (glbuild.Shader2D, error) {
+func (iso ISO) Thread(bld *gsdf.Builder) (glbuild.Shader2D, error) {
 	radius := iso.D / 2
 	// Trig functions for 30 degrees, the thread angle of ISO.
 	const (
@@ -73,5 +73,5 @@ func (iso ISO) Thread() (glbuild.Shader2D, error) {
 	if err != nil {
 		return nil, err
 	}
-	return gsdf.NewPolygon(vertices)
+	return bld.NewPolygon(vertices), nil
 }

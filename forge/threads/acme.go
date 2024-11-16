@@ -23,7 +23,7 @@ func (acme Acme) ThreadParams() Parameters {
 
 // AcmeThread returns the 2d profile for an acme thread.
 // radius is radius of thread. pitch is thread-to-thread distance.
-func (acme Acme) Thread() (glbuild.Shader2D, error) {
+func (acme Acme) Thread(bld *gsdf.Builder) (glbuild.Shader2D, error) {
 	radius := acme.D / 2
 	h := radius - 0.5*acme.P
 	theta := (29.0 / 2.0) * math.Pi / 180.0
@@ -44,5 +44,5 @@ func (acme Acme) Thread() (glbuild.Shader2D, error) {
 	if err != nil {
 		return nil, err
 	}
-	return gsdf.NewPolygon(verts)
+	return bld.NewPolygon(verts), nil
 }

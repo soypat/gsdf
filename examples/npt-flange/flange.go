@@ -20,7 +20,7 @@ func init() {
 	runtime.LockOSThread() // For when using GPU this is required.
 }
 
-func scene() (glbuild.Shader3D, error) {
+func scene(bld *gsdf.Builder) (glbuild.Shader3D, error) {
 	const (
 		tlen             = 18. / 25.4
 		internalDiameter = 1.5 / 2.
@@ -37,25 +37,25 @@ func scene() (glbuild.Shader3D, error) {
 		return nil, err
 	}
 
-	pipe, _ := threads.Nut(threads.NutParams{
+	pipe, _ := threads.Nut(bld, threads.NutParams{
 		Thread: npt,
 		Style:  threads.NutCircular,
 	})
 
 	// Base plate which goes bolted to joint.
-	flange, _ = gsdf.NewCylinder(flangeD/2, flangeH, flangeH/8)
+	flange = bld.NewCylinder(flangeD/2, flangeH, flangeH/8)
 
 	// Join threaded section with flange.
-	flange = gsdf.Translate(flange, 0, 0, -tlen/2)
-	union := gsdf.SmoothUnion(0.2, pipe, flange)
+	flange = bld.Translate(flange, 0, 0, -tlen/2)
+	union := bld.SmoothUnion(0.2, pipe, flange)
 
 	// Make through-hole in flange bottom. Holes usually done at the end
 	// to avoid smoothing effects covering up desired negative space.
-	hole, _ := gsdf.NewCylinder(internalDiameter/2, 4*flangeH, 0)
-	union = gsdf.Difference(union, hole)
+	hole := bld.NewCylinder(internalDiameter/2, 4*flangeH, 0)
+	union = bld.Difference(union, hole)
 	// Convert from imperial inches units to millimeter:
-	union = gsdf.Scale(union, 25.4)
-	return union, nil
+	union = bld.Scale(union, 25.4)
+	return union, bld.Err()
 }
 
 func run() error {
@@ -68,7 +68,8 @@ func run() error {
 	flag.Float64Var(&resolution, "res", 0, "Set resolution in shape units. Useful for setting the minimum level of detail to a fixed amount for final result. If not set resdiv used [mm/in]")
 	flag.UintVar(&flagResDiv, "resdiv", 200, "Set resolution in bounding box diagonal divisions. Useful for prototyping when constant speed of rendering is desired.")
 	flag.Parse()
-	object, err := scene()
+	var bld gsdf.Builder
+	object, err := scene(&bld)
 	if err != nil {
 		return err
 	}

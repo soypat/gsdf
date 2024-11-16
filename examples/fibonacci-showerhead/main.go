@@ -27,7 +27,7 @@ func init() {
 }
 
 // scene returns the showerhead object.
-func scene() (glbuild.Shader3D, error) {
+func scene(bld *gsdf.Builder) (glbuild.Shader3D, error) {
 	// Showerhead parameters as defined by showerhead geometry.
 	const (
 		threadExtDiameter = 65.
@@ -49,7 +49,7 @@ func scene() (glbuild.Shader3D, error) {
 			P: threadPitch,
 		}
 	)
-	t2d, err := showerThread.Thread()
+	t2d, err := showerThread.Thread(bld)
 	if err != nil {
 		return nil, err
 	}
@@ -60,35 +60,31 @@ func scene() (glbuild.Shader3D, error) {
 	var object glbuild.Shader3D
 
 	// startblock := must3.Cylinder(10, threadExtDiameter/2+showerheadWall, 0)
-	knurled, err := threads.KnurledHead(threadExtDiameter/2+showerheadWall, threadheight, 1)
+	knurled, err := threads.KnurledHead(bld, threadExtDiameter/2+showerheadWall, threadheight, 1)
 	if err != nil {
 		return nil, err
 	}
 
-	threads, err := threads.Screw(threadheight+.5, showerThread)
+	threads, err := threads.Screw(bld, threadheight+.5, showerThread)
 	if err != nil {
 		return nil, err
 	}
-	object = gsdf.Difference(knurled, threads)
-
-	base, err := gsdf.NewCylinder(threadExtDiameter/2+showerheadWall, showerheadBaseThick, 0)
-	if err != nil {
-		return nil, err
-	}
-	base = gsdf.Translate(base, 0, 0, -(threadedLength/2 + showerheadBaseThick/2 - 1))
+	object = bld.Difference(knurled, threads)
+	base := bld.NewCylinder(threadExtDiameter/2+showerheadWall, showerheadBaseThick, 0)
+	base = bld.Translate(base, 0, 0, -(threadedLength/2 + showerheadBaseThick/2 - 1))
 
 	// Make showerhead holesSlice with fibonacci spacing.)
-	hole, _ := gsdf.NewCylinder(0.8, showerheadBaseThick*10, 0)
+	hole := bld.NewCylinder(0.8, showerheadBaseThick*10, 0)
 	// Declare Hole accumulator.
 	holes := hole
 	for i := 0; i < 130; i++ {
 		v := fibonacci(i)
-		holes = gsdf.Union(holes, gsdf.Translate(hole, v.X, v.Y, 0))
+		holes = bld.Union(holes, bld.Translate(hole, v.X, v.Y, 0))
 	}
-	base = gsdf.Difference(base, holes)
+	base = bld.Difference(base, holes)
 
-	object = gsdf.Union(object, base)
-	return object, nil
+	object = bld.Union(object, base)
+	return object, bld.Err()
 }
 
 func run() error {
@@ -101,7 +97,8 @@ func run() error {
 	flag.Float64Var(&resolution, "res", 0, "Set resolution in shape units. Useful for setting the minimum level of detail to a fixed amount for final result. If not set resdiv used [mm/in]")
 	flag.UintVar(&flagResDiv, "resdiv", 200, "Set resolution in bounding box diagonal divisions. Useful for prototyping when constant speed of rendering is desired.")
 	flag.Parse()
-	object, err := scene()
+	var bld gsdf.Builder
+	object, err := scene(&bld)
 	if err != nil {
 		return err
 	}

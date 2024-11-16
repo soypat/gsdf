@@ -18,7 +18,7 @@ type BoltParams struct {
 }
 
 // Bolt returns a simple bolt suitable for 3d printing.
-func Bolt(k BoltParams) (s glbuild.Shader3D, err error) {
+func Bolt(bld *gsdf.Builder, k BoltParams) (s glbuild.Shader3D, err error) {
 	switch {
 	case k.Thread == nil:
 		err = errors.New("nil Threader")
@@ -45,34 +45,37 @@ func Bolt(k BoltParams) (s glbuild.Shader3D, err error) {
 	}
 	switch k.Style {
 	case NutHex:
-		head, _ = HexHead(hr, hh, false, true) // Round top side only.
+		head, err = HexHead(bld, hr, hh, false, true) // Round top side only.
 	case NutKnurl:
-		head, _ = KnurledHead(hr, hh, hr*0.25)
+		head, err = KnurledHead(bld, hr, hh, hr*0.25)
 	default:
 		return nil, errors.New("unknown style for bolt: " + k.Style.String())
 	}
-	screwLen := k.TotalLength - k.ShankLength
-	screw, err := Screw(screwLen, k.Thread)
 	if err != nil {
 		return nil, err
 	}
-	shank, err := gsdf.NewCylinder(param.Radius, k.ShankLength, hh*0.08)
+	screwLen := k.TotalLength - k.ShankLength
+	screw, err := Screw(bld, screwLen, k.Thread)
+	if err != nil {
+		return nil, err
+	}
+	shank := bld.NewCylinder(param.Radius, k.ShankLength, hh*0.08)
 	if err != nil {
 		return nil, err
 	}
 	shankOff := k.ShankLength/2 + hh/2
-	shank = gsdf.Translate(shank, 0, 0, shankOff)
-	screw = gsdf.Translate(screw, 0, 0, shankOff+screwLen/2)
+	shank = bld.Translate(shank, 0, 0, shankOff)
+	screw = bld.Translate(screw, 0, 0, shankOff+screwLen/2)
 	// Does not work:
 	// screw, err = chamferedCylinder(screw, 0, 0.5)
 	// if err != nil {
 	// 	return nil, err
 	// }
-	return gsdf.Union(screw, gsdf.SmoothUnion(hh*0.12, shank, head)), nil
+	return bld.Union(screw, bld.SmoothUnion(hh*0.12, shank, head)), nil
 }
 
 // chamferedCylinder intersects a chamfered cylinder with an SDF3.
-func chamferedCylinder(s glbuild.Shader3D, kb, kt float32) (glbuild.Shader3D, error) {
+func chamferedCylinder(bld *gsdf.Builder, s glbuild.Shader3D, kb, kt float32) (glbuild.Shader3D, error) {
 	// get the length and radius from the bounding box
 	bb := s.Bounds()
 	l := bb.Max.Z
@@ -86,13 +89,7 @@ func chamferedCylinder(s glbuild.Shader3D, kb, kt float32) (glbuild.Shader3D, er
 	if err != nil {
 		return nil, err
 	}
-	s2, err := gsdf.NewPolygon(verts)
-	if err != nil {
-		return nil, err
-	}
-	cc, err := gsdf.Revolve(s2, 0)
-	if err != nil {
-		return nil, err
-	}
-	return gsdf.Intersection(s, cc), nil
+	s2 := bld.NewPolygon(verts)
+	cc := bld.Revolve(s2, 0)
+	return bld.Intersection(s, cc), nil
 }

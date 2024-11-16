@@ -88,6 +88,7 @@ func run() error {
 	return nil
 }
 
+var bld = &gsdf.Builder{}
 var programmer = glbuild.NewDefaultProgrammer()
 
 func init() {
@@ -95,7 +96,7 @@ func init() {
 }
 
 var PremadePrimitives = []glbuild.Shader3D{
-	mustShader(threads.Screw(5, threads.ISO{ // Negative normal.
+	mustShader(threads.Screw(bld, 5, threads.ISO{ // Negative normal.
 		D:   1,
 		P:   0.1,
 		Ext: true,
@@ -105,7 +106,7 @@ var npt threads.NPT
 var _ = npt.SetFromNominal(1.0 / 2.0)
 
 var PremadePrimitives2D = []glbuild.Shader2D{
-	mustShader2D(npt.Thread()),
+	mustShader2D(npt.Thread(bld)),
 
 	// mustShader2D(gsdf.NewEllipse(1, 2)), // Ellipse seems to be very sensitive to position.
 }
@@ -199,7 +200,7 @@ func test_stl_generation() error {
 	const filename = "sphere.stl"
 	// A larger Octree Positional buffer and a smaller RenderAll triangle buffer cause bug.
 	const bufsize = 1 << 12
-	obj, _ := gsdf.NewSphere(r)
+	obj := bld.NewSphere(r)
 	sdfgpu := makeGPUSDF3(obj)
 	renderer, err := glrender.NewOctreeRenderer(sdfgpu, r/64, bufsize)
 	if err != nil {
@@ -247,18 +248,18 @@ func test_visualizer_generation() error {
 	const diam = 2 * r
 	const filename = "visual.glsl"
 
-	point1, _ := gsdf.NewSphere(r / 32)
-	point2, _ := gsdf.NewSphere(r / 33)
-	point3, _ := gsdf.NewSphere(r / 35)
-	point4, _ := gsdf.NewSphere(r / 38)
-	zbox, _ := gsdf.NewBox(r/128, r/128, 10*r, r/256)
-	point1 = gsdf.Translate(point1, r, 0, 0)
-	s = gsdf.Union(zbox, point1)
-	s = gsdf.Union(s, gsdf.Translate(point2, 0, r, 0))
-	s = gsdf.Union(s, gsdf.Translate(point3, 0, 0, r))
-	s = gsdf.Union(s, gsdf.Translate(point4, r, r, r))
+	point1 := bld.NewSphere(r / 32)
+	point2 := bld.NewSphere(r / 33)
+	point3 := bld.NewSphere(r / 35)
+	point4 := bld.NewSphere(r / 38)
+	zbox := bld.NewBox(r/128, r/128, 10*r, r/256)
+	point1 = bld.Translate(point1, r, 0, 0)
+	s = bld.Union(zbox, point1)
+	s = bld.Union(s, bld.Translate(point2, 0, r, 0))
+	s = bld.Union(s, bld.Translate(point3, 0, 0, r))
+	s = bld.Union(s, bld.Translate(point4, r, r, r))
 	// A larger Octree Positional buffer and a smaller RenderAll triangle buffer cause bug.
-	shape, err := threads.Screw(0.2, threads.ISO{
+	shape, err := threads.Screw(bld, 0.2, threads.ISO{
 		D:   0.1,
 		P:   0.01,
 		Ext: true,
@@ -266,7 +267,7 @@ func test_visualizer_generation() error {
 	if err != nil {
 		return err
 	}
-	s = gsdf.Union(s, shape)
+	s = bld.Union(s, shape)
 	return visualize(s, filename)
 }
 
@@ -274,10 +275,10 @@ func test_union2D() error {
 	const Nshapes = 32
 	var circles []glbuild.Shader2D
 	for i := 0; i < Nshapes; i++ {
-		c, _ := gsdf.NewCircle(.1)
-		circles = append(circles, gsdf.Translate2D(c, rand.Float32(), rand.Float32()))
+		c := bld.NewCircle(.1)
+		circles = append(circles, bld.Translate2D(c, rand.Float32(), rand.Float32()))
 	}
-	union := gsdf.Union2D(circles...)
+	union := bld.Union2D(circles...)
 	sdfCPU, err := gleval.NewCPUSDF2(union)
 	if err != nil {
 		return err
@@ -309,10 +310,10 @@ func test_union3D() error {
 	const Nshapes = 32
 	var spheres []glbuild.Shader3D
 	for i := 0; i < Nshapes; i++ {
-		c, _ := gsdf.NewSphere(.1)
-		spheres = append(spheres, gsdf.Translate(c, rand.Float32(), rand.Float32(), rand.Float32()))
+		c := bld.NewSphere(.1)
+		spheres = append(spheres, bld.Translate(c, rand.Float32(), rand.Float32(), rand.Float32()))
 	}
-	union := gsdf.Union(spheres...)
+	union := bld.Union(spheres...)
 	sdfCPU, err := gleval.NewCPUSDF3(union)
 	if err != nil {
 		return err
@@ -347,7 +348,7 @@ func test_polygongpu() error {
 		return err
 	}
 
-	poly, err := gsdf.NewPolygon(vecs)
+	poly := bld.NewPolygon(vecs)
 	if err != nil {
 		return err
 	}
@@ -363,19 +364,19 @@ func test_polygongpu() error {
 
 func test_multidisplacegpu() error {
 	const Nshapes = 300
-	circle, _ := gsdf.NewCircle(.2)
+	circle := bld.NewCircle(.2)
 	var displace []ms2.Vec
 	for i := 0; i < Nshapes; i++ {
 		displace = append(displace, ms2.Vec{X: 1 + rand.Float32(), Y: 2 * rand.Float32()})
 	}
 	var sdfs []glbuild.Shader2D
 	for _, vv := range displace {
-		sdf := gsdf.Translate2D(circle, vv.X, vv.Y)
+		sdf := bld.Translate2D(circle, vv.X, vv.Y)
 		sdfs = append(sdfs, sdf)
 	}
 	union := sdfs[0]
 	if len(sdfs) > 1 {
-		union = gsdf.Union2D(sdfs...)
+		union = bld.Union2D(sdfs...)
 	}
 
 	displCPU, err := gsdfaux.MakeGPUSDF2(union)
@@ -406,15 +407,12 @@ func test_linesgpu() error {
 	}
 	var sdfs []glbuild.Shader2D
 	for _, vv := range lines {
-		line, err := gsdf.NewLine2D(vv[0].X, vv[0].Y, vv[1].X, vv[1].Y, width)
-		if err != nil {
-			return err
-		}
+		line := bld.NewLine2D(vv[0].X, vv[0].Y, vv[1].X, vv[1].Y, width)
 		sdfs = append(sdfs, line)
 	}
 	union := sdfs[0]
 	if len(sdfs) > 1 {
-		union = gsdf.Union2D(sdfs...)
+		union = bld.Union2D(sdfs...)
 	}
 
 	linesCPU, err := gsdfaux.MakeGPUSDF2(union)
@@ -479,11 +477,8 @@ func testsdf2(name string, sdfcpu, sdfgpu gleval.SDF2) (err error) {
 // visualize facilitates the SDF visualization.
 func visualize(sdf glbuild.Shader3D, filename string) error {
 	bb := sdf.Bounds()
-	envelope, err := gsdf.NewBoundsBoxFrame(bb)
-	if err != nil {
-		return err
-	}
-	sdf = gsdf.Union(sdf, envelope)
+	envelope := bld.NewBoundsBoxFrame(bb)
+	sdf = bld.Union(sdf, envelope)
 	fp, err := os.Create(filename)
 	if err != nil {
 		return err
@@ -492,7 +487,7 @@ func visualize(sdf glbuild.Shader3D, filename string) error {
 
 	const desiredScale = 2.0
 	diag := ms3.Norm(bb.Size())
-	sdf = gsdf.Scale(sdf, desiredScale/diag)
+	sdf = bld.Scale(sdf, desiredScale/diag)
 	written, ssbos, err := programmer.WriteShaderToyVisualizerSDF3(fp, sdf)
 	if err != nil {
 		return err

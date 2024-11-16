@@ -1,7 +1,6 @@
 package gsdf
 
 import (
-	"errors"
 	"fmt"
 	"math"
 	"strconv"
@@ -19,7 +18,7 @@ type OpUnion2D struct {
 
 // Union joins the shapes of several 2D SDFs into one. Is exact.
 // Union aggregates nested Union results into its own.
-func Union2D(shaders ...glbuild.Shader2D) glbuild.Shader2D {
+func (Builder) Union2D(shaders ...glbuild.Shader2D) glbuild.Shader2D {
 	if len(shaders) < 2 {
 		panic("need at least 2 arguments to Union2D")
 	}
@@ -102,22 +101,22 @@ func (u *OpUnion2D) mustValidate() {
 }
 
 // NewLine2D creates a straight line between (x0,y0) and (x1,y1) with a given thickness.
-func NewLine2D(x0, y0, x1, y1, width float32) (glbuild.Shader2D, error) {
+func (bld *Builder) NewLine2D(x0, y0, x1, y1, width float32) glbuild.Shader2D {
 	hasNaN := math32.IsNaN(x0) || math32.IsNaN(y0) || math32.IsNaN(x1) || math32.IsNaN(y1) || math32.IsNaN(width)
 	if hasNaN {
-		return nil, errors.New("NaN argument to NewLine2D")
+		bld.shapeErrorf("NaN argument to NewLine2D")
 	} else if width < 0 {
-		return nil, errors.New("negative thickness to NewLine2D")
+		bld.shapeErrorf("negative thickness to NewLine2D")
 	}
 	a, b := ms2.Vec{X: x0, Y: y0}, ms2.Vec{X: x1, Y: y1}
 	lineLen := ms2.Norm(ms2.Sub(a, b))
 	if lineLen < width*1e-6 || lineLen < epstol {
 		if width == 0 {
-			return nil, errors.New("infimal line")
+			bld.shapeErrorf("infimal line")
 		}
-		return NewCircle(width / 2)
+		return bld.NewCircle(width / 2)
 	}
-	return &line2D{a: a, b: b, width: width}, nil
+	return &line2D{a: a, b: b, width: width}
 }
 
 type line2D struct {
@@ -158,21 +157,22 @@ func (u *line2D) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.S
 }
 
 // NewLines2D creates sequential straight lines between the argument points.
-func NewLines2D(segments [][2]ms2.Vec, width float32) (glbuild.Shader2D, error) {
+func (bld *Builder) NewLines2D(segments [][2]ms2.Vec, width float32) glbuild.Shader2D {
 	if width < 0 {
-		return nil, errors.New("negative thickness to NewLines2D")
-	} else if len(segments) < 2 {
-		return nil, errors.New("empty or single points")
+		bld.shapeErrorf("negative thickness to NewLines2D")
+	}
+	if len(segments) < 2 {
+		bld.shapeErrorf("empty or single points")
 	}
 	for _, v := range segments[:len(segments)-1] {
 		if v[0] == v[1] {
-			return nil, errors.New("superimposed points in NewLines2D")
+			bld.shapeErrorf("superimposed points in NewLines2D")
 		}
 	}
 	hash := hash2vec2(segments...) + width
 	bufName := []byte("ssboLines2d_")
 	bufName = glbuild.AppendFloat(bufName, 'n', 'p', hash)
-	return &lines2D{points: segments, width: width, bufName: bufName, hash: hash}, nil
+	return &lines2D{points: segments, width: width, bufName: bufName, hash: hash}
 }
 
 type lines2D struct {
@@ -235,16 +235,17 @@ func (u *lines2D) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.
 
 // NewArc returns a 2D arc centered at the origin (x,y)=(0,0) for a given radius and arc angle and thickness of the arc.
 // The arc begins opening at (x,y)=(0,r) in both positive and negative x direction.
-func NewArc(radius, arcAngle, thick float32) (glbuild.Shader2D, error) {
+func (bld *Builder) NewArc(radius, arcAngle, thick float32) glbuild.Shader2D {
 	ok := radius > 0 && arcAngle > 0 && thick >= 0
 	if !ok {
-		return nil, errors.New("invalid argument to NewArc2D")
-	} else if arcAngle > 2*math.Pi {
-		return nil, errors.New("arc angle exceeds full circle")
+		bld.shapeErrorf("invalid argument to NewArc2D")
+	}
+	if arcAngle > 2*math.Pi {
+		bld.shapeErrorf("arc angle exceeds full circle")
 	} else if 2*math.Pi-arcAngle < epstol {
 		arcAngle = 2*math.Pi - 1e-7 // Condition the arc to be closed.
 	}
-	return &arc2D{radius: radius, angle: arcAngle, thick: thick}, nil
+	return &arc2D{radius: radius, angle: arcAngle, thick: thick}
 }
 
 type arc2D struct {
@@ -291,11 +292,12 @@ type circle2D struct {
 }
 
 // NewCircle creates a circle of a radius centered at the origin (x,y)=(0,0).
-func NewCircle(radius float32) (glbuild.Shader2D, error) {
-	if radius > 0 && !math32.IsInf(radius, 1) {
-		return &circle2D{r: radius}, nil
+func (bld *Builder) NewCircle(radius float32) glbuild.Shader2D {
+	okRadius := radius > 0 && !math32.IsInf(radius, 1)
+	if !okRadius {
+		bld.shapeErrorf("bad circle radius: " + strconv.FormatFloat(float64(radius), 'g', 6, 32))
 	}
-	return nil, errors.New("bad circle radius: " + strconv.FormatFloat(float64(radius), 'g', 6, 32))
+	return &circle2D{r: radius}
 }
 
 func (c *circle2D) Bounds() ms2.Box {
@@ -328,11 +330,12 @@ type equilateralTri2d struct {
 }
 
 // NewEquilateralTriangle creates an equilater triangle with a given height with it's centroid located at the origin.
-func NewEquilateralTriangle(triangleHeight float32) (glbuild.Shader2D, error) {
-	if triangleHeight > 0 && !math32.IsInf(triangleHeight, 1) {
-		return &equilateralTri2d{hTri: triangleHeight}, nil
+func (bld *Builder) NewEquilateralTriangle(triangleHeight float32) glbuild.Shader2D {
+	okTri := triangleHeight > 0 && !math32.IsInf(triangleHeight, 1)
+	if !okTri {
+		bld.shapeErrorf("bad equilateral triangle height")
 	}
-	return nil, errors.New("bad equilateral triangle height")
+	return &equilateralTri2d{hTri: triangleHeight}
 }
 
 func (t *equilateralTri2d) Bounds() ms2.Box {
@@ -376,11 +379,12 @@ type rect2D struct {
 }
 
 // NewRectangle creates a rectangle centered at (x,y)=(0,0) with given x and y dimensions.
-func NewRectangle(x, y float32) (glbuild.Shader2D, error) {
-	if x > 0 && y > 0 && !math32.IsInf(x, 1) && !math32.IsInf(y, 1) {
-		return &rect2D{d: ms2.Vec{X: x, Y: y}}, nil
+func (bld *Builder) NewRectangle(x, y float32) glbuild.Shader2D {
+	okRect := x > 0 && y > 0 && !math32.IsInf(x, 1) && !math32.IsInf(y, 1)
+	if !okRect {
+		bld.shapeErrorf("bad rectangle dimension")
 	}
-	return nil, errors.New("bad rectangle dimension")
+	return &rect2D{d: ms2.Vec{X: x, Y: y}}
 }
 
 func (c *rect2D) Bounds() ms2.Box {
@@ -419,11 +423,12 @@ type hex2D struct {
 }
 
 // NewHexagon creates a regular hexagon centered at (x,y)=(0,0) with sides of length `side`.
-func NewHexagon(side float32) (glbuild.Shader2D, error) {
-	if side > 0 && !math32.IsInf(side, 1) {
-		return &hex2D{side: side}, nil
+func (bld *Builder) NewHexagon(side float32) glbuild.Shader2D {
+	okHex := side > 0 && !math32.IsInf(side, 1)
+	if !okHex {
+		bld.shapeErrorf("bad hexagon dimension")
 	}
-	return nil, errors.New("bad hexagon dimension")
+	return &hex2D{side: side}
 }
 
 func (c *hex2D) Bounds() ms2.Box {
@@ -460,11 +465,12 @@ type ellipse2D struct {
 }
 
 // NewEllipse creates a 2D ellipse SDF with a and b ellipse parameters.
-func NewEllipse(a, b float32) (glbuild.Shader2D, error) {
-	if a > 0 && b > 0 && !math32.IsInf(a, 1) && !math32.IsInf(b, 1) {
-		return &ellipse2D{a: a, b: b}, nil
+func (bld *Builder) NewEllipse(a, b float32) glbuild.Shader2D {
+	okEllipse := a > 0 && b > 0 && !math32.IsInf(a, 1) && !math32.IsInf(b, 1)
+	if !okEllipse {
+		bld.shapeErrorf("bad ellipse dimension")
 	}
-	return nil, errors.New("bad ellipse dimension")
+	return &ellipse2D{a: a, b: b}
 }
 
 func (c *ellipse2D) Bounds() ms2.Box {
@@ -531,25 +537,25 @@ type poly2D struct {
 }
 
 // NewPolygon creates a polygon from a set of vertices. The polygon can be self-intersecting.
-func NewPolygon(vertices []ms2.Vec) (glbuild.Shader2D, error) {
+func (bld *Builder) NewPolygon(vertices []ms2.Vec) glbuild.Shader2D {
 	prevIdx := len(vertices) - 1
 	if vertices[0] == vertices[prevIdx] {
 		vertices = vertices[:prevIdx] // Discard last vertex if equal to first (this algorithm closes automatically).
 		prevIdx--
 	}
 	if len(vertices) < 3 {
-		return nil, errors.New("polygon needs at least 3 distinct vertices")
+		bld.shapeErrorf("polygon needs at least 3 distinct vertices")
 	}
 	for i := range vertices {
 		if math32.IsNaN(vertices[i].X) || math32.IsNaN(vertices[i].Y) {
-			return nil, errors.New("NaN value in vertices")
+			bld.shapeErrorf("NaN value in vertices")
 		}
 		if vertices[i] == vertices[prevIdx] {
-			return nil, errors.New("found two consecutive equal vertices in polygon")
+			bld.shapeErrorf("found two consecutive equal vertices in polygon")
 		}
 		prevIdx = i
 	}
-	return &poly2D{vert: vertices}, nil
+	return &poly2D{vert: vertices}
 }
 
 func (c *poly2D) Bounds() ms2.Box {
@@ -604,13 +610,14 @@ func (u *poly2D) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.S
 }
 
 // Extrude converts a 2D SDF into a 3D extrusion. Extrudes in both positive and negative Z direction, half of h both ways.
-func Extrude(s glbuild.Shader2D, h float32) (glbuild.Shader3D, error) {
+func (bld *Builder) Extrude(s glbuild.Shader2D, h float32) glbuild.Shader3D {
 	if s == nil {
-		panic("nil argument to Extrude")
-	} else if h < 0 {
-		return nil, errors.New("bad extrusion length")
+		bld.nilsdf("Extrude")
 	}
-	return &extrusion{s: s, h: h}, nil
+	if h < 0 {
+		bld.shapeErrorf("bad extrusion length")
+	}
+	return &extrusion{s: s, h: h}
 }
 
 type extrusion struct {
@@ -652,13 +659,14 @@ return min(max(w.x,w.y),0.0) + length(max(w,0.0));`...)
 }
 
 // Revolve revolves a 2D SDF around the y axis, offsetting the axis of revolution by axisOffset.
-func Revolve(s glbuild.Shader2D, axisOffset float32) (glbuild.Shader3D, error) {
+func (bld *Builder) Revolve(s glbuild.Shader2D, axisOffset float32) glbuild.Shader3D {
 	if s == nil {
-		return nil, errors.New("nil argument to Revolve")
-	} else if axisOffset < 0 {
-		return nil, errors.New("negative axis offset")
+		bld.shapeErrorf("nil argument to Revolve")
 	}
-	return &revolution{s2d: s, off: axisOffset}, nil
+	if axisOffset < 0 {
+		bld.shapeErrorf("negative axis offset")
+	}
+	return &revolution{s2d: s, off: axisOffset}
 }
 
 type revolution struct {
@@ -700,9 +708,9 @@ func (r *revolution) AppendShaderBody(b []byte) []byte {
 }
 
 // Difference2D is the SDF difference of a-b. Does not produce a true SDF.
-func Difference2D(a, b glbuild.Shader2D) glbuild.Shader2D {
+func (bld *Builder) Difference2D(a, b glbuild.Shader2D) glbuild.Shader2D {
 	if a == nil || b == nil {
-		panic("nil argument to Difference2D")
+		bld.nilsdf("Difference2D")
 	}
 	return &diff2D{s1: a, s2: b}
 }
@@ -744,9 +752,9 @@ func (u *diff2D) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.S
 }
 
 // Intersection2D is the SDF intersection of a ^ b. Does not produce an exact SDF.
-func Intersection2D(a, b glbuild.Shader2D) glbuild.Shader2D {
+func (bld *Builder) Intersection2D(a, b glbuild.Shader2D) glbuild.Shader2D {
 	if a == nil || b == nil {
-		panic("nil argument to Intersection2D")
+		bld.nilsdf("nil argument to Intersection2D")
 	}
 	return &intersect2D{s1: a, s2: b}
 }
@@ -788,9 +796,9 @@ func (u *intersect2D) AppendShaderObjects(objects []glbuild.ShaderObject) []glbu
 }
 
 // Xor2D is the mutually exclusive boolean operation and results in an exact SDF.
-func Xor2D(s1, s2 glbuild.Shader2D) glbuild.Shader2D {
+func (bld *Builder) Xor2D(s1, s2 glbuild.Shader2D) glbuild.Shader2D {
 	if s1 == nil || s2 == nil {
-		panic("nil argument to Xor2D")
+		bld.nilsdf("Xor2D")
 	}
 	return &xor2D{s1: s1, s2: s2}
 }
@@ -830,14 +838,15 @@ func (u *xor2D) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.Sh
 }
 
 // Array is the domain repetition operation. It repeats domain centered around (x,y)=(0,0).
-func Array2D(s glbuild.Shader2D, spacingX, spacingY float32, nx, ny int) (glbuild.Shader2D, error) {
+func (bld *Builder) Array2D(s glbuild.Shader2D, spacingX, spacingY float32, nx, ny int) glbuild.Shader2D {
 	if nx <= 0 || ny <= 0 {
-		return nil, errors.New("invalid array repeat param")
+		bld.shapeErrorf("invalid array repeat param")
 	}
-	if spacingX > 0 && spacingY > 0 && !math32.IsInf(spacingX, 1) && !math32.IsInf(spacingY, 1) {
-		return &array2D{s: s, d: ms2.Vec{X: spacingX, Y: spacingY}, nx: nx, ny: ny}, nil
+	okArray := spacingX > 0 && spacingY > 0 && !math32.IsInf(spacingX, 1) && !math32.IsInf(spacingY, 1)
+	if !okArray {
+		bld.shapeErrorf("bad array spacing")
 	}
-	return nil, errors.New("bad array spacing")
+	return &array2D{s: s, d: ms2.Vec{X: spacingX, Y: spacingY}, nx: nx, ny: ny}
 }
 
 type array2D struct {
@@ -909,7 +918,7 @@ func (u *array2D) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.
 // See [Inigo's youtube video] on the subject.
 //
 // [Inigo's youtube video]: https://www.youtube.com/watch?v=s5NGeUV2EyU
-func Offset2D(s glbuild.Shader2D, sdfAdd float32) glbuild.Shader2D {
+func (bld *Builder) Offset2D(s glbuild.Shader2D, sdfAdd float32) glbuild.Shader2D {
 	return &offset2D{s: s, f: sdfAdd}
 }
 
@@ -954,7 +963,7 @@ func (u *offset2D) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild
 }
 
 // Translate2D moves the SDF s in the given direction.
-func Translate2D(s glbuild.Shader2D, dirX, dirY float32) glbuild.Shader2D {
+func (bld *Builder) Translate2D(s glbuild.Shader2D, dirX, dirY float32) glbuild.Shader2D {
 	return &translate2D{s: s, p: ms2.Vec{X: dirX, Y: dirY}}
 }
 
@@ -992,17 +1001,17 @@ func (u *translate2D) AppendShaderObjects(objects []glbuild.ShaderObject) []glbu
 }
 
 // Rotate2D returns the argument shape rotated around the origin by theta (radians).
-func Rotate2D(s glbuild.Shader2D, theta float32) (glbuild.Shader2D, error) {
+func (bld *Builder) Rotate2D(s glbuild.Shader2D, theta float32) glbuild.Shader2D {
 	m := ms2.RotationMat2(theta)
 	det := m.Determinant()
 	if math32.Abs(det) < epstol {
-		return nil, errors.New("badly conditioned rotation")
+		bld.shapeErrorf("badly conditioned rotation")
 	}
 	return &rotation2D{
 		s:    s,
 		t:    m,
 		tInv: m.Inverse(),
-	}, nil
+	}
 }
 
 type rotation2D struct {
@@ -1052,11 +1061,10 @@ func (u *rotation2D) AppendShaderObjects(objects []glbuild.ShaderObject) []glbui
 }
 
 // Symmetry reflects the SDF around x or y (or both) axis.
-func Symmetry2D(s glbuild.Shader2D, mirrorX, mirrorY bool) glbuild.Shader2D {
+func (bld *Builder) Symmetry2D(s glbuild.Shader2D, mirrorX, mirrorY bool) glbuild.Shader2D {
 	if !mirrorX && !mirrorY {
-		panic("ineffective symmetry")
+		bld.shapeErrorf("ineffective symmetry")
 	}
-
 	return &symmetry2D{s: s, xy: glbuild.NewXYZBits(mirrorX, mirrorY, false)}
 }
 
@@ -1104,13 +1112,14 @@ func (u *symmetry2D) AppendShaderObjects(objects []glbuild.ShaderObject) []glbui
 }
 
 // Annulus makes a 2D shape annular by emptying it's center. It is the equivalent of the 3D Shell operation but in 2D.
-func Annulus(s glbuild.Shader2D, sub float32) (glbuild.Shader2D, error) {
+func (bld *Builder) Annulus(s glbuild.Shader2D, sub float32) glbuild.Shader2D {
 	if s == nil {
-		return nil, errors.New("nil argument to Annulus")
-	} else if sub <= 0 {
-		return nil, errors.New("invalid annular parameter")
+		bld.nilsdf("Annulus")
 	}
-	return &annulus2D{s: s, r: sub}, nil
+	if sub <= 0 {
+		bld.shapeErrorf("invalid annular parameter")
+	}
+	return &annulus2D{s: s, r: sub}
 }
 
 type annulus2D struct {
@@ -1147,15 +1156,17 @@ func (u *annulus2D) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuil
 // CircularArray2D is the circular domain repetition operation around the origin (x,y)=(0,0).
 // It repeats the shape numInstances times and the spacing angle is defined by circleDiv such that angle = 2*pi/circleDiv.
 // The operation is defined this way so that the argument shape is evaluated only twice per circular array evaluation, regardless of instances.
-func CircularArray2D(s glbuild.Shader2D, numInstances, circleDiv int) (glbuild.Shader2D, error) {
-	if circleDiv <= 1 || numInstances <= 0 {
-		return nil, errors.New("invalid circarray repeat param")
-	} else if s == nil {
-		return nil, errors.New("nil argument to circarray")
-	} else if numInstances > circleDiv {
-		return nil, errors.New("bad circular array instances, must be less than or equal to circleDiv")
+func (bld *Builder) CircularArray2D(s glbuild.Shader2D, numInstances, circleDiv int) glbuild.Shader2D {
+	if s == nil {
+		bld.nilsdf("circarray2D")
 	}
-	return &circarray2D{s: s, circleDiv: circleDiv, nInst: numInstances}, nil
+	if circleDiv <= 1 || numInstances <= 0 {
+		bld.shapeErrorf("invalid circarray repeat param")
+	}
+	if numInstances > circleDiv {
+		bld.shapeErrorf("bad circular array instances, must be less than or equal to circleDiv")
+	}
+	return &circarray2D{s: s, circleDiv: circleDiv, nInst: numInstances}
 }
 
 type circarray2D struct {

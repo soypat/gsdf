@@ -1,6 +1,7 @@
 package threads
 
 import (
+	"github.com/soypat/gsdf"
 	"github.com/soypat/gsdf/glbuild"
 )
 
@@ -25,6 +26,6 @@ func (uts UTS) ThreadParams() Parameters {
 	return p
 }
 
-func (uts UTS) Thread() (glbuild.Shader2D, error) {
-	return ISO{D: uts.D, P: 1.0 / uts.TPI, Ext: uts.Ext}.Thread()
+func (uts UTS) Thread(bld *gsdf.Builder) (glbuild.Shader2D, error) {
+	return ISO{D: uts.D, P: 1.0 / uts.TPI, Ext: uts.Ext}.Thread(bld)
 }

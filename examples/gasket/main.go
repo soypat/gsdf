@@ -27,7 +27,7 @@ func init() {
 }
 
 // scene returns the gasket object.
-func scene() (glbuild.Shader3D, error) {
+func scene(bld *gsdf.Builder) (glbuild.Shader3D, error) {
 	// Sistema Food Storage Container geometry definitions.
 	// The problem we are trying to solve is how the container is not airtight
 	// due to the o-ring not sealing against the lid. We can aid the o-ring
@@ -65,12 +65,9 @@ func scene() (glbuild.Shader3D, error) {
 	if err != nil {
 		return nil, err
 	}
-	poly2, err := gsdf.NewPolygon(verts)
-	if err != nil {
-		return nil, err
-	}
-	poly2 = gsdf.Symmetry2D(poly2, true, true)
-	poly2 = gsdf.Offset2D(poly2, tol)
+	poly2 := bld.NewPolygon(verts)
+	poly2 = bld.Symmetry2D(poly2, true, true)
+	poly2 = bld.Offset2D(poly2, tol)
 	if visualization2D != "" {
 		start := time.Now()
 		sdf, err := gleval.NewCPUSDF2(poly2)
@@ -83,7 +80,7 @@ func scene() (glbuild.Shader3D, error) {
 		}
 		fmt.Println("wrote 2D visualization to", visualization2D, "in", time.Since(start))
 	}
-	return gsdf.Extrude(poly2, gasketHeight)
+	return bld.Extrude(poly2, gasketHeight), bld.Err()
 }
 
 func run() error {
@@ -96,7 +93,8 @@ func run() error {
 	flag.Float64Var(&resolution, "res", 0, "Set resolution in shape units. Useful for setting the minimum level of detail to a fixed amount for final result. If not set resdiv used [mm/in]")
 	flag.UintVar(&flagResDiv, "resdiv", 350, "Set resolution in bounding box diagonal divisions. Useful for prototyping when constant speed of rendering is desired.")
 	flag.Parse()
-	object, err := scene()
+	var bld gsdf.Builder
+	object, err := scene(&bld)
 	if err != nil {
 		return err
 	}

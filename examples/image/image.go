@@ -14,26 +14,21 @@ import (
 const dim = 20
 const filename = "image-example.png"
 
-func scene() (glbuild.Shader2D, error) {
-	s, err := gsdf.NewCircle(dim)
-	if err != nil {
-		return nil, err
-	}
-	poly, err := gsdf.NewPolygon([]ms2.Vec{
+func scene(bld *gsdf.Builder) (glbuild.Shader2D, error) {
+	s := bld.NewCircle(dim)
+	poly := bld.NewPolygon([]ms2.Vec{
 		{X: dim, Y: 0},
 		{X: 3 * dim, Y: dim},
 		{X: 3 * dim, Y: -dim},
 	})
-	if err != nil {
-		return nil, err
-	}
-	s = gsdf.Union2D(s, poly)
-	return s, nil
+	s = bld.Union2D(s, poly)
+	return s, bld.Err()
 }
 
 func main() {
 	useGPU := false
-	s, err := scene()
+	var bld gsdf.Builder
+	s, err := scene(&bld)
 	if err != nil {
 		log.Fatal(err)
 	}

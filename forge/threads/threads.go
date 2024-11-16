@@ -7,6 +7,7 @@ import (
 
 	"github.com/soypat/glgl/math/ms2"
 	"github.com/soypat/glgl/math/ms3"
+	"github.com/soypat/gsdf"
 	"github.com/soypat/gsdf/glbuild"
 	"github.com/soypat/gsdf/gleval"
 )
@@ -25,7 +26,7 @@ import (
 // clearance.
 
 type Threader interface {
-	Thread() (glbuild.Shader2D, error)
+	Thread(bld *gsdf.Builder) (glbuild.Shader2D, error)
 	ThreadParams() Parameters
 }
 
@@ -72,14 +73,14 @@ type screw struct {
 // - thread taper angle (radians)
 // - pitch thread to thread distance
 // - number of thread starts (< 0 for left hand threads)
-func Screw(length float32, thread Threader) (glbuild.Shader3D, error) {
+func Screw(bld *gsdf.Builder, length float32, thread Threader) (glbuild.Shader3D, error) {
 	if thread == nil {
 		return nil, errors.New("nil threader")
 	}
 	if length <= 0 {
 		return nil, errors.New("need greater than zero length")
 	}
-	tsdf, err := thread.Thread()
+	tsdf, err := thread.Thread(bld)
 	if err != nil {
 		return nil, err
 	}

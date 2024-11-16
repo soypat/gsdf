@@ -9,24 +9,24 @@ import (
 	"github.com/soypat/gsdf/gsdfaux"
 )
 
-func scene2d() (glbuild.Shader2D, error) {
-	circle, _ := gsdf.NewCircle(1)
-	hex, _ := gsdf.NewHexagon(1)
-	circle = gsdf.Translate2D(circle, 1, 1)
-	shape := gsdf.Union2D(circle, hex)
-	shape = gsdf.Offset2D(shape, .2)
-	shape, _ = gsdf.Annulus(shape, .3)
+func scene2d(bld *gsdf.Builder) (glbuild.Shader2D, error) {
+	circle := bld.NewCircle(1)
+	hex := bld.NewHexagon(1)
+	circle = bld.Translate2D(circle, 1, 1)
+	shape := bld.Union2D(circle, hex)
+	shape = bld.Offset2D(shape, .2)
+	shape = bld.Annulus(shape, .3)
 
-	shape = gsdf.Translate2D(shape, 3, 0)
-	shape, _ = gsdf.CircularArray2D(shape, 12, 12)
+	shape = bld.Translate2D(shape, 3, 0)
+	shape = bld.CircularArray2D(shape, 12, 12)
 	return shape, nil
 }
 
 // scene generates the 3D object for rendering.
-func scene() (glbuild.Shader3D, error) {
-	mandala, _ := scene2d()
-	shape, _ := gsdf.Extrude(mandala, 1)
-	shape = gsdf.Offset(shape, -.1) // Negative offset does rounding.
+func scene(bld *gsdf.Builder) (glbuild.Shader3D, error) {
+	mandala, _ := scene2d(bld)
+	shape := bld.Extrude(mandala, 1)
+	shape = bld.Offset(shape, -.1) // Negative offset does rounding.
 	return shape, nil
 }
 
@@ -35,8 +35,9 @@ func init() {
 }
 
 func main() {
-	shape, err := scene()
-	shape = gsdf.Scale(shape, 0.3)
+	var bld gsdf.Builder
+	shape, err := scene(&bld)
+	shape = bld.Scale(shape, 0.3)
 	if err != nil {
 		log.Fatal("creating scene:", err)
 	}
