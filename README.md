@@ -7,17 +7,24 @@
 [![sourcegraph](https://sourcegraph.com/github.com/soypat/gsdf/-/badge.svg)](https://sourcegraph.com/github.com/soypat/gsdf?badge)
 
 `gsdf` is a CAD 3D design library for Go that uses SDFs for shape definition. Rendering can be done on GPU or CPU
-for visualization or 3D printing file outputs.
+for visualization or 3D printing file outputs. Quick jump to usage: [bolt example](./examples/bolt/main.go).
 
 All images and shapes in readme were generated using this library.
 
 ![circle](https://github.com/user-attachments/assets/91c99f47-0c52-4cb1-83e7-452b03b69dff)
 ![bolt-example](https://github.com/user-attachments/assets/8da50871-2415-423f-beb3-0d78ad67c79e)
 
+## Requirements
+- [Go](https://go.dev/)
+- **Optional**: See latest requirements on [go-glfw](https://github.com/go-gl/glfw) if using GPU
 
 ## Features
 
+- Extremely coherent API design.
+
 - UI for visualizing parts, rendered directly from shaders. See [UI example](./examples/ui-mandala) by running `go run ./examples/ui-mandala`
+
+- Generate visualization for your parts as shaders.
 
 - GPU and CPU implementations for all shapes and operations. CPU implementations are actually faster for simple parts.
 
@@ -25,12 +32,8 @@ All images and shapes in readme were generated using this library.
 
 - Heapless algorithms for everything. No usage of GC in happy path.
 
-- Generate visualization for your parts as shaders.
-
 - Heapless Octree triangle renderer. Is stupid fast.
     - Design your part using one API, switch between CPU and GPU after design.
-
-- Extremely coherent API design.
 
 - TinyGo supported for CPU evaluation :)
 
@@ -43,14 +46,21 @@ All images and shapes in readme were generated using this library.
 - `forge`: Composed shape generation such as `threads` package for generating screw threads. Engineering applications.
 - `gsdfaux`: High level helper functions to get users started up with `gsdf`. See [examples](./examples).
 
-## Part design - NPT Flange example - 9× GPU speedup
-This was converted from the [original sdf library example](https://github.com/soypat/sdf/blob/main/examples/npt-flange/flange.go).
 
-See working example under [examples](./examples/) directory. Run on GPU with `-gpu` flag: `go run ./examples/npt-flange -gpu`
+# Examples
+Find examples under [examples](./examples/) directory. Run on GPU with: `-gpu` flag.
+
+Most 3D examples output two files:
+- `example-name.glsl`: Visualization shader that can be copy pasted into [shadertoy](https://www.shadertoy.com/new) to visualize the part, or rendered within your editor with an extension such as the [Shader Toy Visual Studio Code extension](https://marketplace.visualstudio.com/items?itemName=stevensona.shader-toy).
+- `example-name.stl`: Triangle model file used in 3D printing software such as [Cura](https://ultimaker.com/software/ultimaker-cura/). Can be visualized online in sites such as [View STL](https://www.viewstl.com/).
+
 
 Output and timings for
 - CPU: 12th Gen Intel i5-12400F (12) @ 4.400GHz
 - GPU: AMD ATI Radeon RX 6800
+
+## npt-flange - 9× GPU speedup
+This was converted from the [original sdf library example](https://github.com/soypat/sdf/blob/main/examples/npt-flange/flange.go).
 
 #### GPU rendering in 1 second. 0.4M triangles
 ```sh
@@ -77,83 +87,10 @@ finished npt-flange example
 go run ./examples/npt-flange -resdiv 400  9,01s user 0,82s system 103% cpu 9,481 total
 ```
 
-GPU rendering is ~40 times faster for the fibonacci-showerhead example.
-
-The result of running the example are two files:
-- `nptflange.glsl`: Visualization shader that can be copy pasted into [shadertoy](https://www.shadertoy.com/new) to visualize the part, or rendered within your editor with an extension such as the [Shader Toy Visual Studio Code extension](https://marketplace.visualstudio.com/items?itemName=stevensona.shader-toy).
-- `nptflange.stl`: Triangle model file used in 3D printing software such as [Cura](https://ultimaker.com/software/ultimaker-cura/). Can be visualized online in sites such as [View STL](https://www.viewstl.com/).
-
-Below is the 3D scene code. Omits rendering pipeline.
-```go
-package main
-
-import (
-	"os"
-	"runtime"
-
-	"github.com/soypat/gsdf"
-	"github.com/soypat/gsdf/forge/threads"
-	"github.com/soypat/gsdf/glbuild"
-	"github.com/soypat/gsdf/gsdfaux"
-)
-
-func init() {
-	runtime.LockOSThread()
-}
-
-func main() {
-	const (
-		tlen             = 18. / 25.4
-		internalDiameter = 1.5 / 2.
-		flangeH          = 7. / 25.4
-		flangeD          = 60. / 25.4
-	)
-
-	var (
-		npt    threads.NPT
-		flange glbuild.Shader3D
-		err    error
-	)
-	err = npt.SetFromNominal(1.0 / 2.0)
-	if err != nil {
-		panic(err)
-	}
-
-	pipe, _ := threads.Nut(threads.NutParams{
-		Thread: npt,
-		Style:  threads.NutCircular,
-	})
-
-	// Base plate which goes bolted to joint.
-	flange, _ = gsdf.NewCylinder(flangeD/2, flangeH, flangeH/8)
-
-	// Join threaded section with flange.
-	flange = gsdf.Translate(flange, 0, 0, -tlen/2)
-	union := gsdf.SmoothUnion(0.2, pipe, flange)
-
-	// Make through-hole in flange bottom. Holes usually done at the end
-	// to avoid smoothing effects covering up desired negative space.
-	hole, _ := gsdf.NewCylinder(internalDiameter/2, 4*flangeH, 0)
-	union = gsdf.Difference(union, hole)
-	// Convert from imperial inches units to millimeter:
-	union = gsdf.Scale(union, 25.4)
-
-	stl, _ := os.Create("for3dprinting.stl")
-	err = gsdfaux.RenderShader3D(union, gsdfaux.RenderConfig{
-		STLOutput:  stl,
-		Resolution: union.Bounds().Diagonal() / 200,
-		UseGPU:     true,
-	})
-	if err != nil {
-		panic(err)
-	}
-}
-```
-
 ![npt-flange-example](https://github.com/user-attachments/assets/32a00926-0a1e-47f0-8b6c-dda940240265)
 
 
-### Fibonacci Showerhead example - 40× GPU speedup
+### fibonacci-showerhead - 40× GPU speedup
 
 Note that the amount of triangles is very similar to the NPT flange example, but the speedup is much more notable due to the complexity of the part.
 
