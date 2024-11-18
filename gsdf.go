@@ -21,13 +21,32 @@ const (
 	epstol = 6e-7
 )
 
+type Flags uint64
+
+const (
+	// FlagNoDimensionPanic controls panicking behavior on invalid shape dimension errors.
+	// If set then these errors do not panic, instead storing the error for later inspection with [Builder.Err].
+	FlagNoDimensionPanic Flags = 1 << iota
+)
+
 // Builder wraps all SDF primitive and operation logic generation.
 // Provides error handling strategies with panics or error accumulation during shape generation.
 type Builder struct {
-	NoDimensionPanic bool
-	accumErrs        []error
+	// flags is a bitfield controlling behaviour of Builder.
+	flags     Flags
+	accumErrs []error
 }
 
+func (bld *Builder) Flags() Flags {
+	return bld.flags
+}
+
+func (bld *Builder) SetFlags(flags Flags) error {
+	bld.flags = flags
+	return nil
+}
+
+// Err returns errors accumulated during SDF primitive creation and operations. The returned error implements `Unwrap() []error`.
 func (bld *Builder) Err() error {
 	if len(bld.accumErrs) == 0 {
 		return nil
@@ -35,8 +54,13 @@ func (bld *Builder) Err() error {
 	return errors.Join(bld.accumErrs...)
 }
 
+// ClearErrors clears accumulated errors such that [Builder.Err] returns nil on next call.
+func (bld *Builder) ClearErrors() {
+	bld.accumErrs = bld.accumErrs[:0]
+}
+
 func (bld *Builder) shapeErrorf(msg string, args ...any) {
-	if !bld.NoDimensionPanic {
+	if bld.flags&FlagNoDimensionPanic == 0 {
 		panic(fmt.Sprintf(msg, args...))
 	}
 	// bld.stacks = append(bld.stacks, string(debug.Stack()))
