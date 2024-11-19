@@ -30,7 +30,6 @@ func TestABC(t *testing.T) {
 		for x := float32(0.0); x < 1; x += 1. / 64 {
 			vx := bz.Evaluate(x, v0, v1, v2, v3)
 			poly.Add(vx)
-
 		}
 	}
 	v, err := poly.AppendVecs(nil)
