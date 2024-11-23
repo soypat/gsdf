@@ -740,9 +740,9 @@ func (s *diff2D) AppendShaderName(b []byte) []byte {
 }
 
 func (s *diff2D) AppendShaderBody(b []byte) []byte {
-	b = append(b, "return max(-"...)
+	b = append(b, "return max("...)
 	b = s.s1.AppendShaderName(b)
-	b = append(b, "(p),"...)
+	b = append(b, "(p),-"...)
 	b = s.s2.AppendShaderName(b)
 	b = append(b, "(p));"...)
 	return b
