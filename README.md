@@ -43,7 +43,9 @@ All images and shapes in readme were generated using this library.
 - `glbuild`: Automatic shader generation interfaces and logic.
 - `gleval`: SDF evaluation interfaces and facilities, both CPU and GPU bound.
 - `glrender`: Triangle rendering logic which consumes gleval. STL generation.
-- `forge`: Composed shape generation such as `threads` package for generating screw threads. Engineering applications.
+- `forge`: Engineering applications. Composed of subpackages.
+    - `textsdf` package for text generation.
+    - `threads` package for generating screw threads.
 - `gsdfaux`: High level helper functions to get users started up with `gsdf`. See [examples](./examples).
 
 
@@ -126,3 +128,4 @@ go run ./examples/fibonacci-showerhead -resdiv 350  36,16s user 0,76s system 100
 
 ![iso-screw](https://github.com/user-attachments/assets/6bc987b9-d522-42a4-89df-71a20c3ae7ff)
 ![array-triangles](https://github.com/user-attachments/assets/6a479889-2836-464c-b8ea-82109a5aad13)
+![geb-book-cover](https://github.com/user-attachments/assets/1ed945fb-5729-4028-bed8-26e0de3073ab)

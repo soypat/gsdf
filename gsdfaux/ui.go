@@ -67,6 +67,10 @@ void main() {
 		1.0, 1.0,
 	}
 	gl.BufferData(gl.ARRAY_BUFFER, 4*len(vertices), gl.Ptr(vertices), gl.STATIC_DRAW)
+	antialiasingUniform, err := prog.UniformLocation("uAA\x00")
+	if err != nil {
+		return err
+	}
 	charDistUniform, err := prog.UniformLocation("uCharDist\x00")
 	if err != nil {
 		return err
@@ -113,13 +117,18 @@ void main() {
 		yawSensitivity           = 0.005
 		pitchSensitivity         = 0.005
 		refresh                  = true
+		lastEdit                 = time.Now()
 	)
-
+	flagEdit := func() {
+		refresh = true
+		lastEdit = time.Now()
+		gl.Uniform1i(antialiasingUniform, 1)
+	}
 	window.SetCursorPosCallback(func(w *glfw.Window, xpos float64, ypos float64) {
 		if !isMousePressed {
 			return
 		}
-		refresh = true
+		flagEdit()
 		if firstMouseMove {
 			lastMouseX = xpos
 			lastMouseY = ypos
@@ -147,7 +156,7 @@ void main() {
 	})
 
 	window.SetScrollCallback(func(w *glfw.Window, xoff, yoff float64) {
-		refresh = true
+		flagEdit()
 		camDist -= yoff * (camDist*.1 + .01)
 		if camDist < minZoom {
 			camDist = minZoom // Minimum zoom level
@@ -160,7 +169,7 @@ void main() {
 	window.SetMouseButtonCallback(func(w *glfw.Window, button glfw.MouseButton, action glfw.Action, mods glfw.ModifierKey) {
 		switch button {
 		case glfw.MouseButtonLeft:
-			refresh = true
+			flagEdit()
 			if action == glfw.Press {
 				isMousePressed = true
 				firstMouseMove = true
@@ -175,6 +184,8 @@ void main() {
 	// Main render loop
 	previousTime := glfw.GetTime()
 	ctx := cfg.Context
+	gl.Uniform1i(antialiasingUniform, 3)
+OUTER:
 	for !window.ShouldClose() {
 		if ctx != nil {
 			select {
@@ -200,6 +211,7 @@ void main() {
 		gl.Uniform1f(yawUniform, float32(yaw))
 		gl.Uniform1f(pitchUniform, float32(pitch))
 		gl.Uniform1f(charDistUniform, float32(camDist)+diag)
+
 		// Draw the quad
 		gl.BindVertexArray(vao)
 		gl.DrawArrays(gl.TRIANGLES, 0, 6)
@@ -213,6 +225,10 @@ void main() {
 			if refresh || window.ShouldClose() {
 				refresh = false
 				break
+			} else if !isMousePressed && time.Since(lastEdit) > 300*time.Millisecond {
+				gl.Uniform1i(antialiasingUniform, 3)
+				lastEdit = lastEdit.Add(time.Hour)
+				continue OUTER
 			}
 		}
 	}
@@ -249,6 +265,7 @@ vec3 calcNormal(vec3 pos) {
 }
 
 uniform float uCamDist; // Distance from the target. Controlled by mouse scroll (zoom).
+uniform int uAA; // Anti aliasing.
 
 void main() {
     vec2 fragCoord = vTexCoord * uResolution;
@@ -281,7 +298,13 @@ void main() {
     vec3 vv = cross(uu, ww);                             // Up vector
 
     // Pixel coordinates
-    vec2 p = (2.0 * fragCoord - uResolution) / uResolution.y;
+	vec3 tot = vec3(0.0); // Total color accumulation.
+
+    for (int m = 0; m < uAA; m++)
+    for (int n = 0; n < uAA; n++)
+	{
+	vec2 o = vec2(float(m), float(n)) / float(uAA) - 0.5;
+	vec2 p = (2.0 * (fragCoord+o) - uResolution) / uResolution.y;
 
     // Create view ray
     vec3 rd = normalize(p.x * uu + p.y * vv + 1.5 * ww);
@@ -309,12 +332,13 @@ void main() {
         float amb = 0.5 + 0.5 * dot(nor, vec3(0.0, 1.0, 0.0));
         col = vec3(0.2, 0.3, 0.4) * amb + vec3(0.8, 0.7, 0.5) * dif;
 		col = sqrt(col);
+		tot += col;
     }
+	}
+	tot /= float(uAA*uAA);
 
     // Gamma correction
-    
-
-    fragColor = vec4(col, 1.0);
+    fragColor = vec4(tot, 1.0);
 }
 `)
 	buf.WriteByte(0)

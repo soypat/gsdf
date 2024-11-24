@@ -18,7 +18,7 @@ type OpUnion2D struct {
 
 // Union joins the shapes of several 2D SDFs into one. Is exact.
 // Union aggregates nested Union results into its own.
-func (Builder) Union2D(shaders ...glbuild.Shader2D) glbuild.Shader2D {
+func (*Builder) Union2D(shaders ...glbuild.Shader2D) glbuild.Shader2D {
 	if len(shaders) < 2 {
 		panic("need at least 2 arguments to Union2D")
 	}
