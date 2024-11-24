@@ -169,13 +169,20 @@ void main() {
 				isMousePressed = false
 				window.SetInputMode(glfw.CursorMode, glfw.CursorNormal)
 			}
-
 		}
 	})
 
 	// Main render loop
 	previousTime := glfw.GetTime()
+	ctx := cfg.Context
 	for !window.ShouldClose() {
+		if ctx != nil {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			default:
+			}
+		}
 		width, height := window.GetSize()
 		currentTime := glfw.GetTime()
 		elapsedTime := currentTime - previousTime

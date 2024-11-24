@@ -19,6 +19,9 @@ func init() {
 // scene generates the 3D object for rendering.
 func scene(bld *gsdf.Builder) (glbuild.Shader3D, error) {
 	var f textsdf.Font
+	f.Configure(textsdf.FontConfig{
+		RelativeGlyphTolerance: 0.15,
+	})
 	err := f.LoadTTFBytes(textsdf.ISO3098TTF())
 	if err != nil {
 		return nil, err
@@ -28,6 +31,8 @@ func scene(bld *gsdf.Builder) (glbuild.Shader3D, error) {
 	if err != nil {
 		return nil, err
 	}
+	line = bld.Scale2D(line, 10) // Scale to prevent numeric error.
+
 	// Find characteristic size of characters(glyphs/letters).
 	len := utf8.RuneCountInString(text)
 	sz := line.Bounds().Size()

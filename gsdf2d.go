@@ -1235,3 +1235,40 @@ func (ca *circarray2D) AppendShaderBody(b []byte) []byte {
 func (u *circarray2D) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
 	return objects
 }
+
+// ScaleXY scales s by scaleFactor around the origin.
+func (bld *Builder) Scale2D(s glbuild.Shader2D, scale float32) glbuild.Shader2D {
+	return &scale2D{s: s, scale: scale}
+}
+
+type scale2D struct {
+	s     glbuild.Shader2D
+	scale float32
+}
+
+func (u *scale2D) Bounds() ms2.Box {
+	b := u.s.Bounds()
+	return b.Scale(ms2.Vec{X: u.scale, Y: u.scale})
+}
+
+func (s *scale2D) ForEach2DChild(userData any, fn func(userData any, s *glbuild.Shader2D) error) error {
+	return fn(userData, &s.s)
+}
+
+func (s *scale2D) AppendShaderName(b []byte) []byte {
+	b = append(b, "scalexy_"...)
+	b = s.s.AppendShaderName(b)
+	return b
+}
+
+func (s *scale2D) AppendShaderBody(b []byte) []byte {
+	b = glbuild.AppendFloatDecl(b, "s", s.scale)
+	b = append(b, "return "...)
+	b = s.s.AppendShaderName(b)
+	b = append(b, "(p/s)*s;"...)
+	return b
+}
+
+func (u *scale2D) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
+	return objects
+}

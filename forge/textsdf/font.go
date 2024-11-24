@@ -16,6 +16,11 @@ import (
 const firstBasic = '!'
 const lastBasic = '~'
 
+type FontConfig struct {
+	// RelativeGlyphTolerance sets the permissible curve tolerance for glyphs. Must be between 0..1. If zero a reasonable value is chosen.
+	RelativeGlyphTolerance float32
+}
+
 // Font implements font parsing and glyph (character) generation.
 type Font struct {
 	ttf truetype.Font
@@ -25,6 +30,16 @@ type Font struct {
 	// Other kinds of glyphs.
 	otherGlyphs map[rune]glyph
 	bld         gsdf.Builder
+	reltol      float32 // Set by config or reset call if zeroed.
+}
+
+func (f *Font) Configure(cfg FontConfig) error {
+	if cfg.RelativeGlyphTolerance < 0 || cfg.RelativeGlyphTolerance >= 1 {
+		return errors.New("invalid RelativeGlyphTolerance")
+	}
+	f.reset()
+	f.reltol = cfg.RelativeGlyphTolerance
+	return nil
 }
 
 // LoadTTFBytes loads a TTF file blob into f. After calling Load the Font is ready to generate text SDFs.
@@ -50,6 +65,9 @@ func (f *Font) reset() {
 			delete(f.otherGlyphs, k)
 		}
 	}
+	if f.reltol == 0 {
+		f.reltol = 0.15
+	}
 }
 
 type glyph struct {
@@ -63,7 +81,8 @@ func (f *Font) TextLine(s string) (glbuild.Shader2D, error) {
 	var shapes []glbuild.Shader2D
 	scale := f.scale()
 	var idxPrev truetype.Index
-	var xOfs float32
+	var xOfs int64
+	scalout := f.scaleout()
 	for ic, c := range s {
 		if !unicode.IsGraphic(c) {
 			return nil, fmt.Errorf("char %q not graphic", c)
@@ -75,7 +94,7 @@ func (f *Font) TextLine(s string) (glbuild.Shader2D, error) {
 			if c == '\t' {
 				hm.AdvanceWidth *= 4
 			}
-			xOfs += float32(hm.AdvanceWidth)
+			xOfs += int64(hm.AdvanceWidth)
 			continue
 		}
 		charshape, err := f.Glyph(c)
@@ -84,14 +103,14 @@ func (f *Font) TextLine(s string) (glbuild.Shader2D, error) {
 		}
 
 		kern := f.ttf.Kern(scale, idxPrev, idx)
-		xOfs += float32(kern)
+		xOfs += int64(kern)
 		idxPrev = idx
 		if ic == 0 {
-			xOfs += float32(hm.LeftSideBearing)
+			xOfs += int64(hm.LeftSideBearing)
 		}
-		charshape = f.bld.Translate2D(charshape, xOfs, 0)
+		charshape = f.bld.Translate2D(charshape, float32(xOfs)*scalout, 0)
 		shapes = append(shapes, charshape)
-		xOfs += float32(hm.AdvanceWidth)
+		xOfs += int64(hm.AdvanceWidth)
 	}
 	if len(shapes) == 1 {
 		return shapes[0], nil
@@ -144,6 +163,21 @@ func (f *Font) scale() fixed.Int26_6 {
 	return fixed.Int26_6(f.ttf.FUnitsPerEm())
 }
 
+func (f *Font) rawbounds() ms2.Box {
+	bb := f.ttf.Bounds(f.scale())
+	return ms2.Box{
+		Min: ms2.Vec{X: float32(bb.Min.X), Y: float32(bb.Min.Y)},
+		Max: ms2.Vec{X: float32(bb.Max.X), Y: float32(bb.Max.Y)},
+	}
+}
+
+// scaleout defines the scaling from fixed point integers to
+func (f *Font) scaleout() float32 {
+	bb := f.rawbounds()
+	sz := bb.Size().Min()
+	return 1. / float32(sz)
+}
+
 func (f *Font) makeGlyph(char rune) (glyph, error) {
 	g := &f.gb
 	bld := &f.bld
@@ -155,9 +189,11 @@ func (f *Font) makeGlyph(char rune) (glyph, error) {
 	if err != nil {
 		return glyph{}, err
 	}
+	scaleout := f.scaleout()
 
+	tol := f.reltol
 	// Build Glyph.
-	shape, fill, err := glyphCurve(bld, g.Points, 0, g.Ends[0])
+	shape, fill, err := glyphCurve(bld, g.Points, 0, g.Ends[0], tol, scaleout)
 	if err != nil {
 		return glyph{}, err
 	} else if !fill {
@@ -167,7 +203,7 @@ func (f *Font) makeGlyph(char rune) (glyph, error) {
 	start := g.Ends[0]
 	g.Ends = g.Ends[1:]
 	for _, end := range g.Ends {
-		sdf, fill, err := glyphCurve(bld, g.Points, start, end)
+		sdf, fill, err := glyphCurve(bld, g.Points, start, end, tol, scaleout)
 		start = end
 		if err != nil {
 			return glyph{}, err
@@ -181,20 +217,20 @@ func (f *Font) makeGlyph(char rune) (glyph, error) {
 	return glyph{sdf: shape}, nil
 }
 
-func glyphCurve(bld *gsdf.Builder, points []truetype.Point, start, end int) (glbuild.Shader2D, bool, error) {
+func glyphCurve(bld *gsdf.Builder, points []truetype.Point, start, end int, tol, scale float32) (glbuild.Shader2D, bool, error) {
 	var (
-		sampler = ms2.Spline3Sampler{Spline: quadBezier, Tolerance: 0.1}
+		sampler = ms2.Spline3Sampler{Spline: quadBezier, Tolerance: tol}
 		sum     float32
 	)
 	points = points[start:end]
 	n := len(points)
 	i := 0
 	var poly []ms2.Vec
-	vPrev := p2v(points[n-1])
+	vPrev := p2v(points[n-1], scale)
 	for i < n {
 		p0, p1, p2 := points[i], points[(i+1)%n], points[(i+2)%n]
 		onBits := onbits3(points, 0, n, i)
-		v0, v1, v2 := p2v(p0), p2v(p1), p2v(p2)
+		v0, v1, v2 := p2v(p0, scale), p2v(p1, scale), p2v(p2, scale)
 		implicit0 := ms2.Scale(0.5, ms2.Add(v0, v1))
 		implicit1 := ms2.Scale(0.5, ms2.Add(v1, v2))
 		switch onBits {
@@ -232,17 +268,17 @@ func glyphCurve(bld *gsdf.Builder, points []truetype.Point, start, end int) (glb
 			i += 2
 		}
 		poly = append(poly, v0) // Append start point.
-		poly = sampler.SampleBisect(poly, 1)
+		poly = sampler.SampleBisect(poly, 4)
 		sum += (v0.X - vPrev.X) * (v0.Y + vPrev.Y)
 		vPrev = v0
 	}
 	return bld.NewPolygon(poly), sum > 0, bld.Err()
 }
 
-func p2v(p truetype.Point) ms2.Vec {
+func p2v(p truetype.Point, scale float32) ms2.Vec {
 	return ms2.Vec{
-		X: float32(p.X),
-		Y: float32(p.Y),
+		X: float32(p.X) * scale,
+		Y: float32(p.Y) * scale,
 	}
 }
 

@@ -39,7 +39,7 @@ type RenderConfig struct {
 
 type UIConfig struct {
 	Width, Height int
-	Ctx           context.Context
+	Context       context.Context
 }
 
 func UI(s glbuild.Shader3D, cfg UIConfig) error {
