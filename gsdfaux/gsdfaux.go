@@ -2,6 +2,7 @@ package gsdfaux
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"image"
@@ -38,6 +39,7 @@ type RenderConfig struct {
 
 type UIConfig struct {
 	Width, Height int
+	Ctx           context.Context
 }
 
 func UI(s glbuild.Shader3D, cfg UIConfig) error {

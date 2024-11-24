@@ -3,6 +3,7 @@ package textsdf
 import (
 	"errors"
 	"fmt"
+	"unicode"
 
 	"github.com/golang/freetype/truetype"
 	"github.com/soypat/glgl/math/ms2"
@@ -20,28 +21,34 @@ type Font struct {
 	ttf truetype.Font
 	gb  truetype.GlyphBuf
 	// basicGlyphs optimized array access for common ASCII glyphs.
-	basicGlyphs [lastBasic - firstBasic]glyph
+	basicGlyphs [lastBasic - firstBasic + 1]glyph
 	// Other kinds of glyphs.
 	otherGlyphs map[rune]glyph
 	bld         gsdf.Builder
 }
 
+// LoadTTFBytes loads a TTF file blob into f. After calling Load the Font is ready to generate text SDFs.
 func (f *Font) LoadTTFBytes(ttf []byte) error {
 	font, err := truetype.Parse(ttf)
 	if err != nil {
 		return err
 	}
-	f.Reset()
+	f.reset()
 	f.ttf = *font
 	return nil
 }
 
-func (f *Font) Reset() {
+// reset resets most internal state of Font without removing underlying assigned font.
+func (f *Font) reset() {
 	for i := range f.basicGlyphs {
 		f.basicGlyphs[i] = glyph{}
 	}
-	for k := range f.otherGlyphs {
-		delete(f.otherGlyphs, k)
+	if f.otherGlyphs == nil {
+		f.otherGlyphs = make(map[rune]glyph)
+	} else {
+		for k := range f.otherGlyphs {
+			delete(f.otherGlyphs, k)
+		}
 	}
 }
 
@@ -49,27 +56,48 @@ type glyph struct {
 	sdf glbuild.Shader2D
 }
 
+// TextLine returns a single line of text with the set font.
+// TextLine takes kerning and advance width into account for letter spacing.
+// Glyph locations are set starting at x=0 and appended in positive x direction.
 func (f *Font) TextLine(s string) (glbuild.Shader2D, error) {
-	if len(s) == 0 {
-		return nil, errors.New("no text provided")
-	}
 	var shapes []glbuild.Shader2D
 	scale := f.scale()
-	var prevChar rune
-	for i, c := range s {
+	var idxPrev truetype.Index
+	var xOfs float32
+	for ic, c := range s {
+		if !unicode.IsGraphic(c) {
+			return nil, fmt.Errorf("char %q not graphic", c)
+		}
+
+		idx := truetype.Index(c)
+		hm := f.ttf.HMetric(scale, idx)
+		if unicode.IsSpace(c) {
+			if c == '\t' {
+				hm.AdvanceWidth *= 4
+			}
+			xOfs += float32(hm.AdvanceWidth)
+			continue
+		}
 		charshape, err := f.Glyph(c)
 		if err != nil {
 			return nil, fmt.Errorf("char %q: %w", c, err)
 		}
-		if i > 0 {
-			kern := f.ttf.Kern(scale, truetype.Index(prevChar), truetype.Index(c))
-			charshape = f.bld.Translate2D(charshape, float32(kern), 0)
+
+		kern := f.ttf.Kern(scale, idxPrev, idx)
+		xOfs += float32(kern)
+		idxPrev = idx
+		if ic == 0 {
+			xOfs += float32(hm.LeftSideBearing)
 		}
+		charshape = f.bld.Translate2D(charshape, xOfs, 0)
 		shapes = append(shapes, charshape)
-		prevChar = c
+		xOfs += float32(hm.AdvanceWidth)
 	}
 	if len(shapes) == 1 {
 		return shapes[0], nil
+	} else if len(shapes) == 0 {
+		// Only whitespace.
+		return nil, errors.New("no text provided")
 	}
 	return f.bld.Union2D(shapes...), nil
 }
@@ -79,7 +107,12 @@ func (f *Font) Kern(c0, c1 rune) float32 {
 	return float32(f.ttf.Kern(f.scale(), truetype.Index(c0), truetype.Index(c1)))
 }
 
-// Glyph returns a SDF for a character.
+// Kern returns the horizontal adjustment for the given glyph pair. A positive kern means to move the glyphs further apart.
+func (f *Font) AdvanceWidth(c rune) float32 {
+	return float32(f.ttf.HMetric(f.scale(), truetype.Index(c)).AdvanceWidth)
+}
+
+// Glyph returns a SDF for a character defined by the argument rune.
 func (f *Font) Glyph(c rune) (_ glbuild.Shader2D, err error) {
 	var g glyph
 	if c >= firstBasic && c <= lastBasic {
@@ -113,9 +146,11 @@ func (f *Font) scale() fixed.Int26_6 {
 
 func (f *Font) makeGlyph(char rune) (glyph, error) {
 	g := &f.gb
+	bld := &f.bld
+
 	idx := f.ttf.Index(char)
 	scale := f.scale()
-	bld := &f.bld
+	// hm := f.ttf.HMetric(scale, idx)
 	err := g.Load(&f.ttf, scale, idx, font.HintingNone)
 	if err != nil {
 		return glyph{}, err
@@ -126,7 +161,8 @@ func (f *Font) makeGlyph(char rune) (glyph, error) {
 	if err != nil {
 		return glyph{}, err
 	} else if !fill {
-		return glyph{}, errors.New("first glyph shape is negative space")
+		_ = fill // This is not an error...
+		// return glyph{}, errors.New("first glyph shape is negative space")
 	}
 	start := g.Ends[0]
 	g.Ends = g.Ends[1:]
@@ -142,7 +178,6 @@ func (f *Font) makeGlyph(char rune) (glyph, error) {
 			shape = bld.Difference2D(shape, sdf)
 		}
 	}
-
 	return glyph{sdf: shape}, nil
 }
 
@@ -151,44 +186,21 @@ func glyphCurve(bld *gsdf.Builder, points []truetype.Point, start, end int) (glb
 		sampler = ms2.Spline3Sampler{Spline: quadBezier, Tolerance: 0.1}
 		sum     float32
 	)
-
-	n := end - start
-	i := start
+	points = points[start:end]
+	n := len(points)
+	i := 0
 	var poly []ms2.Vec
-	vPrev := p2v(points[end-1])
-	for i < start+n {
-		p0, p1, p2 := points[i], points[start+(i+1)%n], points[start+(i+2)%n]
-		onBits := p0.Flags&1 |
-			(p1.Flags&1)<<1 |
-			(p2.Flags&1)<<2
+	vPrev := p2v(points[n-1])
+	for i < n {
+		p0, p1, p2 := points[i], points[(i+1)%n], points[(i+2)%n]
+		onBits := onbits3(points, 0, n, i)
 		v0, v1, v2 := p2v(p0), p2v(p1), p2v(p2)
 		implicit0 := ms2.Scale(0.5, ms2.Add(v0, v1))
 		implicit1 := ms2.Scale(0.5, ms2.Add(v1, v2))
 		switch onBits {
 		case 0b010, 0b110:
-			// sampler.SetSplinePoints(vPrev, v0, v1, ms2.Vec{})
-			i += 1
-			println("prohibited")
-			// not valid off start. If getting this error try replacing with `i++;continue`
-			// return nil, false, errors.New("invalid start to bezier")
-			poly = append(poly, v0)
-			continue
-			// // if i == start+n-1 {
-			// // 	poly = append(poly, v0)
-			// // }
-			// vPrev = v0
-			// i += 1
-			// return bld.NewCircle(1), sum > 0, nil
-			// continue
-		case 0b000:
-			// implicit-off-implicit.
-			sampler.SetSplinePoints(implicit0, v1, implicit1, ms2.Vec{})
-			v0 = implicit0
-			i += 1
-		case 0b001:
-			// on-off-implicit.
-			sampler.SetSplinePoints(v0, v1, implicit1, ms2.Vec{})
-			i += 1
+			// implicit off start case?
+			fallthrough
 		case 0b011, 0b111:
 			// on-on Straight line.
 			poly = append(poly, v0)
@@ -196,11 +208,24 @@ func glyphCurve(bld *gsdf.Builder, points []truetype.Point, start, end int) (glb
 			sum += (v0.X - vPrev.X) * (v0.Y + vPrev.Y)
 			vPrev = v0
 			continue
+
+		case 0b000:
+			// implicit-off-implicit.
+			sampler.SetSplinePoints(implicit0, v1, implicit1, ms2.Vec{})
+			v0 = implicit0
+			i += 1
+
+		case 0b001:
+			// on-off-implicit.
+			sampler.SetSplinePoints(v0, v1, implicit1, ms2.Vec{})
+			i += 1
+
 		case 0b100:
 			// implicit-off-on.
 			sampler.SetSplinePoints(implicit0, v1, v2, ms2.Vec{})
 			v0 = implicit0
 			i += 2
+
 		case 0b101:
 			// On-off-on.
 			sampler.SetSplinePoints(v0, v1, v2, ms2.Vec{})
@@ -227,3 +252,11 @@ var quadBezier = ms2.NewSpline3([]float32{
 	1, -2, 1, 0,
 	0, 0, 0, 0,
 })
+
+func onbits3(points []truetype.Point, start, end, i int) uint32 {
+	n := end - start
+	p0, p1, p2 := points[i], points[start+(i+1)%n], points[start+(i+2)%n]
+	return p0.Flags&1 |
+		(p1.Flags&1)<<1 |
+		(p2.Flags&1)<<2
+}

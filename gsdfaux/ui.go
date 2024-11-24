@@ -16,6 +16,7 @@ import (
 
 func ui(s glbuild.Shader3D, cfg UIConfig) error {
 	bb := s.Bounds()
+	diag := bb.Diagonal()
 	// Initialize GLFW
 	window, term, err := startGLFW(cfg.Width, cfg.Height)
 	if err != nil {
@@ -66,6 +67,10 @@ void main() {
 		1.0, 1.0,
 	}
 	gl.BufferData(gl.ARRAY_BUFFER, 4*len(vertices), gl.Ptr(vertices), gl.STATIC_DRAW)
+	charDistUniform, err := prog.UniformLocation("uCharDist\x00")
+	if err != nil {
+		return err
+	}
 	camDistUniform, err := prog.UniformLocation("uCamDist\x00")
 	if err != nil {
 		return err
@@ -94,7 +99,7 @@ void main() {
 	gl.Enable(gl.DEPTH_TEST)
 
 	// Set up mouse input tracking
-	diag := bb.Diagonal()
+
 	minZoom := float64(diag * 0.00001)
 	maxZoom := float64(diag * 10)
 	var (
@@ -187,7 +192,7 @@ void main() {
 		gl.Uniform2f(resUniform, float32(width), float32(height))
 		gl.Uniform1f(yawUniform, float32(yaw))
 		gl.Uniform1f(pitchUniform, float32(pitch))
-
+		gl.Uniform1f(charDistUniform, float32(camDist)+diag)
 		// Draw the quad
 		gl.BindVertexArray(vao)
 		gl.DrawArrays(gl.TRIANGLES, 0, 6)
@@ -217,7 +222,7 @@ func makeFragSource(rootSDFName, sdfDecl string) string {
 	buf.WriteString(`in vec2 vTexCoord;
 out vec4 fragColor;
 
-
+uniform float uCharDist;
 uniform vec2 uResolution;
 uniform float uYaw;
 uniform float uPitch;
@@ -275,31 +280,32 @@ void main() {
     vec3 rd = normalize(p.x * uu + p.y * vv + 1.5 * ww);
 
     // Ray marching
-    const float tmax = 100.0;
+	const float tol = 0.0001;
     float t = 0.0;
     bool hit = false;
     for (int i = 0; i < 256; i++) {
         vec3 pos = ro + t * rd;
         float h = sdf(pos);
-        if (h < 0.0001 || t > tmax) {
-            hit = true;
+        if (h < tol || t > 1.3*uCharDist) {
+            hit = h<tol;
             break;
         }
         t += h;
     }
 
     // Shading/lighting
-    vec3 col = vec3(0.0);
+    vec3 col = vec3(0.0,0.0,0.0);
     if (hit) {
         vec3 pos = ro + t * rd;
         vec3 nor = calcNormal(pos);
         float dif = clamp(dot(nor, vec3(0.57703)), 0.0, 1.0);
         float amb = 0.5 + 0.5 * dot(nor, vec3(0.0, 1.0, 0.0));
         col = vec3(0.2, 0.3, 0.4) * amb + vec3(0.8, 0.7, 0.5) * dif;
+		col = sqrt(col);
     }
 
     // Gamma correction
-    col = sqrt(col);
+    
 
     fragColor = vec4(col, 1.0);
 }

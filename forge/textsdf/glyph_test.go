@@ -1,25 +1,26 @@
 package textsdf
 
 import (
+	"fmt"
 	"testing"
 
 	_ "embed"
 
+	"github.com/golang/freetype/truetype"
 	"github.com/soypat/gsdf/gleval"
 	"github.com/soypat/gsdf/gsdfaux"
+	"golang.org/x/image/math/fixed"
 )
 
-//go:embed iso-3098.ttf
-var _isonormTTF []byte
-
 func TestABC(t *testing.T) {
+	const okchar = "BCDEFGHIJK"
+	const badchar = "iB~"
 	var f Font
-	err := f.LoadTTFBytes(_isonormTTF)
+	err := f.LoadTTFBytes(ISO3098TTF())
 	if err != nil {
 		t.Fatal(err)
 	}
-	shape, err := f.TextLine("e")
-	// shape, err := f.Glyph('A')
+	shape, err := f.TextLine(badchar)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -31,4 +32,21 @@ func TestABC(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+}
+
+func Test(t *testing.T) {
+	ttf, err := truetype.Parse(_iso3098TTF)
+	if err != nil {
+		panic(err)
+	}
+	scale := fixed.Int26_6(ttf.FUnitsPerEm())
+	hm := ttf.HMetric(scale, 'E')
+	fmt.Println(hm.AdvanceWidth, int(hm.AdvanceWidth))
+	t.Error(hm)
+	// var g truetype.GlyphBuf
+	// err = g.Load(ttf, , 'B', font.HintingFull)
+	// if err != nil {
+	// 	panic(err)
+	// }
+
 }
