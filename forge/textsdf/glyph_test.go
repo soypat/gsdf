@@ -1,15 +1,12 @@
 package textsdf
 
 import (
-	"fmt"
 	"testing"
 
 	_ "embed"
 
-	"github.com/golang/freetype/truetype"
 	"github.com/soypat/gsdf/gleval"
 	"github.com/soypat/gsdf/gsdfaux"
-	"golang.org/x/image/math/fixed"
 )
 
 func TestABC(t *testing.T) {
@@ -32,21 +29,4 @@ func TestABC(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-}
-
-func Test(t *testing.T) {
-	ttf, err := truetype.Parse(_iso3098TTF)
-	if err != nil {
-		panic(err)
-	}
-	scale := fixed.Int26_6(ttf.FUnitsPerEm())
-	hm := ttf.HMetric(scale, 'E')
-	fmt.Println(hm.AdvanceWidth, int(hm.AdvanceWidth))
-	t.Error(hm)
-	// var g truetype.GlyphBuf
-	// err = g.Load(ttf, , 'B', font.HintingFull)
-	// if err != nil {
-	// 	panic(err)
-	// }
-
 }

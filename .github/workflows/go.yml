@@ -11,14 +11,50 @@ on:
 
 jobs:
 
-  build:
-    runs-on: ubuntu-latest
+  build-windows:
+    name: Windows
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Go
+      uses: actions/setup-go@v3
+      with:
+        go-version: 1.22
+
+    - name: Build
+      run: go build -v ./...
+
+    - name: Test
+      run: go test -v ./...
+
+  build-mac:
+    name: MacOS
+    runs-on: macos-latest-xlarge
     steps:
     - uses: actions/checkout@v3
 
     - name: Setup GPU drivers
-      run: sudo apt install libgl1-mesa-dev xorg-dev
+      run: brew install mesa
 
+    - name: Set up Go
+      uses: actions/setup-go@v3
+      with:
+        go-version: 1.22
+
+    - name: Build
+      run: go build -v ./...
+
+    - name: Test
+      run: go test -v ./...
+
+  build-linux:
+    name: Linux
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    # ubuntu-latest runner has no GPU.
     - name: Env disable Cgo 
       run: echo "CGO_ENABLED=0" >> $GITHUB_ENV
 
