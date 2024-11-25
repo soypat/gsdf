@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
+	"unsafe"
 
 	"github.com/chewxy/math32"
 	"github.com/soypat/glgl/math/ms2"
@@ -35,6 +36,23 @@ type Builder struct {
 	// flags is a bitfield controlling behaviour of Builder.
 	flags     Flags
 	accumErrs []error
+	// limVecGPU
+	limVecGPU int
+}
+
+func (bld *Builder) useGPU(n int) bool {
+	return bld.limVecGPU != 0 && n > bld.limVecGPU || n > 1024
+}
+
+func makeHashName[T any](dst []byte, name string, vec []T) []byte {
+	var z T
+	data := unsafe.Pointer(&vec[0])
+	bdata := unsafe.Slice((*byte)(data), len(vec)*int(unsafe.Sizeof(z)))
+	_ = bdata
+	// for _, b := range bdata {
+
+	// }
+	return fmt.Appendf(dst, "%s%x", name, uintptr(data))
 }
 
 func (bld *Builder) Flags() Flags {

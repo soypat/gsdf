@@ -55,6 +55,7 @@ func main() {
 		Height: 600,
 	})
 	if err != nil {
-		log.Fatal("UI:", err)
+		fmt.Println(err)
+		return
 	}
 }

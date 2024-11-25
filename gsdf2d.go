@@ -555,6 +555,10 @@ func (bld *Builder) NewPolygon(vertices []ms2.Vec) glbuild.Shader2D {
 		}
 		prevIdx = i
 	}
+	println("poly")
+	// if bld.useGPU(len(vertices)) {
+	// 	return &polyGPU{poly2D: poly2D{vert: vertices}, bufname: makeHashName(nil, "ssboPoly", vertices)}
+	// }
 	return &poly2D{vert: vertices}
 }
 
@@ -607,6 +611,43 @@ func (c *poly2D) ForEach2DChild(userData any, fn func(userData any, s *glbuild.S
 
 func (u *poly2D) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
 	return objects // TODO: implement shader buffer storage here!
+}
+
+type polyGPU struct {
+	poly2D
+	bufname []byte
+}
+
+func (c *polyGPU) AppendShaderBody(b []byte) []byte {
+	b = glbuild.AppendDefineDecl(b, "ver", string(c.bufname))
+	b = append(b, `const int num = v.length();
+float d = dot(p-v[0],p-v[0]);
+float s = 1.0;
+for( int i=0, j=num-1; i<num; j=i, i++ )
+{
+	// distance
+	vec2 e = v[j] - v[i];
+	vec2 w = p - v[i];
+	vec2 b = w - e*clamp( dot(w,e)/dot(e,e), 0.0, 1.0 );
+	d = min( d, dot(b,b) );
+	// winding number from http://geomalgorithms.com/a03-_inclusion.html
+	bvec3 cond = bvec3( p.y>=v[i].y, 
+						p.y <v[j].y, 
+						e.x*w.y>e.y*w.x );
+	if( all(cond) || all(not(cond)) ) s=-s;  
+}
+return s*sqrt(d);
+`...)
+	b = glbuild.AppendUndefineDecl(b, "ver")
+	return b
+}
+
+func (u *polyGPU) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
+	ssbo, err := glbuild.MakeShaderBufferReadOnly(u.bufname, u.vert)
+	if err != nil {
+		panic(err)
+	}
+	return append(objects, ssbo)
 }
 
 // Extrude converts a 2D SDF into a 3D extrusion. Extrudes in both positive and negative Z direction, half of h both ways.

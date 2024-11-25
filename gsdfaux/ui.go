@@ -4,6 +4,7 @@ package gsdfaux
 
 import (
 	"bytes"
+	"fmt"
 	"log"
 	"math"
 	"time"
@@ -35,6 +36,7 @@ func ui(s glbuild.Shader3D, cfg UIConfig) error {
 	}
 	// Print OpenGL version
 	// // Compile shaders and link program
+	fragSrc := makeFragSource(root, sdfDecl.String())
 	prog, err := glgl.CompileProgram(glgl.ShaderSource{
 		Vertex: `#version 460
 in vec2 aPos;
@@ -44,10 +46,10 @@ void main() {
     gl_Position = vec4(aPos, 0.0, 1.0);
 }
 ` + "\x00",
-		Fragment: makeFragSource(root, sdfDecl.String()),
+		Fragment: fragSrc,
 	})
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("%s\n\n%w", fragSrc, err)
 	}
 	prog.Bind()
 	// Define a quad covering the screen
