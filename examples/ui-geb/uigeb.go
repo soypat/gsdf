@@ -46,6 +46,10 @@ func scene(bld *gsdf.Builder) (glbuild.Shader3D, error) {
 	G = bld.Translate2D(G, -szG.X/2, -szG.Y/2)
 	E = bld.Translate2D(E, -szE.X/2, -szE.Y/2)
 	B = bld.Translate2D(B, -szB.X/2, -szB.Y/2)
+	const round1 = 0.01
+	G = bld.Offset2D(G, -round1)
+	E = bld.Offset2D(E, -round1)
+	B = bld.Offset2D(B, -round1)
 
 	// GEB size. Scale all letters to match size.
 	szz := ms2.MaxElem(szG, ms2.MaxElem(szE, szB)).Max()
@@ -64,16 +68,22 @@ func scene(bld *gsdf.Builder) (glbuild.Shader3D, error) {
 	G3 = bld.Transform(G3, ms3.ScaleMat4(ms3.Vec{X: sclG.X, Y: sclG.Y, Z: 1}))
 	E3 = bld.Transform(E3, ms3.ScaleMat4(ms3.Vec{X: sclE.X, Y: sclE.Y, Z: 1}))
 	B3 = bld.Transform(B3, ms3.ScaleMat4(ms3.Vec{X: sclB.X, Y: sclB.Y, Z: 1}))
+	const round2 = 0.025
+	G3 = bld.Offset(G3, -round2)
+	E3 = bld.Offset(E3, -round2)
+	B3 = bld.Offset(B3, -round2)
 
 	// Orient letters.
 	const deg90 = math.Pi / 2
-	E3 = bld.Rotate(E3, deg90, ms3.Vec{Y: 1})
-	B3 = bld.Rotate(B3, -deg90, ms3.Vec{X: 1})
+	GEB1 := bld.Intersection(G3, bld.Rotate(E3, deg90, ms3.Vec{Y: 1}))
+	GEB1 = bld.Intersection(GEB1, bld.Rotate(B3, -deg90, ms3.Vec{X: 1}))
 
-	GEB := bld.Intersection(G3, E3)
-	GEB = bld.Intersection(GEB, B3)
-	// return bld.Union(G3, E3, B3), bld.Err() // For debugging.
-	return GEB, bld.Err()
+	GEB2 := bld.Intersection(E3, bld.Rotate(G3, deg90, ms3.Vec{Y: 1}))
+	GEB2 = bld.Intersection(GEB2, bld.Rotate(B3, -deg90, ms3.Vec{X: 1}))
+
+	GEB2 = bld.Translate(GEB2, 0, GEB2.Bounds().Size().Y*1.5, 0)
+
+	return bld.Union(GEB1, GEB2), bld.Err()
 }
 
 func main() {

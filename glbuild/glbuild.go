@@ -277,7 +277,7 @@ func (p *Programmer) writeShaders(w io.Writer, nodes []Shader) (n int, objs []Sh
 		newObjects := p.objsScratch[prevIdx:]
 		for i := range newObjects {
 			if newObjects[i].Binding != -1 {
-				return n, nil, fmt.Errorf("shader buffer object binding should be set to -1 until shader generated for %T, %q", node, newObjects[i].NamePtr)
+				return n, nil, fmt.Errorf("shader buffer object binding should be set to -1 until shader generated for %T, %q", unwraproot(node), newObjects[i].NamePtr)
 			}
 			newObjects[i].Binding = currentBase
 			currentBase++
@@ -285,7 +285,7 @@ func (p *Programmer) writeShaders(w io.Writer, nodes []Shader) (n int, objs []Sh
 			nameHash := hash(obj.NamePtr, 0)
 			_, nameConflict := p.names[nameHash]
 			if nameConflict {
-				return n, nil, fmt.Errorf("shader buffer object name conflict resolution not implemented: %T has buffer conflicting name %q of type %s", node, obj.NamePtr, obj.Element.String())
+				return n, nil, fmt.Errorf("shader buffer object name conflict resolution not implemented: %T has buffer conflicting name %q of type %s", unwraproot(node), obj.NamePtr, obj.Element.String())
 			}
 			p.names[nameHash] = nameHash
 			blockName := unsafe.String(&obj.NamePtr[0], len(obj.NamePtr)) + "Buffer"
@@ -316,7 +316,17 @@ func (p *Programmer) writeShaders(w io.Writer, nodes []Shader) (n int, objs []Sh
 			if bodyHash == gotBodyHash {
 				continue // Shader already written and is identical, skip.
 			}
-			return n, nil, fmt.Errorf("duplicate %T shader name %q w/ body:\n%s", node, name, body)
+			// Look for identical shader
+			var conflictBody []byte
+			for j := i + 1; j < len(nodes); j++ {
+				conflictBody = nodes[j].AppendShaderName(conflictBody[:0])
+				if bytes.Equal(conflictBody, name) {
+					conflictBody = nodes[j].AppendShaderBody(conflictBody[:0])
+					break
+				}
+				conflictBody = conflictBody[:0]
+			}
+			return n, nil, fmt.Errorf("duplicate %T shader name %q w/ body:\n%s\n\nconflict with distinct shader with same name:\n%s", unwraproot(node), name, body, conflictBody)
 		} else {
 			p.names[nameHash] = bodyHash // Not found, add it.
 		}
@@ -368,6 +378,9 @@ func ShortenNames2D(root *Shader2D, maxRewriteLen int) error {
 
 func rewriteName3(s3 *Shader3D, scratch []byte, rewritelen int) []byte {
 	sd3 := *s3
+	if _, ok := sd3.(*nameOverloadShader3D); ok {
+		return scratch // Already overloaded.
+	}
 	name, scratch := makeShortname(sd3, scratch, rewritelen)
 	if name == nil {
 		return scratch
@@ -378,6 +391,9 @@ func rewriteName3(s3 *Shader3D, scratch []byte, rewritelen int) []byte {
 
 func rewriteName2(s2 *Shader2D, scratch []byte, rewritelen int) []byte {
 	sd2 := *s2
+	if _, ok := sd2.(*nameOverloadShader2D); ok {
+		return scratch // Already overloaded.
+	}
 	name, scratch := makeShortname(sd2, scratch, rewritelen)
 	if name == nil {
 		return scratch
@@ -960,6 +976,7 @@ func (ob3 *overloadBounds3) Evaluate(pos []ms3.Vec, dist []float32, userData any
 	}
 	return sdf.Evaluate(pos, dist, userData)
 }
+func (ob3 *overloadBounds3) unwrap() Shader { return ob3.Shader3D }
 
 // OverloadShader2DBounds overloads a [Shader2D] Bounds method with the argument bounding box.
 func OverloadShader2DBounds(s Shader2D, bb ms2.Box) Shader2D {
@@ -984,6 +1001,8 @@ func (ob3 *overloadBounds2) Evaluate(pos []ms2.Vec, dist []float32, userData any
 	}
 	return sdf.Evaluate(pos, dist, userData)
 }
+
+func (ob2 *overloadBounds2) unwrap() Shader { return ob2.Shader2D }
 
 var _ Shader3D = (*CachedShader3D)(nil) // Interface implementation compile-time check.
 
@@ -1045,6 +1064,8 @@ func (c3 *CachedShader3D) Evaluate(pos []ms3.Vec, dist []float32, userData any) 
 	return sdf.Evaluate(pos, dist, userData)
 }
 
+func (c3 *CachedShader3D) unwrap() Shader { return c3.Shader }
+
 var _ Shader2D = (*CachedShader2D)(nil) // Interface implementation compile-time check.
 
 // CachedShader2D implements the Shader2D interface with results it caches for another Shader2D on a call to RefreshCache.
@@ -1094,6 +1115,8 @@ func (c2 *CachedShader2D) Evaluate(pos []ms2.Vec, dist []float32, userData any) 
 func (c2 *CachedShader2D) AppendShaderObjects(objs []ShaderObject) []ShaderObject {
 	return c2.Shader.AppendShaderObjects(objs)
 }
+
+func (c2 *CachedShader2D) unwrap() Shader { return c2.Shader }
 
 type nameOverloadShader3D struct {
 	Shader Shader3D
@@ -1150,6 +1173,8 @@ func (nos3 *nameOverloadShader3D) AppendShaderName(b []byte) []byte {
 	return append(b, nos3.name...)
 }
 
+func (nos3 *nameOverloadShader3D) unwrap() Shader { return nos3.Shader }
+
 type nameOverloadShader2D struct {
 	Shader Shader2D
 	name   []byte
@@ -1182,6 +1207,8 @@ func (nos2 *nameOverloadShader2D) AppendShaderObjects(objs []ShaderObject) []Sha
 	return nos2.Shader.AppendShaderObjects(objs)
 }
 
+func (nos2 *nameOverloadShader2D) unwrap() Shader { return nos2.Shader }
+
 func hash(b []byte, in uint64) uint64 {
 	// Leaving md5 here since we may need to revert to
 	// a more entropic hash to avoid collisions...
@@ -1200,9 +1227,33 @@ func hash(b []byte, in uint64) uint64 {
 		x = (x ^ (x >> 27)) * 0x94d049bb133111eb
 		x ^= x >> 31
 		b = b[8:]
+
 	}
-	for i := range b {
-		x ^= uint64(b[i]) << i * 8
+	if len(b) > 0 {
+		var buf [8]byte
+		copy(buf[:], b)
+		x ^= binary.LittleEndian.Uint64(buf[:])
+		x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9
+		x = (x ^ (x >> 27)) * 0x94d049bb133111eb
+		x ^= x >> 31
 	}
 	return x
+}
+
+func unwraproot(s Shader) Shader {
+	i := 0
+	var sbase Shader
+	for s != nil && i < 6 {
+		sbase = s
+		s = unwrap(s)
+		i++
+	}
+	return sbase
+}
+
+func unwrap(s Shader) Shader {
+	if unwrapper, ok := s.(interface{ unwrap() Shader }); ok {
+		return unwrapper.unwrap()
+	}
+	return nil
 }

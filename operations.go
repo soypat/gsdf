@@ -2,6 +2,7 @@ package gsdf
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/chewxy/math32"
 	"github.com/soypat/glgl/math/ms2"
@@ -340,7 +341,9 @@ func (bld *Builder) Transform(s glbuild.Shader3D, m ms3.Mat4) glbuild.Shader3D {
 	if math32.Abs(det) < epstol {
 		bld.shapeErrorf("singular Mat4")
 	}
-	return &transform{s: s, t: m, tInv: m.Inverse()}
+	t := &transform{s: s, t: m, tInv: m.Inverse()}
+	t.hash = hashshaderptr(t) // TODO(soypat): fix TestTransformDuplicateBug so that hashing input shader works.
+	return t
 }
 
 type transform struct {
@@ -352,35 +355,37 @@ type transform struct {
 	// The SDF receives points which we must evaluate in
 	// transformed coordinates, so we must work backwards, thus inverse.
 	tInv ms3.Mat4
+	hash uint64
 }
 
-func (u *transform) Bounds() ms3.Box {
-	return u.t.MulBox(u.s.Bounds())
+func (t *transform) Bounds() ms3.Box {
+	return t.t.MulBox(t.s.Bounds())
 }
 
-func (s *transform) ForEachChild(userData any, fn func(userData any, s *glbuild.Shader3D) error) error {
-	return fn(userData, &s.s)
+func (t *transform) ForEachChild(userData any, fn func(userData any, s *glbuild.Shader3D) error) error {
+	return fn(userData, &t.s)
 }
 
-func (s *transform) AppendShaderName(b []byte) []byte {
+func (t *transform) AppendShaderName(b []byte) []byte {
 	b = append(b, "transform"...)
+
 	// Hash floats so that name is not too long.
-	values := s.t.Array()
-	b = glbuild.AppendFloat(b, 'p', 'n', hashf(values[:]))
+	values := t.t.Array()
+	b = glbuild.AppendFloat(b, 'n', 'p', hashf(values[:]))
 	b = append(b, '_')
-	b = s.s.AppendShaderName(b)
+	b = strconv.AppendUint(b, t.hash, 32)
 	return b
 }
 
-func (r *transform) AppendShaderBody(b []byte) []byte {
-	b = glbuild.AppendMat4Decl(b, "invT", r.tInv)
+func (t *transform) AppendShaderBody(b []byte) []byte {
+	b = glbuild.AppendMat4Decl(b, "invT", t.tInv)
 	b = append(b, "return "...)
-	b = r.s.AppendShaderName(b)
+	b = t.s.AppendShaderName(b)
 	b = append(b, "(((invT) * vec4(p,0.0)).xyz);"...)
 	return b
 }
 
-func (u *transform) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
+func (t *transform) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
 	return objects
 }
 

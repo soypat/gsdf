@@ -67,7 +67,7 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 			fmt.Println(args...)
 		}
 	}
-	err = glbuild.ShortenNames3D(&s, 6)
+	err = glbuild.ShortenNames3D(&s, 12)
 	if err != nil {
 		return fmt.Errorf("shortening shader names: %s", err)
 	}
@@ -129,7 +129,7 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 	if cfg.EnableCaching {
 		var cache gleval.BlockCachedSDF3
 		cacheRes := cfg.Resolution / 2
-		err = cache.Reset(sdf, ms3.Vec{X: cacheRes, Y: cacheRes, Z: cacheRes})
+		err = cache.Reset(sdf, cacheRes, cacheRes, cacheRes)
 		if err != nil {
 			return err
 		}
@@ -173,9 +173,14 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 	}
 
 	if cfg.STLOutput != nil {
-		maybeVP, _ := gleval.GetVecPool(sdf)
+		var userData any
+		maybeVP, err := gleval.GetVecPool(sdf)
+		if err == nil {
+			userData = maybeVP
+		}
+
 		watch = stopwatch()
-		triangles, err := glrender.RenderAll(renderer, maybeVP)
+		triangles, err := glrender.RenderAll(renderer, userData)
 		if err != nil {
 			return fmt.Errorf("rendering triangles: %s", err)
 		}
@@ -183,7 +188,7 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 		e := sdf.(interface{ Evaluations() uint64 })
 		omitted := 8 * renderer.TotalPruned()
 		percentOmit := percentUint64(omitted, e.Evaluations()+omitted)
-		log("evaluated SDF", e.Evaluations(), "times and rendered", len(triangles), "triangles in", watch(), "with", percentOmit, "percent evaluations omitted")
+		log("evaluated SDF", e.Evaluations(), "times and rendered", len(triangles), "triangles in", watch().Round(10*time.Millisecond), "with", percentOmit, "percent evaluations omitted")
 
 		watch = stopwatch()
 		_, err = glrender.WriteBinarySTL(cfg.STLOutput, triangles)

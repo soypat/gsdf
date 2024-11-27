@@ -2,6 +2,7 @@ package gsdf
 
 import (
 	_ "embed"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"unsafe"
@@ -9,6 +10,7 @@ import (
 	"github.com/chewxy/math32"
 	"github.com/soypat/glgl/math/ms2"
 	"github.com/soypat/glgl/math/ms3"
+	"github.com/soypat/gsdf/glbuild"
 )
 
 const (
@@ -41,18 +43,14 @@ type Builder struct {
 }
 
 func (bld *Builder) useGPU(n int) bool {
-	return bld.limVecGPU != 0 && n > bld.limVecGPU || n > 1024
+	return bld.limVecGPU != 0 && n > bld.limVecGPU || n > 1
 }
 
 func makeHashName[T any](dst []byte, name string, vec []T) []byte {
 	var z T
 	data := unsafe.Pointer(&vec[0])
-	bdata := unsafe.Slice((*byte)(data), len(vec)*int(unsafe.Sizeof(z)))
-	_ = bdata
-	// for _, b := range bdata {
-
-	// }
-	return fmt.Appendf(dst, "%s%x", name, uintptr(data))
+	sz := len(vec) * int(unsafe.Sizeof(z))
+	return fmt.Appendf(dst, "%s%x_%x", name, uintptr(data), sz)
 }
 
 func (bld *Builder) Flags() Flags {
@@ -185,4 +183,30 @@ func hashAdd(a, b, num float32) (aNew, bNew float32) {
 
 func hashfint(f float32) float32 {
 	return float32(int(f*1000000)%1000000) / 1000000 // Keep within [0.0, 1.0)
+}
+
+func hash(b []byte, in uint64) uint64 {
+	x := in
+	for len(b) >= 8 {
+		x ^= binary.LittleEndian.Uint64(b)
+		x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9
+		x = (x ^ (x >> 27)) * 0x94d049bb133111eb
+		x ^= x >> 31
+		b = b[8:]
+
+	}
+	if len(b) > 0 {
+		var buf [8]byte
+		copy(buf[:], b)
+		x ^= binary.LittleEndian.Uint64(buf[:])
+		x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9
+		x = (x ^ (x >> 27)) * 0x94d049bb133111eb
+		x ^= x >> 31
+	}
+	return x
+}
+
+func hashshaderptr(s glbuild.Shader) uint64 {
+	v := *(*[2]uintptr)(unsafe.Pointer(&s))
+	return (uint64(v[0]) ^ (uint64(v[1]) << 8)) * 0xbf58476d1ce4e5b9
 }

@@ -26,7 +26,7 @@ func ui(s glbuild.Shader3D, cfg UIConfig) error {
 	defer term()
 	var sdfDecl bytes.Buffer
 	programmer := glbuild.NewDefaultProgrammer()
-	err = glbuild.ShortenNames3D(&s, 8)
+	err = glbuild.ShortenNames3D(&s, 12)
 	if err != nil {
 		return err
 	}

@@ -27,8 +27,6 @@ import (
 	"github.com/soypat/gsdf/gleval"
 )
 
-var bld Builder
-
 var failedObj glbuild.Shader3D
 
 type shaderTestConfig struct {
@@ -617,7 +615,7 @@ func ui(s glbuild.Shader3D, width, height int) error {
 	defer term()
 	var sdfDecl bytes.Buffer
 	programmer := glbuild.NewDefaultProgrammer()
-	err = glbuild.ShortenNames3D(&s, 8)
+	err = glbuild.ShortenNames3D(&s, 12)
 	if err != nil {
 		return err
 	}

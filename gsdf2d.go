@@ -555,11 +555,13 @@ func (bld *Builder) NewPolygon(vertices []ms2.Vec) glbuild.Shader2D {
 		}
 		prevIdx = i
 	}
-	println("poly")
-	// if bld.useGPU(len(vertices)) {
-	// 	return &polyGPU{poly2D: poly2D{vert: vertices}, bufname: makeHashName(nil, "ssboPoly", vertices)}
-	// }
-	return &poly2D{vert: vertices}
+
+	poly := poly2D{vert: vertices}
+	if bld.useGPU(len(vertices)) {
+		// println("poly")
+		// return &polyGPU{poly2D: poly, bufname: makeHashName(nil, "ssboPoly", vertices)}
+	}
+	return &poly
 }
 
 func (c *poly2D) Bounds() ms2.Box {
@@ -583,9 +585,7 @@ func (c *poly2D) AppendShaderName(b []byte) []byte {
 	return b
 }
 
-func (c *poly2D) AppendShaderBody(b []byte) []byte {
-	b = glbuild.AppendVec2SliceDecl(b, "v", c.vert)
-	b = append(b, `const int num = v.length();
+const polyShader = `const int num = v.length();
 float d = dot(p-v[0],p-v[0]);
 float s = 1.0;
 for( int i=0, j=num-1; i<num; j=i, i++ )
@@ -601,7 +601,12 @@ for( int i=0, j=num-1; i<num; j=i, i++ )
 						e.x*w.y>e.y*w.x );
 	if( all(cond) || all(not(cond)) ) s=-s;  
 }
-return s*sqrt(d);`...)
+return s*sqrt(d);
+`
+
+func (c *poly2D) AppendShaderBody(b []byte) []byte {
+	b = glbuild.AppendVec2SliceDecl(b, "v", c.vert)
+	b = append(b, polyShader...)
 	return b
 }
 
@@ -619,26 +624,9 @@ type polyGPU struct {
 }
 
 func (c *polyGPU) AppendShaderBody(b []byte) []byte {
-	b = glbuild.AppendDefineDecl(b, "ver", string(c.bufname))
-	b = append(b, `const int num = v.length();
-float d = dot(p-v[0],p-v[0]);
-float s = 1.0;
-for( int i=0, j=num-1; i<num; j=i, i++ )
-{
-	// distance
-	vec2 e = v[j] - v[i];
-	vec2 w = p - v[i];
-	vec2 b = w - e*clamp( dot(w,e)/dot(e,e), 0.0, 1.0 );
-	d = min( d, dot(b,b) );
-	// winding number from http://geomalgorithms.com/a03-_inclusion.html
-	bvec3 cond = bvec3( p.y>=v[i].y, 
-						p.y <v[j].y, 
-						e.x*w.y>e.y*w.x );
-	if( all(cond) || all(not(cond)) ) s=-s;  
-}
-return s*sqrt(d);
-`...)
-	b = glbuild.AppendUndefineDecl(b, "ver")
+	b = glbuild.AppendDefineDecl(b, "v", string(c.bufname))
+	b = append(b, polyShader...)
+	b = glbuild.AppendUndefineDecl(b, "v")
 	return b
 }
 

@@ -187,6 +187,7 @@ func computeEvaluate[T ms2.Vec | ms3.Vec](pos []T, dist []float32, invocX int, o
 		}
 		err := glgl.Err()
 		if err != nil {
+			p.Unpin()
 			return fmt.Errorf("binding SSBOs: %w", err)
 		}
 	}

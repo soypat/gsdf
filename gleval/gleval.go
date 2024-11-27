@@ -111,9 +111,14 @@ type BlockCachedSDF3 struct {
 	evals   uint64
 }
 
+func (c3 *BlockCachedSDF3) VecPool() *VecPool {
+	vp, _ := GetVecPool(c3.sdf)
+	return vp
+}
+
 // Reset resets the SDF3 and reuses the underlying buffers for future SDF evaluations. It also resets statistics such as evaluations and cache hits.
-func (c3 *BlockCachedSDF3) Reset(sdf SDF3, res ms3.Vec) error {
-	if res.X <= 0 || res.Y <= 0 || res.Z <= 0 {
+func (c3 *BlockCachedSDF3) Reset(sdf SDF3, resX, resY, resZ float32) error {
+	if resX <= 0 || resY <= 0 || resZ <= 0 {
 		return errors.New("invalid resolution for BlockCachedSDF3")
 	}
 	if c3.m == nil {
@@ -125,7 +130,7 @@ func (c3 *BlockCachedSDF3) Reset(sdf SDF3, res ms3.Vec) error {
 	// Ncells := ms3.DivElem(bb.Size(), res)
 	*c3 = BlockCachedSDF3{
 		sdf:     sdf,
-		mul:     ms3.DivElem(ms3.Vec{X: 1, Y: 1, Z: 1}, res),
+		mul:     ms3.DivElem(ms3.Vec{X: 1, Y: 1, Z: 1}, ms3.Vec{X: resX, Y: resY, Z: resZ}),
 		m:       c3.m,
 		posbuf:  c3.posbuf[:0],
 		distbuf: c3.distbuf[:0],
