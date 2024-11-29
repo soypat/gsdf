@@ -22,9 +22,9 @@ func TestTransformDuplicateBug(t *testing.T) {
 	B3 := bld.Extrude(B, L)
 
 	// Non-uniform scaling to fill letter intersections.
-	G3 = bld.Transform(G3, ms3.ScaleMat4(ms3.Vec{X: 1.2, Y: 1.3, Z: 1}))
-	E3 = bld.Transform(E3, ms3.ScaleMat4(ms3.Vec{X: 1.2, Y: 1.3, Z: 1}))
-	B3 = bld.Transform(B3, ms3.ScaleMat4(ms3.Vec{X: 1.2, Y: 1.3, Z: 1}))
+	G3 = bld.Transform(G3, ms3.ScalingMat4(ms3.Vec{X: 1.2, Y: 1.3, Z: 1}))
+	E3 = bld.Transform(E3, ms3.ScalingMat4(ms3.Vec{X: 1.2, Y: 1.3, Z: 1}))
+	B3 = bld.Transform(B3, ms3.ScalingMat4(ms3.Vec{X: 1.2, Y: 1.3, Z: 1}))
 	const round2 = 0.025
 	G3 = bld.Offset(G3, -round2)
 	E3 = bld.Offset(E3, -round2)

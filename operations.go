@@ -394,7 +394,7 @@ func (bld *Builder) Rotate(s glbuild.Shader3D, radians float32, axis ms3.Vec) gl
 	if axis == (ms3.Vec{}) {
 		bld.shapeErrorf("null vector")
 	}
-	T := ms3.RotationMat4(radians, axis)
+	T := ms3.RotatingMat4(radians, axis)
 	return bld.Transform(s, T)
 }
 

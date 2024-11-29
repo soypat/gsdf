@@ -8,7 +8,7 @@ require (
 	github.com/go-gl/glfw v0.0.0-20221017161538-93cebf72946b
 	github.com/go-gl/glfw/v3.3/glfw v0.0.0-20221017161538-93cebf72946b
 	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0
-	github.com/soypat/glgl v0.0.0-20241121001014-cc8498d2a83d
+	github.com/soypat/glgl v0.0.0-20241124175250-a2463fe190a5
 	golang.org/x/image v0.22.0
 )
 
