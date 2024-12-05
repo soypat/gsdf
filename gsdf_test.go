@@ -9,9 +9,8 @@ import (
 	"github.com/soypat/gsdf/glbuild"
 )
 
-var bld Builder
-
 func TestTransformDuplicateBug(t *testing.T) {
+	var bld Builder
 	G := bld.NewCircle(1)
 	E := bld.NewCircle(1)
 	B := bld.NewCircle(1)

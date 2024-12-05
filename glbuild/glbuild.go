@@ -481,8 +481,7 @@ func AppendShaderBufferDecl(dst []byte, BlockName, instanceName string, ssbo Sha
 		return nil, errors.New("AppendShaderBufferDecl requires BlockName for a valid SSBO declaration")
 	}
 
-	const std = "std140" // Subject to change, would be provided by ShaderBuffer.
-	typename, err := glTypename(ssbo.Element)
+	typename, std, err := glTypename(ssbo.Element)
 	if err != nil {
 		return dst, fmt.Errorf("typename failed for %q: %w", ssbo.NamePtr, err)
 	}
@@ -522,14 +521,15 @@ func (obj ShaderObject) Validate() error {
 	} else if obj.Binding < 0 {
 		return errors.New("shader object negative binding point")
 	}
-	_, err := glTypename(obj.Element)
+	_, _, err := glTypename(obj.Element)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func glTypename(tp reflect.Type) (typename string, err error) {
+func glTypename(tp reflect.Type) (typename, std string, err error) {
+	std = "std430"
 	switch tp {
 	case reflect.TypeOf(md2.Vec{}):
 		typename = "dvec2"
@@ -568,7 +568,7 @@ func glTypename(tp reflect.Type) (typename string, err error) {
 	default:
 		err = fmt.Errorf("equivalent type not implemented for %s", tp.String())
 	}
-	return typename, err
+	return typename, std, err
 }
 
 // AppendShaderSource appends the GL code of a single shader to the dst byte buffer.  If dst's

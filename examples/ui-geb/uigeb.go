@@ -57,7 +57,7 @@ func scene(bld *gsdf.Builder) (glbuild.Shader3D, error) {
 	sclG := ms2.DivElem(sz, szG)
 	sclE := ms2.DivElem(sz, szE)
 	sclB := ms2.DivElem(sz, szB)
-	fmt.Println(sclG, sclE, sclB)
+
 	// Create 3D letters.
 	L := sz.Max()
 	G3 := bld.Extrude(G, L)

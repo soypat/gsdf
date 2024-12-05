@@ -20,6 +20,8 @@ All images and shapes in readme were generated using this library.
 
 ## Features
 
+- High test coverage (when GPU available, not the case in CI)
+
 - Extremely coherent API design.
 
 - UI for visualizing parts, rendered directly from shaders. See [UI example](./examples/ui-mandala) by running `go run ./examples/ui-mandala`

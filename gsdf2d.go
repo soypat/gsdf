@@ -1,6 +1,7 @@
 package gsdf
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"strconv"
@@ -538,30 +539,37 @@ type poly2D struct {
 
 // NewPolygon creates a polygon from a set of vertices. The polygon can be self-intersecting.
 func (bld *Builder) NewPolygon(vertices []ms2.Vec) glbuild.Shader2D {
+	err := bld.validatePolygon(vertices)
+	if err != nil {
+		bld.shapeErrorf(err.Error())
+	}
+	poly := poly2D{vert: vertices}
+	if bld.useGPU(len(vertices)) {
+		return &polyGPU{poly2D: poly, bufname: makeHashName(nil, "ssboPoly", vertices)}
+	}
+	return &poly
+}
+
+func (bld *Builder) validatePolygon(vertices []ms2.Vec) error {
 	prevIdx := len(vertices) - 1
 	if vertices[0] == vertices[prevIdx] {
 		vertices = vertices[:prevIdx] // Discard last vertex if equal to first (this algorithm closes automatically).
 		prevIdx--
 	}
 	if len(vertices) < 3 {
-		bld.shapeErrorf("polygon needs at least 3 distinct vertices")
+		return errors.New("polygon needs at least 3 distinct vertices")
+
 	}
 	for i := range vertices {
 		if math32.IsNaN(vertices[i].X) || math32.IsNaN(vertices[i].Y) {
-			bld.shapeErrorf("NaN value in vertices")
+			return errors.New("NaN value in vertices")
 		}
 		if vertices[i] == vertices[prevIdx] {
-			bld.shapeErrorf("found two consecutive equal vertices in polygon")
+			return errors.New("found two consecutive equal vertices in polygon")
 		}
 		prevIdx = i
 	}
-
-	poly := poly2D{vert: vertices}
-	if bld.useGPU(len(vertices)) {
-		// println("poly")
-		// return &polyGPU{poly2D: poly, bufname: makeHashName(nil, "ssboPoly", vertices)}
-	}
-	return &poly
+	return nil
 }
 
 func (c *poly2D) Bounds() ms2.Box {
@@ -1300,4 +1308,65 @@ func (s *scale2D) AppendShaderBody(b []byte) []byte {
 
 func (u *scale2D) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
 	return objects
+}
+
+// TranslateMulti2D displaces N instances of s SDF to positions given by displacements of length N.
+func (bld *Builder) TranslateMulti2D(s glbuild.Shader2D, displacements []ms2.Vec) glbuild.Shader2D {
+	if s == nil {
+		bld.nilsdf("TranslateMulti2D")
+	}
+	return &translateMulti2D{
+		displacements: displacements,
+		s:             s,
+		bufname:       makeHashName(nil, "translateMulti2D", displacements),
+	}
+}
+
+type translateMulti2D struct {
+	displacements []ms2.Vec
+	s             glbuild.Shader2D
+	bufname       []byte
+}
+
+func (tm *translateMulti2D) Bounds() ms2.Box {
+	var bb ms2.Box
+	elemBox := tm.s.Bounds()
+	for i := range tm.displacements {
+		bb = bb.Union(elemBox.Add(tm.displacements[i]))
+	}
+	return bb
+}
+
+func (tm *translateMulti2D) ForEach2DChild(userData any, fn func(userData any, s *glbuild.Shader2D) error) error {
+	return fn(userData, &tm.s)
+}
+
+func (tm *translateMulti2D) AppendShaderName(b []byte) []byte {
+	b = append(b, "translateMulti2D_"...)
+	b = tm.s.AppendShaderName(b)
+	return b
+}
+
+func (tm *translateMulti2D) AppendShaderBody(b []byte) []byte {
+	b = glbuild.AppendDefineDecl(b, "v", string(tm.bufname))
+	b = fmt.Appendf(b,
+		`const int num = v.length();
+	float d = 1.0e23;
+	for( int i=0; i<num; i++ )
+	{
+		vec2 pt = p - v[i];
+		d = min(d, %s(pt));
+	}
+	return d;
+`, tm.s.AppendShaderName(nil))
+	b = glbuild.AppendUndefineDecl(b, "v")
+	return b
+}
+
+func (tm *translateMulti2D) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
+	ssbo, err := glbuild.MakeShaderBufferReadOnly(tm.bufname, tm.displacements)
+	if err != nil {
+		panic(err)
+	}
+	return append(objects, ssbo)
 }
