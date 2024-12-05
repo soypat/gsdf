@@ -24,6 +24,7 @@ func scene(bld *gsdf.Builder) (glbuild.Shader3D, error) {
 	var f textsdf.Font
 	f.Configure(textsdf.FontConfig{
 		RelativeGlyphTolerance: 0.01,
+		Builder:                bld,
 	})
 	err := f.LoadTTFBytes(textsdf.ISO3098TTF())
 	if err != nil {
@@ -89,6 +90,7 @@ func scene(bld *gsdf.Builder) (glbuild.Shader3D, error) {
 
 func main() {
 	var bld gsdf.Builder
+	// bld.SetFlags(gsdf.FlagUseShaderBuffers)
 	shape, err := scene(&bld)
 	shape = bld.Scale(shape, 0.3)
 	if err != nil {

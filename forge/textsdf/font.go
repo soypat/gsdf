@@ -16,9 +16,12 @@ import (
 const firstBasic = '!'
 const lastBasic = '~'
 
+var defaultBuilder = &gsdf.Builder{}
+
 type FontConfig struct {
 	// RelativeGlyphTolerance sets the permissible curve tolerance for glyphs. Must be between 0..1. If zero a reasonable value is chosen.
 	RelativeGlyphTolerance float32
+	Builder                *gsdf.Builder
 }
 
 // Font implements font parsing and glyph (character) generation.
@@ -29,7 +32,7 @@ type Font struct {
 	basicGlyphs [lastBasic - firstBasic + 1]glyph
 	// Other kinds of glyphs.
 	otherGlyphs map[rune]*glyph
-	bld         gsdf.Builder
+	bld         *gsdf.Builder
 	reltol      float32 // Set by config or reset call if zeroed.
 }
 
@@ -39,6 +42,11 @@ func (f *Font) Configure(cfg FontConfig) error {
 	}
 	f.reset()
 	f.reltol = cfg.RelativeGlyphTolerance
+	if cfg.Builder != nil {
+		f.bld = cfg.Builder
+	} else {
+		f.bld = defaultBuilder
+	}
 	return nil
 }
 
@@ -188,7 +196,7 @@ func (f *Font) scaleout() float32 {
 
 func (f *Font) makeGlyph(char rune) (glyph, error) {
 	g := &f.gb
-	bld := &f.bld
+	bld := f.bld
 
 	idx := f.ttf.Index(char)
 	scale := f.scale()
