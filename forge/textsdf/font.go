@@ -44,8 +44,6 @@ func (f *Font) Configure(cfg FontConfig) error {
 	f.reltol = cfg.RelativeGlyphTolerance
 	if cfg.Builder != nil {
 		f.bld = cfg.Builder
-	} else {
-		f.bld = defaultBuilder
 	}
 	return nil
 }
@@ -75,6 +73,9 @@ func (f *Font) reset() {
 	}
 	if f.reltol == 0 {
 		f.reltol = 0.15
+	}
+	if f.bld == nil {
+		f.bld = defaultBuilder
 	}
 }
 

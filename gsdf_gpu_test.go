@@ -107,6 +107,10 @@ func testGsdfGPU() error {
 		if t.fail {
 			return fmt.Errorf("%s: test failed", getFnName(test))
 		}
+		bldErr := cfg.bld.Err()
+		if bldErr != nil {
+			return fmt.Errorf("%s: got Builder error %q", getFnName(test), bldErr.Error())
+		}
 	}
 	return nil
 }
@@ -226,12 +230,15 @@ func testPrimitives2D(t *tb, cfg *shaderTestConfig) {
 
 	// Non-SSBO shapes which use dynamic buffers.
 	poly := bld.NewPolygon(vertices)
+	polySelfClosed := bld.NewPolygon([]ms2.Vec{{X: 0, Y: 0}, {X: 0, Y: 1}, {X: 1, Y: 1}, {X: 0, Y: 0}})
 
 	// Create shapes to test usage of dynamic buffers as SSBOs.
 	bld.SetFlags(bld.Flags() | FlagUseShaderBuffers)
+
 	polySSBO := bld.NewPolygon(vertices)
 	linesSSBO := bld.NewLines2D(segments, 0.1)
 	displaceSSBO := bld.TranslateMulti2D(poly, vertices)
+
 	bld.SetFlags(bld.Flags() &^ FlagUseShaderBuffers)
 
 	var primitives = []glbuild.Shader2D{
@@ -243,6 +250,7 @@ func testPrimitives2D(t *tb, cfg *shaderTestConfig) {
 		bld.NewEquilateralTriangle(maxdim),
 		bld.NewEllipse(1, 2), // Is incorrect.
 		poly,
+		polySelfClosed,
 		polySSBO,
 		linesSSBO,
 		displaceSSBO,

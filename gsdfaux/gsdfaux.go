@@ -13,10 +13,7 @@ import (
 
 	"time"
 
-	"github.com/chewxy/math32"
 	math "github.com/chewxy/math32"
-	"github.com/soypat/glgl/math/ms1"
-	"github.com/soypat/glgl/math/ms3"
 	"github.com/soypat/glgl/v4.6-core/glgl"
 	"github.com/soypat/gsdf"
 	"github.com/soypat/gsdf/glbuild"
@@ -272,41 +269,4 @@ func MakeGPUSDF2(s glbuild.Shader2D) (sdf gleval.SDF2, err error) {
 		InvocX:        invoc,
 		ShaderObjects: objects,
 	})
-}
-
-var red = color.RGBA{R: 255, A: 255}
-
-// ColorConversionInigoQuilez creates a new color conversion using [Inigo Quilez]'s style.
-// A good value for characteristic distance is the bounding box diagonal divided by 3. Returns red for NaN values/
-//
-// [Inigo Quilez]: https://iquilezles.org/articles/distfunctions2d/
-func ColorConversionInigoQuilez(characteristicDistance float32) func(float32) color.Color {
-	inv := 1. / characteristicDistance
-	return func(d float32) color.Color {
-		if math.IsNaN(d) {
-			return red
-		}
-		d *= inv
-		var one = ms3.Vec{X: 1, Y: 1, Z: 1}
-		var c ms3.Vec
-		if d > 0 {
-			c = ms3.Vec{X: 0.9, Y: 0.6, Z: 0.3}
-		} else {
-			c = ms3.Vec{X: 0.65, Y: 0.85, Z: 1.0}
-		}
-		c = ms3.Scale(1-math32.Exp(-6*math32.Abs(d)), c)
-		c = ms3.Scale(0.8+0.2*math32.Cos(150*d), c)
-		max := 1 - ms1.SmoothStep(0, 0.01, math32.Abs(d))
-		c = ms3.InterpElem(c, one, ms3.Vec{X: max, Y: max, Z: max})
-		return color.RGBA{
-			R: uint8(c.X * 255),
-			G: uint8(c.Y * 255),
-			B: uint8(c.Z * 255),
-			A: 255,
-		}
-	}
-}
-
-func percentUint64(num, denom uint64) float32 {
-	return math.Trunc(10000*float32(num)/float32(denom)) / 100
 }

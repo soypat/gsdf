@@ -268,33 +268,49 @@ func (p *Programmer) writeShaders(w io.Writer, nodes []Shader) (n int, objs []Sh
 	clear(p.names)
 	p.scratch = p.scratch[:0]
 	p.objsScratch = p.objsScratch[:0]
-	currentBase := 2
+	const startBase = 2
+	currentBase := startBase
+	objIdx := 0
 	for i := len(nodes) - 1; i >= 0; i-- {
-		// Start by generating Shader Objects.
+		// Start by generating all Shader Objects.
 		node := nodes[i]
-		prevIdx := len(p.objsScratch)
 		p.objsScratch = node.AppendShaderObjects(p.objsScratch)
-		newObjects := p.objsScratch[prevIdx:]
-		for i := range newObjects {
-			if newObjects[i].Binding != -1 {
-				return n, nil, fmt.Errorf("shader buffer object binding should be set to -1 until shader generated for %T, %q", unwraproot(node), newObjects[i].NamePtr)
+		newObjs := p.objsScratch[objIdx:]
+	OBJWRITE:
+		for i := range newObjs {
+			obj := &newObjs[i]
+			if obj.Binding != -1 {
+				return n, nil, fmt.Errorf("shader buffer object binding should be set to -1 until shader generated for %T, %q", unwraproot(node), obj.NamePtr)
 			}
-			newObjects[i].Binding = currentBase
-			currentBase++
-			obj := newObjects[i]
 			nameHash := hash(obj.NamePtr, 0)
 			_, nameConflict := p.names[nameHash]
 			if nameConflict {
+				oldObjs := p.objsScratch[:objIdx]
+				for _, old := range oldObjs {
+					conflictFound := nameHash == hash(old.NamePtr, 0)
+					if !conflictFound {
+						continue
+					}
+					// Conflict found!
+					if obj.Data == old.Data && obj.Size == old.Size && obj.Element == old.Element {
+						continue OBJWRITE // Skip this object, is duplicate and already has been added.
+					}
+					break // Conflict is not identical.
+				}
 				return n, nil, fmt.Errorf("shader buffer object name conflict resolution not implemented: %T has buffer conflicting name %q of type %s", unwraproot(node), obj.NamePtr, obj.Element.String())
 			}
+			obj.Binding = currentBase
+			currentBase++
 			p.names[nameHash] = nameHash
-			blockName := unsafe.String(&obj.NamePtr[0], len(obj.NamePtr)) + "Buffer"
-			p.scratch, err = AppendShaderBufferDecl(p.scratch, blockName, "", obj)
+			blockName := string(obj.NamePtr) + "Buffer"
+			p.scratch, err = AppendShaderBufferDecl(p.scratch, blockName, "", *obj)
 			if err != nil {
 				return n, nil, err
 			}
 		}
+		objIdx += len(newObjs)
 	}
+
 	if len(p.scratch) > 0 {
 		// Write shader buffer declarations if any.
 		ngot, err := w.Write(p.scratch)
@@ -602,6 +618,7 @@ func AppendAllNodes(dst []Shader, root Shader) ([]Shader, error) {
 	children := []Shader{root}
 	nextChild := 0
 	nilChild := errors.New("got nil child in AppendAllNodes")
+	// found := make(map[Shader]struct{})
 	for len(children[nextChild:]) > 0 {
 		newChildren := children[nextChild:]
 		for _, obj := range newChildren {
@@ -618,6 +635,10 @@ func AppendAllNodes(dst []Shader, root Shader) ([]Shader, error) {
 					if s == nil || *s == nil {
 						return nilChild
 					}
+					// if _, skip := found[*s]; skip {
+					// 	return nil
+					// }
+					// found[*s] = struct{}{}
 					children = append(children, *s)
 					return nil
 				})
@@ -627,6 +648,10 @@ func AppendAllNodes(dst []Shader, root Shader) ([]Shader, error) {
 						if s == nil || *s == nil {
 							return nilChild
 						}
+						// if _, skip := found[*s]; skip {
+						// 	return nil
+						// }
+						// found[*s] = struct{}{}
 						children = append(children, *s)
 						return nil
 					})
@@ -638,6 +663,10 @@ func AppendAllNodes(dst []Shader, root Shader) ([]Shader, error) {
 					if s == nil || *s == nil {
 						return nilChild
 					}
+					// if _, skip := found[*s]; skip {
+					// 	return nil
+					// }
+					// found[*s] = struct{}{}
 					children = append(children, *s)
 					return nil
 				})

@@ -8,8 +8,6 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/chewxy/math32"
-	"github.com/soypat/glgl/math/ms1"
 	"github.com/soypat/gsdf"
 	"github.com/soypat/gsdf/forge/textsdf"
 	"github.com/soypat/gsdf/glbuild"
@@ -66,32 +64,12 @@ func main() {
 
 	charHeight := sdf2.Bounds().Size().Y
 	edgeAliasing := charHeight / 1000
+	conversion := gsdfaux.ColorConversionLinearGradient(edgeAliasing, color.Black, color.White)
 	start := time.Now()
-	err = gsdfaux.RenderPNGFile(filename, sdf2, 300, blackAndWhite(edgeAliasing))
+	err = gsdfaux.RenderPNGFile(filename, sdf2, 300, conversion)
 	if err != nil {
 		log.Fatal(err)
 	}
+	_ = conversion
 	fmt.Println("PNG file rendered to", filename, "in", time.Since(start))
-}
-
-func blackAndWhite(edgeSmooth float32) func(d float32) color.Color {
-	if edgeSmooth <= 0 {
-		return blackAndWhiteNoSmoothing
-	}
-	return func(d float32) color.Color {
-		// Smoothstep anti-aliasing near the edge
-		blend := 0.5 + 0.5*math32.Tanh(d/edgeSmooth)
-		// Clamp blend to [0, 1] for valid grayscale values
-		blend = ms1.Clamp(blend, 0, 1)
-		// Convert blend to grayscale
-		grayValue := uint8(blend * 255)
-		return color.Gray{Y: grayValue}
-	}
-}
-
-func blackAndWhiteNoSmoothing(d float32) color.Color {
-	if d < 0 {
-		return color.Black
-	}
-	return color.White
 }

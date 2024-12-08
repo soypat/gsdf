@@ -539,7 +539,7 @@ type poly2D struct {
 
 // NewPolygon creates a polygon from a set of vertices. The polygon can be self-intersecting.
 func (bld *Builder) NewPolygon(vertices []ms2.Vec) glbuild.Shader2D {
-	err := bld.validatePolygon(vertices)
+	vertices, err := bld.validatePolygon(vertices)
 	if err != nil {
 		bld.shapeErrorf(err.Error())
 	}
@@ -550,26 +550,25 @@ func (bld *Builder) NewPolygon(vertices []ms2.Vec) glbuild.Shader2D {
 	return &poly
 }
 
-func (bld *Builder) validatePolygon(vertices []ms2.Vec) error {
+func (bld *Builder) validatePolygon(vertices []ms2.Vec) ([]ms2.Vec, error) {
 	prevIdx := len(vertices) - 1
 	if vertices[0] == vertices[prevIdx] {
 		vertices = vertices[:prevIdx] // Discard last vertex if equal to first (this algorithm closes automatically).
 		prevIdx--
 	}
 	if len(vertices) < 3 {
-		return errors.New("polygon needs at least 3 distinct vertices")
-
+		return vertices, errors.New("polygon needs at least 3 distinct vertices")
 	}
 	for i := range vertices {
 		if math32.IsNaN(vertices[i].X) || math32.IsNaN(vertices[i].Y) {
-			return errors.New("NaN value in vertices")
+			return vertices, errors.New("NaN value in vertices")
 		}
 		if vertices[i] == vertices[prevIdx] {
-			return errors.New("found two consecutive equal vertices in polygon")
+			return vertices, errors.New("found two consecutive equal vertices in polygon")
 		}
 		prevIdx = i
 	}
-	return nil
+	return vertices, nil
 }
 
 func (c *poly2D) Bounds() ms2.Box {
