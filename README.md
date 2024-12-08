@@ -11,14 +11,18 @@ for visualization or 3D printing file outputs. Quick jump to usage: [bolt exampl
 
 All images and shapes in readme were generated using this library.
 
-![circle](https://github.com/user-attachments/assets/91c99f47-0c52-4cb1-83e7-452b03b69dff)
 ![bolt-example](https://github.com/user-attachments/assets/8da50871-2415-423f-beb3-0d78ad67c79e)
+![circle](https://github.com/user-attachments/assets/91c99f47-0c52-4cb1-83e7-452b03b69dff)
+![text](https://github.com/user-attachments/assets/73a90941-9279-449d-9f4d-3f2746af5dd5)
 
 ## Requirements
+
 - [Go](https://go.dev/)
 - **Optional**: See latest requirements on [go-glfw](https://github.com/go-gl/glfw) if using GPU
 
 ## Features
+
+- High test coverage (when GPU available, not the case in CI)
 
 - Extremely coherent API design.
 
@@ -128,4 +132,4 @@ go run ./examples/fibonacci-showerhead -resdiv 350  36,16s user 0,76s system 100
 
 ![iso-screw](https://github.com/user-attachments/assets/6bc987b9-d522-42a4-89df-71a20c3ae7ff)
 ![array-triangles](https://github.com/user-attachments/assets/6a479889-2836-464c-b8ea-82109a5aad13)
-![geb-book-cover](https://github.com/user-attachments/assets/1ed945fb-5729-4028-bed8-26e0de3073ab)
+![geb-book-cover](https://github.com/user-attachments/assets/a6727481-07f3-4636-8e1c-9b1a02bb108f)

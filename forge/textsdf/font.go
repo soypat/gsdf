@@ -16,9 +16,12 @@ import (
 const firstBasic = '!'
 const lastBasic = '~'
 
+var defaultBuilder = &gsdf.Builder{}
+
 type FontConfig struct {
 	// RelativeGlyphTolerance sets the permissible curve tolerance for glyphs. Must be between 0..1. If zero a reasonable value is chosen.
 	RelativeGlyphTolerance float32
+	Builder                *gsdf.Builder
 }
 
 // Font implements font parsing and glyph (character) generation.
@@ -28,8 +31,8 @@ type Font struct {
 	// basicGlyphs optimized array access for common ASCII glyphs.
 	basicGlyphs [lastBasic - firstBasic + 1]glyph
 	// Other kinds of glyphs.
-	otherGlyphs map[rune]glyph
-	bld         gsdf.Builder
+	otherGlyphs map[rune]*glyph
+	bld         *gsdf.Builder
 	reltol      float32 // Set by config or reset call if zeroed.
 }
 
@@ -39,6 +42,9 @@ func (f *Font) Configure(cfg FontConfig) error {
 	}
 	f.reset()
 	f.reltol = cfg.RelativeGlyphTolerance
+	if cfg.Builder != nil {
+		f.bld = cfg.Builder
+	}
 	return nil
 }
 
@@ -59,7 +65,7 @@ func (f *Font) reset() {
 		f.basicGlyphs[i] = glyph{}
 	}
 	if f.otherGlyphs == nil {
-		f.otherGlyphs = make(map[rune]glyph)
+		f.otherGlyphs = make(map[rune]*glyph)
 	} else {
 		for k := range f.otherGlyphs {
 			delete(f.otherGlyphs, k)
@@ -67,6 +73,9 @@ func (f *Font) reset() {
 	}
 	if f.reltol == 0 {
 		f.reltol = 0.15
+	}
+	if f.bld == nil {
+		f.bld = defaultBuilder
 	}
 }
 
@@ -133,30 +142,38 @@ func (f *Font) AdvanceWidth(c rune) float32 {
 
 // Glyph returns a SDF for a character defined by the argument rune.
 func (f *Font) Glyph(c rune) (_ glbuild.Shader2D, err error) {
-	var g glyph
+	g, err := f.glyph(c)
+	if err != nil {
+		return nil, err
+	}
+	return g.sdf, nil
+}
+
+func (f *Font) glyph(c rune) (g *glyph, err error) {
 	if c >= firstBasic && c <= lastBasic {
 		// Basic ASCII glyph case.
-		g = f.basicGlyphs[c-firstBasic]
+		g = &f.basicGlyphs[c-firstBasic]
 		if g.sdf == nil {
 			// Glyph not yet created. create it.
-			g, err = f.makeGlyph(c)
+			gc, err := f.makeGlyph(c)
 			if err != nil {
 				return nil, err
 			}
-			f.basicGlyphs[c-firstBasic] = g
+			*g = gc
 		}
-		return g.sdf, nil
+		return g, nil
 	}
 	// Unicode or other glyph.
 	g, ok := f.otherGlyphs[c]
 	if !ok {
-		g, err = f.makeGlyph(c)
+		gc, err := f.makeGlyph(c)
 		if err != nil {
 			return nil, err
 		}
+		g = &gc
 		f.otherGlyphs[c] = g
 	}
-	return g.sdf, nil
+	return g, nil
 }
 
 func (f *Font) scale() fixed.Int26_6 {
@@ -180,7 +197,7 @@ func (f *Font) scaleout() float32 {
 
 func (f *Font) makeGlyph(char rune) (glyph, error) {
 	g := &f.gb
-	bld := &f.bld
+	bld := f.bld
 
 	idx := f.ttf.Index(char)
 	scale := f.scale()
@@ -219,8 +236,8 @@ func (f *Font) makeGlyph(char rune) (glyph, error) {
 
 func glyphCurve(bld *gsdf.Builder, points []truetype.Point, start, end int, tol, scale float32) (glbuild.Shader2D, bool, error) {
 	var (
-		sampler = ms2.Spline3Sampler{Spline: quadBezier, Tolerance: tol}
-		sum     float32
+		sampler    = ms2.Spline3Sampler{Spline: quadBezier, Tolerance: tol}
+		windingSum float32
 	)
 	points = points[start:end]
 	n := len(points)
@@ -241,7 +258,7 @@ func glyphCurve(bld *gsdf.Builder, points []truetype.Point, start, end int, tol,
 			// on-on Straight line.
 			poly = append(poly, v0)
 			i += 1
-			sum += (v0.X - vPrev.X) * (v0.Y + vPrev.Y)
+			windingSum += (v0.X - vPrev.X) * (v0.Y + vPrev.Y)
 			vPrev = v0
 			continue
 
@@ -269,10 +286,10 @@ func glyphCurve(bld *gsdf.Builder, points []truetype.Point, start, end int, tol,
 		}
 		poly = append(poly, v0) // Append start point.
 		poly = sampler.SampleBisect(poly, 4)
-		sum += (v0.X - vPrev.X) * (v0.Y + vPrev.Y)
+		windingSum += (v0.X - vPrev.X) * (v0.Y + vPrev.Y)
 		vPrev = v0
 	}
-	return bld.NewPolygon(poly), sum > 0, bld.Err()
+	return bld.NewPolygon(poly), windingSum > 0, bld.Err()
 }
 
 func p2v(p truetype.Point, scale float32) ms2.Vec {
@@ -282,12 +299,7 @@ func p2v(p truetype.Point, scale float32) ms2.Vec {
 	}
 }
 
-var quadBezier = ms2.NewSpline3([]float32{
-	1, 0, 0, 0,
-	-2, 2, 0, 0,
-	1, -2, 1, 0,
-	0, 0, 0, 0,
-})
+var quadBezier = ms2.SplineBezierQuadratic()
 
 func onbits3(points []truetype.Point, start, end, i int) uint32 {
 	n := end - start

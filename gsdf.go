@@ -24,12 +24,16 @@ const (
 	epstol = 6e-7
 )
 
+// Flags is a bitmask of values to control the functioning of the [Builder] type.
 type Flags uint64
 
 const (
 	// FlagNoDimensionPanic controls panicking behavior on invalid shape dimension errors.
 	// If set then these errors do not panic, instead storing the error for later inspection with [Builder.Err].
 	FlagNoDimensionPanic Flags = 1 << iota
+	// FlagUseShaderBuffers enforces the use of shader object for all newly built
+	// SDFs which require a dynamic array(s) to be rendered correctly.
+	FlagUseShaderBuffers
 )
 
 // Builder wraps all SDF primitive and operation logic generation.
@@ -42,8 +46,8 @@ type Builder struct {
 	limVecGPU int
 }
 
-func (bld *Builder) useGPU(n int) bool {
-	return bld.limVecGPU != 0 && n > bld.limVecGPU || n > 1
+func (bld *Builder) useGPU(_ int) bool {
+	return bld.flags&FlagUseShaderBuffers != 0 // bld.limVecGPU != 0 && n > bld.limVecGPU || n > 1
 }
 
 func makeHashName[T any](dst []byte, name string, vec []T) []byte {

@@ -24,6 +24,7 @@ func scene(bld *gsdf.Builder) (glbuild.Shader3D, error) {
 	var f textsdf.Font
 	f.Configure(textsdf.FontConfig{
 		RelativeGlyphTolerance: 0.01,
+		Builder:                bld,
 	})
 	err := f.LoadTTFBytes(textsdf.ISO3098TTF())
 	if err != nil {
@@ -57,7 +58,7 @@ func scene(bld *gsdf.Builder) (glbuild.Shader3D, error) {
 	sclG := ms2.DivElem(sz, szG)
 	sclE := ms2.DivElem(sz, szE)
 	sclB := ms2.DivElem(sz, szB)
-	fmt.Println(sclG, sclE, sclB)
+
 	// Create 3D letters.
 	L := sz.Max()
 	G3 := bld.Extrude(G, L)
@@ -89,6 +90,7 @@ func scene(bld *gsdf.Builder) (glbuild.Shader3D, error) {
 
 func main() {
 	var bld gsdf.Builder
+	// bld.SetFlags(gsdf.FlagUseShaderBuffers)
 	shape, err := scene(&bld)
 	shape = bld.Scale(shape, 0.3)
 	if err != nil {

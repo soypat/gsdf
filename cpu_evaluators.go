@@ -1,12 +1,21 @@
 package gsdf
 
 import (
+	"math"
+
 	"github.com/chewxy/math32"
 	"github.com/soypat/glgl/math/ms1"
 	"github.com/soypat/glgl/math/ms2"
 	"github.com/soypat/glgl/math/ms3"
 	"github.com/soypat/gsdf/gleval"
 )
+
+// minReduce takes element-wise minimum of arguments and stores to first argument.
+func minReduce(d1AndDst, d2 []float32) {
+	for i := range d1AndDst {
+		d1AndDst[i] = math32.Min(d1AndDst[i], d2[i])
+	}
+}
 
 func (u *sphere) Evaluate(pos []ms3.Vec, dist []float32, userData any) error {
 	r := u.r
@@ -129,9 +138,7 @@ func (u *OpUnion) Evaluate(pos []ms3.Vec, dist []float32, userData any) error {
 		if err != nil {
 			return err
 		}
-		for i, d := range dist {
-			dist[i] = math32.Min(d, auxDist[i])
-		}
+		minReduce(dist, auxDist)
 	}
 	return nil
 }
@@ -619,8 +626,8 @@ func (c *hex2D) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {
 
 func (c *ellipse2D) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {
 	// https://iquilezles.org/articles/ellipsedist
-	a, b := c.a, c.b
 	for i, p := range pos {
+		a, b := c.a, c.b
 		p = ms2.AbsElem(p)
 		if p.X > p.Y {
 			p.X, p.Y = p.Y, p.X
@@ -646,8 +653,8 @@ func (c *ellipse2D) Evaluate(pos []ms2.Vec, dist []float32, userData any) error 
 			co = (ry + signf(l)*rx + math32.Abs(g)/(rx*ry) - m) / 2
 		} else {
 			h := 2 * m * n * math32.Sqrt(d)
-			s := signf(q+h) * math32.Pow(math32.Abs(q+h), 1./3.)
-			u := signf(q-h) * math32.Pow(math32.Abs(q-h), 1./3.)
+			s := signf(q+h) * math32.Cbrt(math32.Abs(q+h))
+			u := signf(q-h) * math32.Cbrt(math32.Abs(q-h))
 
 			rx := -s - u - 4*c + 2*m2
 			ry := sqrt3 * (s - u)
@@ -927,7 +934,6 @@ func (c *circarray) Evaluate(pos []ms3.Vec, dist []float32, userData any) error 
 	ncirc := float32(c.circleDiv)
 	ninsm1 := float32(c.nInst - 1)
 	for i, p := range pos {
-
 		pangle := math32.Atan2(p.Y, p.X)
 		id := math32.Floor(pangle / angle)
 		if id < 0 {
@@ -958,9 +964,7 @@ func (c *circarray) Evaluate(pos []ms3.Vec, dist []float32, userData any) error 
 	if err != nil {
 		return err
 	}
-	for i, d := range dist {
-		dist[i] = math32.Min(d, dist1[i])
-	}
+	minReduce(dist, dist1)
 	return nil
 }
 
@@ -1030,4 +1034,47 @@ func (l *lines2D) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {
 		dist[i] = math32.Sqrt(d) - w
 	}
 	return nil
+}
+
+func (c *translateMulti2D) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {
+	vp, err := gleval.GetVecPool(userData)
+	if err != nil {
+		return err
+	}
+	for i := range dist {
+		dist[i] = math.MaxFloat32
+	}
+	d1 := vp.Float.Acquire(len(pos))
+	defer vp.Float.Release(d1)
+	for _, p := range c.displacements {
+		t2d := translate2D{
+			s: c.s,
+			p: p,
+		}
+		err = t2d.Evaluate(pos, d1, userData)
+		if err != nil {
+			return err
+		}
+		minReduce(dist, d1)
+	}
+	return nil
+}
+
+func (c *rotation2D) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {
+	sdf, err := gleval.AssertSDF2(c.s)
+	if err != nil {
+		return err
+	}
+	vp, err := gleval.GetVecPool(userData)
+	if err != nil {
+		return err
+	}
+	posTransf := vp.V2.Acquire(len(pos))
+	defer vp.V2.Release(posTransf)
+	invT := c.tInv
+	for i, p := range pos {
+		posTransf[i] = ms2.MulMatVec(invT, p)
+	}
+	err = sdf.Evaluate(posTransf, dist, userData)
+	return err
 }
