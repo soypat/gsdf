@@ -10,6 +10,8 @@ github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 h1:DACJavvAHhabrF0
 github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0/go.mod h1:E/TSTwGwJL78qG/PmXZO1EjYhfJinVAhrmmHX6Z8B9k=
 github.com/soypat/glgl v0.0.0-20241124175250-a2463fe190a5 h1:PyD0ceAopD2FDv3ddx99Q+h7QxIzDPPuOQiaZrRA7yU=
 github.com/soypat/glgl v0.0.0-20241124175250-a2463fe190a5/go.mod h1:1LcEp6XHSMCI91WlJHzl/aW4Bp5v6yQOiYFyjrlk350=
+github.com/soypat/glgl v0.0.0-20241218113040-663b03b49704 h1:KU+Ofl/VEFFM/uNpDPu+2Ds8RrkJUu21Ef0klG7xK08=
+github.com/soypat/glgl v0.0.0-20241218113040-663b03b49704/go.mod h1:1LcEp6XHSMCI91WlJHzl/aW4Bp5v6yQOiYFyjrlk350=
 golang.org/x/exp v0.0.0-20221230185412-738e83a70c30 h1:m9O6OTJ627iFnN2JIWfdqlZCzneRO6EEBsHXI25P8ws=
 golang.org/x/exp v0.0.0-20221230185412-738e83a70c30/go.mod h1:CxIveKay+FTh1D0yPZemJVgC/95VzuuOLq5Qi4xnoYc=
 golang.org/x/image v0.22.0 h1:UtK5yLUzilVrkjMAZAZ34DXGpASN8i8pj8g+O+yd10g=

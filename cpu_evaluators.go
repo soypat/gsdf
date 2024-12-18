@@ -1078,3 +1078,26 @@ func (c *rotation2D) Evaluate(pos []ms2.Vec, dist []float32, userData any) error
 	err = sdf.Evaluate(posTransf, dist, userData)
 	return err
 }
+
+func (c *scale2D) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {
+	sdf, err := gleval.AssertSDF2(c.s)
+	if err != nil {
+		return err
+	}
+	vp, err := gleval.GetVecPool(userData)
+	if err != nil {
+		return err
+	}
+	posTransf := vp.V2.Acquire(len(pos))
+	defer vp.V2.Release(posTransf)
+	invScale := 1. / c.scale
+	for i, p := range pos {
+		posTransf[i] = ms2.Scale(invScale, p)
+	}
+	err = sdf.Evaluate(posTransf, dist, userData)
+	scale := c.scale
+	for i, d := range dist {
+		dist[i] = d * scale
+	}
+	return err
+}
