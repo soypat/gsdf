@@ -140,7 +140,7 @@ void main() {
 		deltaX := xpos - lastMouseX
 		deltaY := ypos - lastMouseY
 
-		yaw += deltaX * yawSensitivity
+		yaw -= deltaX * yawSensitivity
 		pitch -= deltaY * pitchSensitivity // Invert y-axis
 
 		// Clamp pitch

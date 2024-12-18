@@ -17,7 +17,6 @@ import (
 	"github.com/soypat/gsdf/glbuild"
 	"github.com/soypat/gsdf/gleval"
 )
-
 // Since GPU must be run in main thread we need to do some dark arts for GPU code to be code-covered.
 func TestMain(m *testing.M) {
 	runtime.LockOSThread()
