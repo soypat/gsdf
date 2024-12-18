@@ -2,7 +2,6 @@ package gsdf
 
 import (
 	_ "embed"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"unsafe"
@@ -134,16 +133,6 @@ func absf(a float32) float32 {
 	return math32.Abs(a)
 }
 
-func hashvec2(vecs ...ms2.Vec) float32 {
-	var hashA float32 = 0.0
-	var hashB float32 = 1.0
-	for _, v := range vecs {
-		hashA, hashB = hashAdd(hashA, hashB, v.X)
-		hashA, hashB = hashAdd(hashA, hashB, v.Y)
-	}
-	return hashfint(hashA + hashB)
-}
-
 func hash2vec2(vecs ...[2]ms2.Vec) float32 {
 	var hashA float32 = 0.0
 	var hashB float32 = 1.0
@@ -152,17 +141,6 @@ func hash2vec2(vecs ...[2]ms2.Vec) float32 {
 		hashA, hashB = hashAdd(hashA, hashB, v[0].Y)
 		hashA, hashB = hashAdd(hashA, hashB, v[1].X)
 		hashA, hashB = hashAdd(hashA, hashB, v[1].Y)
-	}
-	return hashfint(hashA + hashB)
-}
-
-func hashvec3(vecs ...ms3.Vec) float32 {
-	var hashA float32 = 0.0
-	var hashB float32 = 1.0
-	for _, v := range vecs {
-		hashA, hashB = hashAdd(hashA, hashB, v.X)
-		hashA, hashB = hashAdd(hashA, hashB, v.Y)
-		hashA, hashB = hashAdd(hashA, hashB, v.Z)
 	}
 	return hashfint(hashA + hashB)
 }
@@ -189,26 +167,26 @@ func hashfint(f float32) float32 {
 	return float32(int(f*1000000)%1000000) / 1000000 // Keep within [0.0, 1.0)
 }
 
-func hash(b []byte, in uint64) uint64 {
-	x := in
-	for len(b) >= 8 {
-		x ^= binary.LittleEndian.Uint64(b)
-		x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9
-		x = (x ^ (x >> 27)) * 0x94d049bb133111eb
-		x ^= x >> 31
-		b = b[8:]
+// func hash(b []byte, in uint64) uint64 {
+// 	x := in
+// 	for len(b) >= 8 {
+// 		x ^= binary.LittleEndian.Uint64(b)
+// 		x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9
+// 		x = (x ^ (x >> 27)) * 0x94d049bb133111eb
+// 		x ^= x >> 31
+// 		b = b[8:]
 
-	}
-	if len(b) > 0 {
-		var buf [8]byte
-		copy(buf[:], b)
-		x ^= binary.LittleEndian.Uint64(buf[:])
-		x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9
-		x = (x ^ (x >> 27)) * 0x94d049bb133111eb
-		x ^= x >> 31
-	}
-	return x
-}
+// 	}
+// 	if len(b) > 0 {
+// 		var buf [8]byte
+// 		copy(buf[:], b)
+// 		x ^= binary.LittleEndian.Uint64(buf[:])
+// 		x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9
+// 		x = (x ^ (x >> 27)) * 0x94d049bb133111eb
+// 		x ^= x >> 31
+// 	}
+// 	return x
+// }
 
 func hashshaderptr(s glbuild.Shader) uint64 {
 	v := *(*[2]uintptr)(unsafe.Pointer(&s))
