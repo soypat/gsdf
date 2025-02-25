@@ -1,4 +1,4 @@
-package gsdf
+package gsdf_test
 
 import (
 	"bytes"
@@ -16,14 +16,16 @@ import (
 	"github.com/soypat/glgl/math/ms1"
 	"github.com/soypat/glgl/math/ms2"
 	"github.com/soypat/glgl/math/ms3"
+	"github.com/soypat/gsdf"
 	"github.com/soypat/gsdf/glbuild"
 	"github.com/soypat/gsdf/gleval"
+	"github.com/soypat/gsdf/gsdfaux"
 )
 
 var testGSDFCalled = false
 
 type shaderTestConfig struct {
-	bld       *Builder
+	bld       *gsdf.Builder
 	useGPU    bool
 	posbufs   [4][]ms3.Vec
 	posbuf2s  [4][]ms2.Vec
@@ -42,7 +44,7 @@ func newShaderTestConfig() *shaderTestConfig {
 		testres: 1. / 3,
 		prog:    *glbuild.NewDefaultProgrammer(),
 		rng:     rand.New(rand.NewSource(1)),
-		bld:     &Builder{},
+		bld:     &gsdf.Builder{},
 	}
 	for i := range cfg.posbuf2s {
 		cfg.posbuf2s[i] = make([]ms2.Vec, bufsize)
@@ -76,7 +78,7 @@ func TestGSDF(t *testing.T) {
 }
 
 func TestTransformDuplicateBug(t *testing.T) {
-	var bld Builder
+	var bld gsdf.Builder
 	G := bld.NewCircle(1)
 	E := bld.NewCircle(1)
 	B := bld.NewCircle(1)
@@ -122,14 +124,14 @@ func TestTransformDuplicateBug(t *testing.T) {
 }
 
 func TestBuilderErrors(t *testing.T) {
-	var bld Builder
-	bld.SetFlags(FlagNoDimensionPanic)
+	var bld gsdf.Builder
+	bld.SetFlags(gsdf.FlagNoDimensionPanic)
 	s := bld.NewCircle(-1)
 	if s == nil {
 		t.Error("expecting non-nil shape")
 	}
 	if bld.Err() == nil {
-		t.Error("expecting error in builder")
+		t.Error("expecting error in gsdf.")
 	}
 	bld.ClearErrors()
 	if bld.Err() != nil {
@@ -221,7 +223,7 @@ func testRandomUnary2D(t *tb, cfg *shaderTestConfig) {
 	bld := cfg.bld
 	obj := bld.NewRectangle(1, 0.61)
 	obj = bld.Translate2D(obj, 2, .3)
-	var RandUnary2D = []func(*Builder, glbuild.Shader2D, *rand.Rand) glbuild.Shader2D{
+	var RandUnary2D = []func(*gsdf.Builder, glbuild.Shader2D, *rand.Rand) glbuild.Shader2D{
 		randomArray2D, // Not sure why does not work.
 		randomCircArray2D,
 		randomSymmetry2D,
@@ -229,6 +231,7 @@ func testRandomUnary2D(t *tb, cfg *shaderTestConfig) {
 		randomAnnulus,
 		randomOffset2D,
 		randomScale2D,
+		randomElongate2D,
 	}
 	for _, op := range RandUnary2D {
 		for i := 0; i < 10; i++ {
@@ -240,7 +243,7 @@ func testRandomUnary2D(t *tb, cfg *shaderTestConfig) {
 
 func testRandomUnary3D(t *tb, cfg *shaderTestConfig) {
 	bld := cfg.bld
-	var UnaryRandomizedOps = []func(*Builder, glbuild.Shader3D, *rand.Rand) glbuild.Shader3D{
+	var UnaryRandomizedOps = []func(*gsdf.Builder, glbuild.Shader3D, *rand.Rand) glbuild.Shader3D{
 		randomRotation,
 		randomShell,
 		randomElongate,
@@ -251,7 +254,7 @@ func testRandomUnary3D(t *tb, cfg *shaderTestConfig) {
 		randomArray,
 		randomCircArray,
 	}
-	var OtherUnaryRandomizedOps2D3D = []func(*Builder, glbuild.Shader2D, *rand.Rand) glbuild.Shader3D{
+	var OtherUnaryRandomizedOps2D3D = []func(*gsdf.Builder, glbuild.Shader2D, *rand.Rand) glbuild.Shader3D{
 		randomExtrude,
 		randomRevolve,
 	}
@@ -260,8 +263,7 @@ func testRandomUnary3D(t *tb, cfg *shaderTestConfig) {
 		result := op(bld, s2, cfg.rng)
 		testShader3D(t, result, cfg)
 	}
-
-	s2d := &rect2D{d: ms2.Vec{X: 1, Y: 0.57}}
+	s2d := bld.NewRectangle(1, 0.57)
 	for _, op := range OtherUnaryRandomizedOps2D3D {
 		result := op(bld, s2d, cfg.rng)
 		testShader3D(t, result, cfg)
@@ -288,13 +290,13 @@ func testPrimitives2D(t *tb, cfg *shaderTestConfig) {
 	polySelfClosed := bld.NewPolygon([]ms2.Vec{{X: 0, Y: 0}, {X: 0, Y: 1}, {X: 1, Y: 1}, {X: 0, Y: 0}})
 
 	// Create shapes to test usage of dynamic buffers as SSBOs.
-	bld.SetFlags(bld.Flags() | FlagUseShaderBuffers)
+	bld.SetFlags(bld.Flags() | gsdf.FlagUseShaderBuffers)
 
 	polySSBO := bld.NewPolygon(vertices)
 	linesSSBO := bld.NewLines2D(segments, 0.1)
 	displaceSSBO := bld.TranslateMulti2D(poly, vertices)
 
-	bld.SetFlags(bld.Flags() &^ FlagUseShaderBuffers)
+	bld.SetFlags(bld.Flags() &^ gsdf.FlagUseShaderBuffers)
 
 	var primitives = []glbuild.Shader2D{
 		bld.NewCircle(maxdim),
@@ -309,6 +311,7 @@ func testPrimitives2D(t *tb, cfg *shaderTestConfig) {
 		polySSBO,
 		linesSSBO,
 		displaceSSBO,
+		bld.NewOctagon(dimVec.X),
 	}
 	for _, primitive := range primitives {
 		testShader2D(t, primitive, cfg)
@@ -397,6 +400,15 @@ func testShader3D(t *tb, obj glbuild.Shader3D, cfg *shaderTestConfig) {
 }
 
 func testShader2D(t *tb, obj glbuild.Shader2D, cfg *shaderTestConfig) {
+	failed := t.fail
+	defer func() {
+		if t.fail && !failed {
+			sdf, _ := gsdfaux.MakeGPUSDF2(obj)
+			gsdfaux.RenderPNGFile("testfail_gpu2d.png", sdf, 500, nil)
+			sdf, _ = gleval.NewCPUSDF2(obj)
+			gsdfaux.RenderPNGFile("testfail_cpu2d.png", sdf, 500, nil)
+		}
+	}()
 	bounds := obj.Bounds()
 	invocx, _, _ := cfg.prog.ComputeInvocations()
 	nx, ny := cfg.div2(bounds)
@@ -485,7 +497,7 @@ func (t *tb) Fatalf(msg string, args ...any) {
 	log.Fatalf(msg, args...)
 }
 
-func randomRotation(bld *Builder, a glbuild.Shader3D, rng *rand.Rand) glbuild.Shader3D {
+func randomRotation(bld *gsdf.Builder, a glbuild.Shader3D, rng *rand.Rand) glbuild.Shader3D {
 	var axis ms3.Vec
 	for ms3.Norm(axis) < .5 {
 		axis = ms3.Vec{X: rng.Float32() * 3, Y: rng.Float32() * 3, Z: rng.Float32() * 3}
@@ -499,7 +511,7 @@ func randomRotation(bld *Builder, a glbuild.Shader3D, rng *rand.Rand) glbuild.Sh
 	return a
 }
 
-func randomShell(bld *Builder, a glbuild.Shader3D, rng *rand.Rand) glbuild.Shader3D {
+func randomShell(bld *gsdf.Builder, a glbuild.Shader3D, rng *rand.Rand) glbuild.Shader3D {
 	bb := a.Bounds()
 	size := bb.Size()
 	maxSize := bb.Size().Max() / 128
@@ -519,7 +531,7 @@ func randomShell(bld *Builder, a glbuild.Shader3D, rng *rand.Rand) glbuild.Shade
 	return bld.Difference(shell, halfbox)
 }
 
-func randomElongate(bld *Builder, a glbuild.Shader3D, rng *rand.Rand) glbuild.Shader3D {
+func randomElongate(bld *gsdf.Builder, a glbuild.Shader3D, rng *rand.Rand) glbuild.Shader3D {
 	const minDim = 0.0
 	const maxDim = 0.3
 	const dim = maxDim - minDim
@@ -527,7 +539,7 @@ func randomElongate(bld *Builder, a glbuild.Shader3D, rng *rand.Rand) glbuild.Sh
 	return bld.Elongate(a, dx, dy, dz)
 }
 
-func randomRound(bld *Builder, a glbuild.Shader3D, rng *rand.Rand) glbuild.Shader3D {
+func randomRound(bld *gsdf.Builder, a glbuild.Shader3D, rng *rand.Rand) glbuild.Shader3D {
 	bb := a.Bounds().Size()
 	minround := bb.Min() / 64
 	maxround := bb.Min() / 2
@@ -535,7 +547,7 @@ func randomRound(bld *Builder, a glbuild.Shader3D, rng *rand.Rand) glbuild.Shade
 	return bld.Offset(a, -round)
 }
 
-func randomTranslate(bld *Builder, a glbuild.Shader3D, rng *rand.Rand) glbuild.Shader3D {
+func randomTranslate(bld *gsdf.Builder, a glbuild.Shader3D, rng *rand.Rand) glbuild.Shader3D {
 	var p ms3.Vec
 	for ms3.Norm(p) < 0.1 {
 		p = ms3.Vec{X: rng.Float32(), Y: rng.Float32(), Z: rng.Float32()}
@@ -545,7 +557,7 @@ func randomTranslate(bld *Builder, a glbuild.Shader3D, rng *rand.Rand) glbuild.S
 	return bld.Translate(a, p.X, p.Y, p.Z)
 }
 
-func randomSymmetry(bld *Builder, a glbuild.Shader3D, rng *rand.Rand) glbuild.Shader3D {
+func randomSymmetry(bld *gsdf.Builder, a glbuild.Shader3D, rng *rand.Rand) glbuild.Shader3D {
 	q := rng.Uint32()
 	for q&0b111 == 0 {
 		q = rng.Uint32()
@@ -556,51 +568,56 @@ func randomSymmetry(bld *Builder, a glbuild.Shader3D, rng *rand.Rand) glbuild.Sh
 	return bld.Symmetry(a, x, y, z)
 }
 
-func randomScale(bld *Builder, a glbuild.Shader3D, rng *rand.Rand) glbuild.Shader3D {
+func randomScale(bld *gsdf.Builder, a glbuild.Shader3D, rng *rand.Rand) glbuild.Shader3D {
 	const minScale, maxScale = 0.01, 3
 	scale := minScale + rng.Float32()*(maxScale-minScale)
 	return bld.Scale(a, scale)
 }
 
-func randomExtrude(bld *Builder, a glbuild.Shader2D, rng *rand.Rand) glbuild.Shader3D {
+func randomExtrude(bld *gsdf.Builder, a glbuild.Shader2D, rng *rand.Rand) glbuild.Shader3D {
 	const minheight, maxHeight = 0.01, 4.
 	height := minheight + rng.Float32()*(maxHeight-minheight)
 	ex := bld.Extrude(a, height)
 	return ex
 }
 
-func randomRevolve(bld *Builder, a glbuild.Shader2D, rng *rand.Rand) glbuild.Shader3D {
+func randomRevolve(bld *gsdf.Builder, a glbuild.Shader2D, rng *rand.Rand) glbuild.Shader3D {
 	const minOff, maxOff float32 = 0, 0
 	off := minOff + rng.Float32()*(maxOff-minOff)
 	rev := bld.Revolve(a, off)
 	return rev
 }
 
-func randomCircArray(bld *Builder, a glbuild.Shader3D, rng *rand.Rand) glbuild.Shader3D {
+func randomCircArray(bld *gsdf.Builder, a glbuild.Shader3D, rng *rand.Rand) glbuild.Shader3D {
 	circleDiv := rng.Intn(16) + 3
 	nInst := rng.Intn(circleDiv) + 1
 	s := bld.CircularArray(a, nInst, circleDiv)
 	return s
 }
 
-func randomCircArray2D(bld *Builder, a glbuild.Shader2D, rng *rand.Rand) glbuild.Shader2D {
+func randomCircArray2D(bld *gsdf.Builder, a glbuild.Shader2D, rng *rand.Rand) glbuild.Shader2D {
 	circleDiv := rng.Intn(16) + 3
 	nInst := rng.Intn(circleDiv) + 1
 	s := bld.CircularArray2D(a, nInst, circleDiv)
 	return s
 }
 
-func randomAnnulus(bld *Builder, a glbuild.Shader2D, rng *rand.Rand) glbuild.Shader2D {
+func randomAnnulus(bld *gsdf.Builder, a glbuild.Shader2D, rng *rand.Rand) glbuild.Shader2D {
 	s := bld.Annulus(a, rng.Float32())
 	return s
 }
 
-func randomScale2D(bld *Builder, a glbuild.Shader2D, rng *rand.Rand) glbuild.Shader2D {
+func randomScale2D(bld *gsdf.Builder, a glbuild.Shader2D, rng *rand.Rand) glbuild.Shader2D {
 	s := bld.Scale2D(a, rng.Float32())
 	return s
 }
 
-func randomArray2D(bld *Builder, a glbuild.Shader2D, rng *rand.Rand) glbuild.Shader2D {
+func randomElongate2D(bld *gsdf.Builder, a glbuild.Shader2D, rng *rand.Rand) glbuild.Shader2D {
+	s := bld.Elongate2D(a, rng.Float32(), rng.Float32())
+	return s
+}
+
+func randomArray2D(bld *gsdf.Builder, a glbuild.Shader2D, rng *rand.Rand) glbuild.Shader2D {
 	const minDim = 0.1
 	const maxRepeat = 8
 	nx, ny := rng.Intn(maxRepeat)+1, rng.Intn(maxRepeat)+1
@@ -609,7 +626,7 @@ func randomArray2D(bld *Builder, a glbuild.Shader2D, rng *rand.Rand) glbuild.Sha
 	return s
 }
 
-func randomSymmetry2D(bld *Builder, a glbuild.Shader2D, rng *rand.Rand) glbuild.Shader2D {
+func randomSymmetry2D(bld *gsdf.Builder, a glbuild.Shader2D, rng *rand.Rand) glbuild.Shader2D {
 	q := rng.Uint32()
 	for q&0b111 == 0 {
 		q = rng.Uint32()
@@ -617,17 +634,17 @@ func randomSymmetry2D(bld *Builder, a glbuild.Shader2D, rng *rand.Rand) glbuild.
 	return bld.Symmetry2D(a, q&1 != 0, q&2 != 0)
 }
 
-func randomOffset2D(bld *Builder, a glbuild.Shader2D, rng *rand.Rand) glbuild.Shader2D {
+func randomOffset2D(bld *gsdf.Builder, a glbuild.Shader2D, rng *rand.Rand) glbuild.Shader2D {
 	off := rng.Float32() - 0.5
 	return bld.Offset2D(a, off)
 }
 
-func randomRotation2D(bld *Builder, a glbuild.Shader2D, rng *rand.Rand) glbuild.Shader2D {
+func randomRotation2D(bld *gsdf.Builder, a glbuild.Shader2D, rng *rand.Rand) glbuild.Shader2D {
 	angle := (math.Pi*rng.Float32() + 0.001)
 	return bld.Rotate2D(a, angle)
 }
 
-func randomArray(bld *Builder, a glbuild.Shader3D, rng *rand.Rand) glbuild.Shader3D {
+func randomArray(bld *gsdf.Builder, a glbuild.Shader3D, rng *rand.Rand) glbuild.Shader3D {
 	const minDim = 0.1
 	const maxRepeat = 8
 	nx, ny, nz := rng.Intn(maxRepeat)+1, rng.Intn(maxRepeat)+1, rng.Intn(maxRepeat)+1
@@ -665,7 +682,7 @@ func appendShaderName(name []byte, obj glbuild.Shader) []byte {
 }
 
 func TestAppendShaderName(t *testing.T) {
-	var bld Builder
+	var bld gsdf.Builder
 	const want = "translate2D(OpUnion2D(arc2D|arc2D))"
 	arc := bld.NewArc(1, 1, 0.1)
 	arc = bld.Union2D(arc, arc)

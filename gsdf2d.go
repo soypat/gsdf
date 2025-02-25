@@ -461,6 +461,49 @@ func (u *hex2D) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.Sh
 	return objects
 }
 
+type oct2D struct {
+	c float32
+}
+
+// NewOctagon returns a regular octagon 2D SDF with form that extend up to -constrain and constrain in both x and y axes.
+func (bld *Builder) NewOctagon(constrain float32) glbuild.Shader2D {
+	okOct := constrain > 0
+	if !okOct {
+		bld.shapeErrorf("bad octagon dimension %f", constrain)
+	}
+	return &oct2D{c: constrain}
+}
+
+func (oct *oct2D) Bounds() ms2.Box {
+	s := oct.c
+	return ms2.NewBox(-s, -s, s, s)
+}
+
+func (oct *oct2D) AppendShaderName(b []byte) []byte {
+	b = append(b, "oct2D"...)
+	b = glbuild.AppendFloat(b, 'n', 'p', oct.c)
+	return b
+}
+
+func (oct *oct2D) AppendShaderBody(b []byte) []byte {
+	b = glbuild.AppendFloatDecl(b, "r", oct.c)
+	b = append(b, `const vec3 k = vec3(-0.9238795325, 0.3826834323, 0.4142135623 );
+    p = abs(p);
+    p -= 2.0*min(dot(vec2( k.x,k.y),p),0.0)*vec2( k.x,k.y);
+    p -= 2.0*min(dot(vec2(-k.x,k.y),p),0.0)*vec2(-k.x,k.y);
+    p -= vec2(clamp(p.x, -k.z*r, k.z*r), r);
+    return length(p)*sign(p.y);`...)
+	return b
+}
+
+func (oct *oct2D) ForEach2DChild(userData any, fn func(userData any, s *glbuild.Shader2D) error) error {
+	return nil
+}
+
+func (oct *oct2D) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
+	return objects
+}
+
 type ellipse2D struct {
 	a, b float32
 }
@@ -469,7 +512,7 @@ type ellipse2D struct {
 func (bld *Builder) NewEllipse(a, b float32) glbuild.Shader2D {
 	okEllipse := a > 0 && b > 0 && !math32.IsInf(a, 1) && !math32.IsInf(b, 1)
 	if !okEllipse {
-		bld.shapeErrorf("bad ellipse dimension")
+		bld.shapeErrorf("bad ellipse dimension (a=%f, b=%f)", a, b)
 	}
 	return &ellipse2D{a: a, b: b}
 }
@@ -1368,4 +1411,52 @@ func (tm *translateMulti2D) AppendShaderObjects(objects []glbuild.ShaderObject) 
 		panic(err)
 	}
 	return append(objects, ssbo)
+}
+
+type elongate2D struct {
+	s glbuild.Shader2D
+	h ms2.Vec
+}
+
+// Elongate2D "stretches" the SDF in a direction by splitting it on the origin in
+// the plane perpendicular to the argument direction. The part of the shape in the negative
+// plane is discarded and replaced with the elongated positive part.
+//
+// Arguments are distances, so zero-valued arguments are no-op.
+func (bld *Builder) Elongate2D(s glbuild.Shader2D, dirX, dirY float32) glbuild.Shader2D {
+	return &elongate2D{s: s, h: ms2.Vec{X: dirX, Y: dirY}}
+}
+
+func (u *elongate2D) Bounds() ms2.Box {
+	box := u.s.Bounds()
+	// elongate2D splits shape around origin and keeps positive bits only.
+	box.Max = ms2.MaxElem(box.Max, ms2.Vec{})
+	box.Max = ms2.Add(box.Max, ms2.Scale(0.5, u.h))
+	box.Min = ms2.Scale(-1, box.Max) // Discard negative side of shape.
+	return box
+}
+
+func (s *elongate2D) ForEach2DChild(userData any, fn func(userData any, s *glbuild.Shader2D) error) error {
+	return fn(userData, &s.s)
+}
+
+func (s *elongate2D) AppendShaderName(b []byte) []byte {
+	b = append(b, "elongate2D"...)
+	arr := s.h.Array()
+	b = glbuild.AppendFloats(b, 0, 'n', 'p', arr[:]...)
+	b = append(b, '_')
+	b = s.s.AppendShaderName(b)
+	return b
+}
+
+func (s *elongate2D) AppendShaderBody(b []byte) []byte {
+	b = glbuild.AppendVec2Decl(b, "h", ms2.Scale(0.5, s.h))
+	b = append(b, "vec2 q=abs(p)-h;"...)
+	b = glbuild.AppendDistanceDecl(b, "d", "max(q,0.)", s.s)
+	b = append(b, "return d+min(max(q.x,q.y),0.);"...)
+	return b
+}
+
+func (u *elongate2D) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
+	return objects
 }

@@ -624,6 +624,25 @@ func (c *hex2D) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {
 	return nil
 }
 
+func (c *oct2D) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {
+	const kx, ky, kz = -0.9238795325, 0.3826834323, 0.4142135623
+	r := c.c
+	kzr := kz * r
+	nkzr := -kzr
+	v1 := ms2.Vec{X: kx, Y: ky}
+	v2 := ms2.Vec{X: -kx, Y: ky}
+	clamp := ms2.Vec{Y: r}
+	for i, p := range pos {
+		p = ms2.AbsElem(p)
+		p = ms2.Sub(p, ms2.Scale(2*math32.Min(ms2.Dot(v1, p), 0), v1))
+		p = ms2.Sub(p, ms2.Scale(2*math32.Min(ms2.Dot(v2, p), 0), v2))
+		clamp.X = ms1.Clamp(p.X, nkzr, kzr)
+		p = ms2.Sub(p, clamp)
+		dist[i] = signf(p.Y) * ms2.Norm(p)
+	}
+	return nil
+}
+
 func (c *ellipse2D) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {
 	// https://iquilezles.org/articles/ellipsedist
 	for i, p := range pos {
@@ -1100,4 +1119,33 @@ func (c *scale2D) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {
 		dist[i] = d * scale
 	}
 	return err
+}
+
+func (e *elongate2D) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {
+	sdf, err := gleval.AssertSDF2(e.s)
+	if err != nil {
+		return err
+	}
+	vp, err := gleval.GetVecPool(userData)
+	if err != nil {
+		return err
+	}
+	transformed := vp.V2.Acquire(len(pos))
+	defer vp.V2.Release(transformed)
+	aux := vp.Float.Acquire(len(pos))
+	defer vp.Float.Release(aux)
+	h := ms2.Scale(0.5, e.h)
+	for i, p := range pos {
+		q := ms2.Sub(ms2.AbsElem(p), h)
+		aux[i] = math32.Min(q.Max(), 0)
+		transformed[i] = ms2.MaxElem(q, ms2.Vec{})
+	}
+	err = sdf.Evaluate(transformed, dist, userData)
+	if err != nil {
+		return err
+	}
+	for i, qnorm := range aux {
+		dist[i] += qnorm
+	}
+	return nil
 }
