@@ -45,8 +45,13 @@ type Builder struct {
 	limVecGPU int
 }
 
-func (bld *Builder) useGPU(_ int) bool {
-	return bld.flags&FlagUseShaderBuffers != 0 // bld.limVecGPU != 0 && n > bld.limVecGPU || n > 1
+// useGPU enables selection of GPU over CPU algorithm depending on Builder configuration.
+func (bld *Builder) useGPU(components int) bool {
+	lim := bld.limVecGPU
+	if lim == 0 {
+		lim = 1024 // Typically older GPUs support a maximum of 1024 components (float32s).
+	}
+	return bld.flags&FlagUseShaderBuffers != 0 || components > lim
 }
 
 func makeHashName[T any](dst []byte, name string, vec []T) []byte {

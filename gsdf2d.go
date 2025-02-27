@@ -587,7 +587,7 @@ func (bld *Builder) NewPolygon(vertices []ms2.Vec) glbuild.Shader2D {
 		bld.shapeErrorf(err.Error())
 	}
 	poly := poly2D{vert: vertices}
-	if bld.useGPU(len(vertices)) {
+	if bld.useGPU(len(vertices) * 2) {
 		return &polyGPU{poly2D: poly, bufname: makeHashName(nil, "ssboPoly", vertices)}
 	}
 	return &poly
