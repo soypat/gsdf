@@ -124,8 +124,7 @@ void main() {
 		return err
 	}
 	gl.EnableVertexAttribArray(posAttrib)
-	gl.VertexAttribPointer(posAttrib, 2, gl.FLOAT, false, 0, gl.PtrOffset(0))
-
+	gl.VertexAttribPointerWithOffset(posAttrib, 2, gl.FLOAT, false, 0, 0)
 	// Enable depth testing
 	gl.Enable(gl.DEPTH_TEST)
 
