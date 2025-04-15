@@ -138,6 +138,11 @@ func absf(a float32) float32 {
 	return math32.Abs(a)
 }
 
+// ndot returns the negative dot product ax*bx - ay*by
+func ndot(a, b ms2.Vec) float32 {
+	return a.X*b.X - a.Y*b.Y
+}
+
 func hash2vec2(vecs ...[2]ms2.Vec) float32 {
 	var hashA float32 = 0.0
 	var hashB float32 = 1.0

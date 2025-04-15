@@ -9,6 +9,7 @@ import (
 	"io"
 	"reflect"
 	"strconv"
+	"strings"
 	"unsafe"
 
 	"github.com/soypat/glgl/math/md2"
@@ -368,7 +369,7 @@ func ShortenNames3D(root *Shader3D, maxRewriteLen int) error {
 		scratch = rewriteName2(s2, scratch, maxRewriteLen)
 		return nil
 	}
-	err := forEachNode(*root, rewrite3, rewrite2)
+	err := forEachNodeBFS(*root, rewrite3, rewrite2)
 	if err != nil {
 		return err
 	}
@@ -385,7 +386,7 @@ func ShortenNames2D(root *Shader2D, maxRewriteLen int) error {
 		scratch = rewriteName2(s2, scratch, maxRewriteLen)
 		return nil
 	}
-	err := forEachNode(*root, rewrite3, rewrite2)
+	err := forEachNodeBFS(*root, rewrite3, rewrite2)
 	if err != nil {
 		return err
 	}
@@ -680,7 +681,7 @@ func AppendAllNodes(dst []Shader, root Shader) ([]Shader, error) {
 	return dst, nil
 }
 
-func forEachNode(root Shader, fn3 func(any, *Shader3D) error, fn2 func(any, *Shader2D) error) error {
+func forEachNodeBFS(root Shader, fn3 func(userData any, s3 *Shader3D) error, fn2 func(userData any, s2 *Shader2D) error) error {
 	var userData any
 	children := []Shader{root}
 	nextChild := 0
@@ -731,6 +732,59 @@ func forEachNode(root Shader, fn3 func(any, *Shader3D) error, fn2 func(any, *Sha
 		}
 	}
 	return nil
+}
+
+func forEachNodeDFS(obj Shader, fnEnter3, fnExit3 func(s3 Shader3D) error, fnEnter2, fnExit2 func(s2 Shader2D) error) (err error) {
+	var userData any
+	obj3, ok3 := obj.(Shader3D)
+	obj2, ok2 := obj.(Shader2D)
+	if !ok2 && !ok3 {
+		return fmt.Errorf("found shader %T that does not implement Shader3D nor Shader2D", obj)
+	}
+	if ok3 {
+		err = fnEnter3(obj3)
+		if err != nil {
+			return err
+		}
+		err = obj3.ForEachChild(userData, func(userData any, s *Shader3D) error {
+			return forEachNodeDFS(*s, fnEnter3, fnExit3, fnEnter2, fnExit2) // TODO: try non-recursive attempt to not stack overflow... But is hard to implement.
+		})
+	}
+	if ok2 && err == nil {
+		err = fnEnter2(obj2)
+		if err != nil {
+			return err
+		}
+		err = obj2.ForEach2DChild(userData, func(userData any, s *Shader2D) error {
+			return forEachNodeDFS(*s, fnEnter3, fnExit3, fnEnter2, fnExit2)
+		})
+		if err != nil {
+			return err
+		}
+		err = fnExit2(obj2)
+	}
+	if ok3 && err == nil {
+		err = fnExit3(obj3)
+	}
+	return err
+}
+
+func countDirectChildren(obj Shader) (directChildren int) {
+	obj3, ok3 := obj.(Shader3D)
+	obj2, ok2 := obj.(Shader2D)
+	if ok3 {
+		obj3.ForEachChild(nil, func(userData any, s *Shader3D) error {
+			directChildren++
+			return nil
+		})
+	}
+	if ok2 {
+		obj2.ForEach2DChild(nil, func(userData any, s *Shader2D) error {
+			directChildren++
+			return nil
+		})
+	}
+	return directChildren
 }
 
 func AppendDefineDecl(b []byte, aliasToDefine, aliasReplace string) []byte {
@@ -1285,4 +1339,51 @@ func unwrap(s Shader) Shader {
 		return unwrapper.unwrap()
 	}
 	return nil
+}
+
+func SprintShader(sh Shader) string {
+	if sh == nil {
+		panic("nil shader")
+	}
+	prevWasPrimitive := false
+	var sb strings.Builder
+	enterShader := func(s Shader) {
+		if prevWasPrimitive {
+			sb.WriteByte(',')
+		}
+		tp := reflect.TypeOf(s)
+		if tp.Kind() == reflect.Pointer {
+			tp = tp.Elem()
+		}
+		name := tp.Name()
+		sb.WriteString(name)
+		isPrimitive := countDirectChildren(s) == 0
+		if !isPrimitive {
+			sb.WriteByte('(')
+		}
+	}
+	exitShader := func(s Shader) {
+		isPrimitive := countDirectChildren(s) == 0
+		if !isPrimitive {
+			sb.WriteByte(')')
+		}
+		prevWasPrimitive = isPrimitive
+	}
+	err := forEachNodeDFS(sh, func(sd Shader3D) error {
+		enterShader(sd)
+		return nil
+	}, func(sd Shader3D) error {
+		exitShader(sd)
+		return nil
+	}, func(sd Shader2D) error {
+		enterShader(sd)
+		return nil
+	}, func(sd Shader2D) error {
+		exitShader(sd)
+		return nil
+	})
+	if err != nil {
+		return err.Error()
+	}
+	return sb.String()
 }

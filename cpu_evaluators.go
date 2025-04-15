@@ -611,6 +611,30 @@ func (c *rect2D) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {
 	return nil
 }
 
+func (c *diamond) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {
+	b := ms2.Scale(0.5, c.d)
+	for i, p := range pos {
+		p = ms2.AbsElem(p)
+		h := ms1.Clamp(ndot(ms2.Sub(b, ms2.Scale(2, p)), b)/ms2.Dot(b, b), -1, 1)
+		d := ms2.Norm(ms2.Sub(p, ms2.MulElem(ms2.Scale(0.5, b), ms2.Vec{X: 1 - h, Y: 1 + h})))
+		dist[i] = d * ms1.Sign(p.X*b.Y+p.Y*b.X-b.X*b.Y)
+	}
+	return nil
+}
+
+func (c *x2d) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {
+	w := c.dim
+	r := c.thick
+	for i, p := range pos {
+		p = ms2.AbsElem(p)
+		sub := 0.5 * math32.Min(p.X+p.Y, w)
+		p.X -= sub
+		p.Y -= sub
+		dist[i] = ms2.Norm(p) - r
+	}
+	return nil
+}
+
 func (c *hex2D) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {
 	r := c.side
 	k := ms2.Vec{X: -tribisect, Y: 0.5}

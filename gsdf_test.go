@@ -312,6 +312,8 @@ func testPrimitives2D(t *tb, cfg *shaderTestConfig) {
 		linesSSBO,
 		displaceSSBO,
 		bld.NewOctagon(dimVec.X),
+		bld.NewDiamond2D(dimVec.X, dimVec.Y),
+		bld.NewRoundedX(dimVec.X, thick),
 	}
 	for _, primitive := range primitives {
 		testShader2D(t, primitive, cfg)
@@ -403,10 +405,11 @@ func testShader2D(t *tb, obj glbuild.Shader2D, cfg *shaderTestConfig) {
 	failed := t.fail
 	defer func() {
 		if t.fail && !failed {
+			name := "testfail_" + glbuild.SprintShader(obj)
 			sdf, _ := gsdfaux.MakeGPUSDF2(obj)
-			gsdfaux.RenderPNGFile("testfail_gpu2d.png", sdf, 500, nil)
+			gsdfaux.RenderPNGFile(name+"_gpu2d.png", sdf, 500, nil)
 			sdf, _ = gleval.NewCPUSDF2(obj)
-			gsdfaux.RenderPNGFile("testfail_cpu2d.png", sdf, 500, nil)
+			gsdfaux.RenderPNGFile(name+"_cpu2d.png", sdf, 500, nil)
 		}
 	}()
 	bounds := obj.Bounds()
@@ -693,12 +696,6 @@ func TestAppendShaderName(t *testing.T) {
 	}
 }
 
-func getFnName(fnPtr any) string {
-	name := runtime.FuncForPC(reflect.ValueOf(fnPtr).Pointer()).Name()
-	idx := strings.LastIndexByte(name, '.')
-	return name[idx+1:]
-}
-
 func test_bounds(sdf gleval.SDF3, userData any, cfg *shaderTestConfig) (err error) {
 	const eps = 1e-2
 	// Evaluate the
@@ -765,4 +762,10 @@ func test_bounds(sdf gleval.SDF3, userData any, cfg *shaderTestConfig) (err erro
 		}
 	}
 	return nil
+}
+
+func getFnName(fnPtr any) string {
+	name := runtime.FuncForPC(reflect.ValueOf(fnPtr).Pointer()).Name()
+	idx := strings.LastIndexByte(name, '.')
+	return name[idx+1:]
 }
