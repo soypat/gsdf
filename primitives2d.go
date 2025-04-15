@@ -268,11 +268,11 @@ func (t *equilateralTri2d) AppendShaderName(b []byte) []byte {
 func (t *equilateralTri2d) AppendShaderBody(b []byte) []byte {
 	b = glbuild.AppendFloatDecl(b, "h", t.hTri/sqrt3)
 	b = append(b, `const float k = sqrt(3.0);
-    p.x = abs(p.x) - h;
-    p.y = p.y + h/k;
-    if( p.x+k*p.y>0.0 ) p = vec2(p.x-k*p.y,-k*p.x-p.y)/2.0;
-    p.x -= clamp( p.x, -2.0*h, 0.0 );
-    return -length(p)*sign(p.y);`...)
+	p.x = abs(p.x) - h;
+	p.y = p.y + h/k;
+	if( p.x+k*p.y>0.0 ) p = vec2(p.x-k*p.y,-k*p.x-p.y)/2.0;
+	p.x -= clamp( p.x, -2.0*h, 0.0 );
+	return -length(p)*sign(p.y);`...)
 	return b
 }
 
@@ -316,7 +316,7 @@ func (c *rect2D) AppendShaderName(b []byte) []byte {
 func (c *rect2D) AppendShaderBody(b []byte) []byte {
 	b = glbuild.AppendVec2Decl(b, "b", ms2.Scale(0.5, c.d))
 	b = append(b, `vec2 d = abs(p)-b;
-    return length(max(d,0.0)) + min(max(d.x,d.y),0.0);`...)
+	return length(max(d,0.0)) + min(max(d.x,d.y),0.0);`...)
 	return b
 }
 
@@ -397,11 +397,11 @@ func (oct *oct2D) AppendShaderName(b []byte) []byte {
 func (oct *oct2D) AppendShaderBody(b []byte) []byte {
 	b = glbuild.AppendFloatDecl(b, "r", oct.c)
 	b = append(b, `const vec3 k = vec3(-0.9238795325, 0.3826834323, 0.4142135623 );
-    p = abs(p);
-    p -= 2.0*min(dot(vec2( k.x,k.y),p),0.0)*vec2( k.x,k.y);
-    p -= 2.0*min(dot(vec2(-k.x,k.y),p),0.0)*vec2(-k.x,k.y);
-    p -= vec2(clamp(p.x, -k.z*r, k.z*r), r);
-    return length(p)*sign(p.y);`...)
+	p = abs(p);
+	p -= 2.0*min(dot(vec2( k.x,k.y),p),0.0)*vec2( k.x,k.y);
+	p -= 2.0*min(dot(vec2(-k.x,k.y),p),0.0)*vec2(-k.x,k.y);
+	p -= vec2(clamp(p.x, -k.z*r, k.z*r), r);
+	return length(p)*sign(p.y);`...)
 	return b
 }
 
@@ -630,9 +630,9 @@ func (c *diamond) AppendShaderBody(b []byte) []byte {
 	b = glbuild.AppendVec2Decl(b, "b", ms2.Scale(0.5, c.d))
 	b = append(b, `p = abs(p);
 	float ndot = b.x*(b.x-2.*p.x)-b.y*(b.y-2*p.y);
-    float h = clamp( ndot/dot(b,b), -1.0, 1.0 );
-    float d = length( p-0.5*b*vec2(1.0-h,1.0+h) );
-    return d * sign( p.x*b.y + p.y*b.x - b.x*b.y );`...)
+	float h = clamp( ndot/dot(b,b), -1.0, 1.0 );
+	float d = length( p-0.5*b*vec2(1.0-h,1.0+h) );
+	return d * sign( p.x*b.y + p.y*b.x - b.x*b.y );`...)
 	return b
 }
 
@@ -676,7 +676,7 @@ func (c *x2d) AppendShaderBody(b []byte) []byte {
 	b = glbuild.AppendFloatDecl(b, "w", c.dim)
 	b = glbuild.AppendFloatDecl(b, "r", c.thick)
 	b = append(b, `p = abs(p);
-    return length(p-min(p.x+p.y,w)*0.5) - r;`...)
+	return length(p-min(p.x+p.y,w)*0.5) - r;`...)
 	return b
 }
 
@@ -685,5 +685,100 @@ func (c *x2d) ForEach2DChild(userData any, fn func(userData any, s *glbuild.Shad
 }
 
 func (u *x2d) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
+	return objects
+}
+
+type quadbezier2d struct {
+	a, b, c ms2.Vec // Control points of quadratic bezier.
+	thick   float32
+}
+
+// NewQuadraticBezier2D creats an exact quadratic bezier SDF with three control points a, b, c. a and c lie on the bezier, b is a slope control point.
+// Thick is the thickness of the curve.
+func (bld *Builder) NewQuadraticBezier2D(a, b, c ms2.Vec, thick float32) glbuild.Shader2D {
+	return &quadbezier2d{a: a, b: b, c: c, thick: thick}
+}
+
+func (c *quadbezier2d) Bounds() ms2.Box {
+	min := ms2.AddScalar(-c.thick/2, ms2.MinElem(c.a, ms2.MinElem(c.b, c.c)))
+	max := ms2.AddScalar(c.thick/2, ms2.MaxElem(c.a, ms2.MaxElem(c.b, c.c)))
+	return ms2.Box{
+		Min: min,
+		Max: max,
+	}
+}
+
+func (c *quadbezier2d) AppendShaderName(b []byte) []byte {
+	b = append(b, "quadbezier2d"...)
+	arr := c.a.Array()
+	b = glbuild.AppendFloats(b, 0, 'n', 'p', arr[:]...)
+	arr = c.b.Array()
+	b = glbuild.AppendFloats(b, 0, 'n', 'p', arr[:]...)
+	arr = c.c.Array()
+	b = glbuild.AppendFloats(b, 0, 'n', 'p', arr[:]...)
+	b = glbuild.AppendFloat(b, 'n', 'p', c.thick)
+	return b
+}
+
+func (c *quadbezier2d) AppendShaderBody(b []byte) []byte {
+	b = glbuild.AppendVec2Decl(b, "A", c.a)
+	b = glbuild.AppendVec2Decl(b, "B", c.b)
+	b = glbuild.AppendVec2Decl(b, "C", c.c)
+	b = glbuild.AppendFloatDecl(b, "thick", c.thick/2)
+	b = append(b, `vec2 a = B - A;
+	vec2 b = A + C - 2.0*B;
+	vec2 c = a * 2.0;
+	vec2 d = A - p;
+	float kk = 1.0/dot(b,b);
+	float kx = kk * dot(a,b);
+	float ky = kk * (2.0*dot(a,a)+dot(d,b))/3.0;
+	float kz = kk * dot(d,a);
+	float res = 0.0;
+	float sgn = 0.0;
+	float g  = ky - kx*kx;
+	float q  = kx*(2.0*kx*kx - 3.0*ky) + kz;
+	float g3 = g*g*g;
+	float q2 = q*q;
+	float h  = q2 + 4.0*g3;
+	if ( h>=0.0 ) 
+	{
+		h = sqrt(h);
+		vec2 x = (vec2(h,-h)-q)/2.0;
+		if ( abs(g)<0.001 ) 
+		{
+			float k = (1.0-g3/q2)*g3/q;
+			x = vec2(k,-k-q);
+		}
+		vec2 uv = sign(x)*pow(abs(x), vec2(1.0/3.0));
+		float t = uv.x + uv.y;
+		t -= (t*(t*t+3.0*g)+q)/(3.0*t*t+3.0*g);
+		t = clamp( t-kx, 0.0, 1.0 );
+		vec2  w = d+(c+b*t)*t;
+		res = dot(w,w);
+		vec2 aux = c+2.0*b*t;
+		sgn = aux.x*w.y-aux.y*w.x;
+	} else {
+		float z = sqrt(-g);
+		float aux = q/(g*z*2.0);
+		float x = sqrt(0.5+0.5*aux);
+		float m = x*(x*(x*(x*-0.008972+0.039071)-0.107074)+0.576975)+0.5;
+		float n = sqrt(1.0-m*m);
+		n *= sqrt(3.0);
+		vec3  t = clamp( vec3(m+m,-n-m,n-m)*z-kx, 0.0, 1.0 );
+		vec2 aux2 = a+b*t.x;
+		vec2  qx=d+(c+b*t.x)*t.x; float dx=dot(qx,qx), sx=aux2.x*qx.y - aux2.y*qx.x;
+		aux2 = a+b*t.y;
+		vec2  qy=d+(c+b*t.y)*t.y; float dy=dot(qy,qy), sy=aux2.x*qy.y - aux2.y*qy.x;
+		if( dx<dy ) {res=dx;sgn=sx;} else {res=dy;sgn=sy;}
+	}
+	return sqrt( res ) - thick;`...)
+	return b
+}
+
+func (c *quadbezier2d) ForEach2DChild(userData any, fn func(userData any, s *glbuild.Shader2D) error) error {
+	return nil
+}
+
+func (u *quadbezier2d) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
 	return objects
 }

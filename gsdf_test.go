@@ -314,6 +314,7 @@ func testPrimitives2D(t *tb, cfg *shaderTestConfig) {
 		bld.NewOctagon(dimVec.X),
 		bld.NewDiamond2D(dimVec.X, dimVec.Y),
 		bld.NewRoundedX(dimVec.X, thick),
+		bld.NewQuadraticBezier2D(dimVec, ms2.Add(dimVec, ms2.Vec{X: maxdim}), ms2.Add(dimVec, ms2.Vec{Y: maxdim}), thick),
 	}
 	for _, primitive := range primitives {
 		testShader2D(t, primitive, cfg)

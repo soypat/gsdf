@@ -578,6 +578,86 @@ func (a *arc2D) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {
 	return nil
 }
 
+func (bz *quadbezier2d) Evaluate(poss []ms2.Vec, dist []float32, userData any) error {
+	// Inigo Quilez' exact quad bezier implementation.
+	thick := bz.thick / 2
+	A := bz.a
+	B := bz.b
+	C := bz.c
+	a := ms2.Sub(B, A)
+	a2 := ms2.Dot(a, a)
+	b := ms2.Add(A, ms2.Sub(C, ms2.Scale(2, B)))
+	c := ms2.Scale(2, a)
+	kk := 1. / ms2.Dot(b, b)
+	kx := kk * ms2.Dot(a, b)
+	kx2 := kx * kx
+	for i, p := range poss {
+		d := ms2.Sub(A, p)
+		ky := kk * (2*a2 + ms2.Dot(d, b)) / 3
+		kz := kk * ms2.Dot(d, a)
+		g := ky - kx2
+		q := kx*(2*kx2-3*ky) + kz
+		g3 := g * g * g
+		q2 := q * q
+		h := q2 + 4*g3
+		var res, sgn float32
+		var outQ ms2.Vec
+		if h >= 0 {
+			// 1 root.
+			h = math32.Sqrt(h)
+			x := ms2.Scale(0.5, ms2.AddScalar(-q, ms2.Vec{X: h, Y: -h}))
+			if math32.Abs(g) < 0.001 {
+				// When p≈0 and p<0, h-q has catastrophic cancelation. So, we do
+				// h=√(q²+4p³)=q·√(1+4p³/q²)=q·√(1+w) instead. Now we approximate
+				// √ by a linear Taylor expansion into h≈q(1+½w) so that the q's
+				// cancel each other in h-q. Expanding and simplifying further we
+				// get x=vec2(p³/q,-p³/q-q). And using a second degree Taylor
+				// expansion instead: x=vec2(k,-k-q) with k=(1-p³/q²)·p³/q
+				// k := p3 / q                // linear approx.
+				k := (1.0 - g3/q2) * g3 / q // quadratic approx.
+				x = ms2.Vec{X: k, Y: -k - q}
+			}
+			uv := ms2.MulElem(ms2.SignElem(x), powelem2(1./3, ms2.AbsElem(x)))
+			t := uv.X + uv.Y
+			// from NinjaKoala - single newton iteration to account for cancellation
+			t -= (t*(t*t+3.0*g) + q) / (3.0*t*t + 3.0*g)
+			t = ms1.Clamp(t-kx, 0, 1)
+			w := ms2.Add(d, ms2.Scale(t, ms2.Add(c, ms2.Scale(t, b))))
+			outQ = ms2.Add(w, p)
+			res = ms2.Dot(w, w)
+			sgn = ms2.Cross(ms2.Add(c, ms2.Scale(2*t, b)), w)
+		} else {
+			// 3 roots.
+			z := math32.Sqrt(-g)
+			m := cos_acos_3(q / (2 * g * z))
+			n := math32.Sqrt(1 - m*m)
+			n *= sqrt3
+			tx := ms1.Clamp((m+m)*z-kx, 0, 1)
+			ty := ms1.Clamp((-n-m)*z-kx, 0, 1)
+			// tz := ms1.Clamp((n-m)*z-kx, 0, 1)
+			qx := ms2.Add(d, ms2.Scale(tx, ms2.Add(c, ms2.Scale(tx, b))))
+			qy := ms2.Add(d, ms2.Scale(ty, ms2.Add(c, ms2.Scale(ty, b))))
+			dx := ms2.Dot(qx, qx)
+			dy := ms2.Dot(qy, qy)
+			sx := ms2.Cross(ms2.Add(a, ms2.Scale(tx, b)), qx)
+			sy := ms2.Cross(ms2.Add(a, ms2.Scale(ty, b)), qy)
+			if dx < dy {
+				res = dx
+				sgn = sx
+				outQ = ms2.Add(p, qx)
+			} else {
+				res = dy
+				sgn = sy
+				outQ = ms2.Add(p, qy)
+			}
+		}
+		_ = outQ // what is outQ for?
+		_ = sgn
+		dist[i] = math32.Sqrt(res) - thick
+	}
+	return nil
+}
+
 func (c *circle2D) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {
 	r := c.r
 	for i, p := range pos {

@@ -143,6 +143,15 @@ func ndot(a, b ms2.Vec) float32 {
 	return a.X*b.X - a.Y*b.Y
 }
 
+func powelem2(k float32, a ms2.Vec) ms2.Vec {
+	return ms2.Vec{X: math32.Pow(a.X, k), Y: math32.Pow(a.Y, k)}
+}
+
+func cos_acos_3(x float32) float32 {
+	x = math32.Sqrt(0.5 + 0.5*x)
+	return x*(x*(x*(x*-0.008972+0.039071)-0.107074)+0.576975) + 0.5
+}
+
 func hash2vec2(vecs ...[2]ms2.Vec) float32 {
 	var hashA float32 = 0.0
 	var hashB float32 = 1.0
