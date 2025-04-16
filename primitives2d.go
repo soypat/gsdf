@@ -700,8 +700,26 @@ func (bld *Builder) NewQuadraticBezier2D(a, b, c ms2.Vec, thick float32) glbuild
 }
 
 func (c *quadbezier2d) Bounds() ms2.Box {
-	min := ms2.AddScalar(-c.thick/2, ms2.MinElem(c.a, ms2.MinElem(c.b, c.c)))
-	max := ms2.AddScalar(c.thick/2, ms2.MaxElem(c.a, ms2.MaxElem(c.b, c.c)))
+	// https://iquilezles.org/articles/bezierbbox/
+	p0 := c.a
+	p1 := c.b
+	p2 := c.c
+	min := ms2.MinElem(p0, p2)
+	max := ms2.MaxElem(p0, p2)
+	one := ms2.Vec{X: 1, Y: 1}
+	if p1.X < min.X || p1.X > max.X || p1.Y < min.Y || p1.Y > max.Y {
+		denom := ms2.Add(p0, ms2.Sub(p2, ms2.Scale(2, p1)))
+		t := ms2.ClampElem(ms2.DivElem(ms2.Sub(p0, p1), denom), ms2.Vec{}, one)
+		s := ms2.Sub(one, t)
+		q1 := ms2.MulElem(ms2.MulElem(s, s), p0)
+		q2 := ms2.Scale(2, ms2.MulElem(ms2.MulElem(s, t), p1))
+		q3 := ms2.MulElem(p2, ms2.MulElem(t, t))
+		q := ms2.Add(q1, ms2.Add(q2, q3))
+		min = ms2.MinElem(min, q)
+		max = ms2.MaxElem(max, q)
+	}
+	min = ms2.AddScalar(-c.thick/2, min)
+	max = ms2.AddScalar(c.thick/2, max)
 	return ms2.Box{
 		Min: min,
 		Max: max,

@@ -305,7 +305,7 @@ func testPrimitives2D(t *tb, cfg *shaderTestConfig) {
 		bld.NewArc(dimVec.X, math.Pi/3, thick),
 		bld.NewHexagon(maxdim),
 		bld.NewEquilateralTriangle(maxdim),
-		bld.NewEllipse(1, 2), // Is incorrect.
+		bld.NewEllipse(1, 2),
 		poly,
 		polySelfClosed,
 		polySSBO,

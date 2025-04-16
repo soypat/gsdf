@@ -10,34 +10,12 @@ on:
     branches: [ "main" ]
 
 jobs:
-  # Requires paying for GPU access.
-  # build-mac:
-  #   name: MacOS
-  #   runs-on: macos-latest-xlarge
-  #   steps:
-  #   - uses: actions/checkout@v3
 
-  #   - name: Setup GPU drivers
-  #     run: brew install mesa
-
-  #   - name: Set up Go
-  #     uses: actions/setup-go@v3
-  #     with:
-  #       go-version: 1.22
-
-  #   - name: Build
-  #     run: go build -v ./...
-
-  #   - name: Test
-  #     run: go test -v ./...
-
-  build-linux:
-    name: Linux
+  build:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
 
-    # ubuntu-latest runner has no GPU.
     - name: Env disable Cgo 
       run: echo "CGO_ENABLED=0" >> $GITHUB_ENV
 
@@ -49,14 +27,16 @@ jobs:
     - name: Build
       run: go build -v ./...
 
+    - name: Test
+      run: go test -v -coverprofile=coverage.txt -covermode=atomic ./...
+
     - name: govulncheck
       uses: golang/govulncheck-action@v1
       with:
         go-version-input: 1.22
         go-package: ./...
 
-    - name: Test and Codecov
-      shell: bash
+    - shell: bash
       env:
         CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       run: |
@@ -65,7 +45,6 @@ jobs:
         # You will need to setup the environment variables below in github
         # and the project in codecov.io
         go test -v -coverprofile=coverage.txt -covermode=atomic ./...
-        curl -Os https://cli.codecov.io/latest/linux/codecov
+        curl -Os https://uploader.codecov.io/latest/linux/codecov
         chmod +x codecov
         CODECOV_TOKEN=$CODECOV_TOKEN ./codecov
-        ./codecov --verbose upload-process --fail-on-error -t ${{ secrets.CODECOV_TOKEN }} -n 'service'-${{ github.run_id }} -F service -f coverage-service.xml
