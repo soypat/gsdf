@@ -319,6 +319,21 @@ func testPrimitives2D(t *tb, cfg *shaderTestConfig) {
 	for _, primitive := range primitives {
 		testShader2D(t, primitive, cfg)
 	}
+	// Now test shapes that share shader functions to check that deduplication is working.
+	primitives = []glbuild.Shader2D{
+		bld.Union2D(
+			bld.NewLine2D(1, 2, 3, 4, 0.5),
+			bld.NewLine2D(2, 3, 0, 0, 0.2),
+			bld.NewLine2D(2, 3, 4, 5, 0.2),
+			bld.NewLines2D([][2]ms2.Vec{
+				{{X: 0, Y: 0}, {X: 1, Y: 1}},
+				{{X: 2, Y: 2}, {X: 3, Y: 1}},
+			}, 0.5),
+		),
+	}
+	for _, primitive := range primitives {
+		testShader2D(t, primitive, cfg)
+	}
 }
 
 func testBinary2D(t *tb, cfg *shaderTestConfig) {

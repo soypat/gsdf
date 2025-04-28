@@ -173,17 +173,28 @@ func computeEvaluate[T ms2.Vec | ms3.Vec](pos []T, dist []float32, invocX int, o
 	}
 
 	var p runtime.Pinner
-	if len(objects) > 0 {
-		// Assume all objects are SSBOs for now.
-		ssbosIDs := make([]uint32, len(objects))
+	var numSSBOs int
+	for i := range objects {
+		if objects[i].IsBindable() {
+			numSSBOs++
+		}
+	}
+	if numSSBOs > 0 {
+		ssbosIDs := make([]uint32, numSSBOs)
 		p.Pin(&ssbosIDs[0])
 		gl.GenBuffers(int32(len(ssbosIDs)), &ssbosIDs[0])
 		defer gl.DeleteBuffers(int32(len(ssbosIDs)), &ssbosIDs[0])
-		for i, id := range ssbosIDs {
-			ssbo := objects[i]
-			gl.BindBuffer(gl.SHADER_STORAGE_BUFFER, id)
-			gl.BufferData(gl.SHADER_STORAGE_BUFFER, ssbo.Size, ssbo.Data, gl.STATIC_DRAW)
-			gl.BindBufferBase(gl.SHADER_STORAGE_BUFFER, uint32(ssbo.Binding), id)
+
+		iid := 0
+		for i := range objects {
+			ssbo := &objects[i]
+			if ssbo.IsBindable() {
+				id := ssbosIDs[iid]
+				iid++
+				gl.BindBuffer(gl.SHADER_STORAGE_BUFFER, id)
+				gl.BufferData(gl.SHADER_STORAGE_BUFFER, ssbo.Size, ssbo.Data, gl.STATIC_DRAW)
+				gl.BindBufferBase(gl.SHADER_STORAGE_BUFFER, uint32(ssbo.Binding), id)
+			}
 		}
 		err := glgl.Err()
 		if err != nil {

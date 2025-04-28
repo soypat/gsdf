@@ -8,6 +8,7 @@ import (
 	"github.com/soypat/glgl/math/ms2"
 	"github.com/soypat/glgl/math/ms3"
 	"github.com/soypat/gsdf/glbuild"
+	"github.com/soypat/gsdf/glbuild/glsllib"
 )
 
 // OpUnion is the result of the [Union] operation. Prefer using [Union] to using this type directly.
@@ -38,7 +39,7 @@ func (bld *Builder) Union(shaders ...glbuild.Shader3D) glbuild.Shader3D {
 	var U OpUnion
 	for i, s := range shaders {
 		if s == nil {
-			bld.nilsdf(fmt.Sprintf("nil %d argument to Union", i))
+			bld.nilsdf(fmt.Sprintf("nil arg[%d] to Union", i))
 		}
 		if subU, ok := s.(*OpUnion); ok {
 			// Discard nested union elements and join their elements.
@@ -818,30 +819,13 @@ func (ca *circarray) AppendShaderBody(b []byte) []byte {
 	b = glbuild.AppendFloatDecl(b, "ncirc", float32(ca.circleDiv))
 	b = glbuild.AppendFloatDecl(b, "angle", angle)
 	b = glbuild.AppendFloatDecl(b, "ninsm1", float32(ca.nInst-1))
-	b = append(b, `float pangle=atan(p.y, p.x);
-	float i=floor(pangle/angle);
-	if (i<0.0) i=ncirc+i;
-	float i0,i1;
-	if (i>=ninsm1) {
-		i0=ninsm1;
-		i1=0.0;
-	} else {
-		i0=i;
-		i1=i+1.0;
-	}
-	float c0 = cos(angle*i0);
-	float s0 = sin(angle*i0);
-	vec2 p0 = mat2(c0,-s0,s0,c0)*p.xy;
-	float c1 = cos(angle*i1);
-	float s1 = sin(angle*i1);
-	vec2 p1 = mat2(c1,-s1,s1,c1)*p.xy;
-	`...)
-	b = glbuild.AppendDistanceDecl(b, "d0", "vec3(p0.x,p0.y,p.z)", ca.s)
-	b = glbuild.AppendDistanceDecl(b, "d1", "vec3(p1.x,p1.y,p.z)", ca.s)
+	b = append(b, `vec4 p0p1 = gsdfPartialCircArray2D(p.xy, ncirc, angle, ninsm1);`...)
+	b = glbuild.AppendDistanceDecl(b, "d0", "vec3(p0p1.x,p0p1.y,p.z)", ca.s)
+	b = glbuild.AppendDistanceDecl(b, "d1", "vec3(p0p1.z,p0p1.w,p.z)", ca.s)
 	b = append(b, "return min(d0, d1);"...)
 	return b
 }
 
 func (u *circarray) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
-	return objects
+	return append(objects, glsllib.PartialCircArray2D())
 }

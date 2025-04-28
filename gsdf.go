@@ -95,6 +95,14 @@ func (*Builder) nilsdf(msg string) {
 	panic("nil SDF argument: " + msg)
 }
 
+func onBuildOp[T glbuild.Shader](bld *Builder, s T) T {
+	return s
+}
+
+func onBuildPrimitive[T glbuild.Shader](bld *Builder, s T) T {
+	return s
+}
+
 // These interfaces are implemented by all SDF interfaces such as SDF3/2 and Shader3D/2D.
 // Using these instead of `any` Aids in catching mistakes at compile time such as passing a Shader3D instead of Shader2D as an argument.
 type (

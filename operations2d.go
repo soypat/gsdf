@@ -8,6 +8,7 @@ import (
 	"github.com/soypat/glgl/math/ms2"
 	"github.com/soypat/glgl/math/ms3"
 	"github.com/soypat/gsdf/glbuild"
+	"github.com/soypat/gsdf/glbuild/glsllib"
 )
 
 // OpUnion2D is the result of [Union2D]. This type is exported for special reasons, see [OpUnion] documentation.
@@ -698,32 +699,15 @@ func (ca *circarray2D) AppendShaderBody(b []byte) []byte {
 	b = glbuild.AppendFloatDecl(b, "ncirc", float32(ca.circleDiv))
 	b = glbuild.AppendFloatDecl(b, "angle", angle)
 	b = glbuild.AppendFloatDecl(b, "ninsm1", float32(ca.nInst-1))
-	b = append(b, `float pangle=atan(p.y, p.x);
-	float i=floor(pangle/angle);
-	if (i<0.0) i=ncirc+i;
-	float i0,i1;
-	if (i>=ninsm1) {
-		i0=ninsm1;
-		i1=0.0;
-	} else {
-		i0=i;
-		i1=i+1.0;
-	}
-	float c0 = cos(angle*i0);
-	float s0 = sin(angle*i0);
-	vec2 p0 = mat2(c0,-s0,s0,c0)*p;
-	float c1 = cos(angle*i1);
-	float s1 = sin(angle*i1);
-	vec2 p1 = mat2(c1,-s1,s1,c1)*p;
-	`...)
-	b = glbuild.AppendDistanceDecl(b, "d0", "p0", ca.s)
-	b = glbuild.AppendDistanceDecl(b, "d1", "p1", ca.s)
+	b = append(b, `vec4 p0p1 = gsdfPartialCircArray2D(p,ncirc,angle,ninsm1);`...)
+	b = glbuild.AppendDistanceDecl(b, "d0", "p0p1.xy", ca.s)
+	b = glbuild.AppendDistanceDecl(b, "d1", "p0p1.zw", ca.s)
 	b = append(b, "return min(d0, d1);"...)
 	return b
 }
 
 func (u *circarray2D) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
-	return objects
+	return append(objects, glsllib.PartialCircArray2D())
 }
 
 // ScaleXY scales s by scaleFactor around the origin.

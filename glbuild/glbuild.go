@@ -43,7 +43,7 @@ type ShaderObject struct {
 	// This lets the programmer edit the name if a naming conflict is found before generating the shader bodies.
 	NamePtr []byte
 
-	// Element is the element of the buffer.
+	// Element is the element type of the buffer.
 	Element reflect.Type
 	// Data points to the start of buffer data.
 	Data unsafe.Pointer
@@ -53,7 +53,8 @@ type ShaderObject struct {
 	// Binding should be equal to -1 until the final binding point is allocated in shader generation.
 	Binding int
 	read    bool
-	// Write bool
+	// for function shaders.
+	funcSource []byte
 }
 
 // Shader3D can create SDF shader source code for an arbitrary 3D shape.
@@ -96,6 +97,29 @@ type Programmer struct {
 	// Invocations size in X (local group size) to give each compute work group.
 	invocX int
 }
+
+func MakeShaderFunction(shaderDef []byte) (sf ShaderObject, err error) {
+	shaderDef = bytes.TrimSpace(shaderDef)
+	fnNameEnd := bytes.IndexByte(shaderDef, '(')
+	fnNameStart := bytes.IndexByte(shaderDef, ' ')
+	if fnNameEnd < 0 || fnNameStart < 0 || fnNameStart > fnNameEnd {
+		return ShaderObject{}, errors.New("unable to parse function name")
+	}
+	name := shaderDef[fnNameStart:fnNameEnd]
+	name = bytes.TrimSpace(name)
+	if len(name) == 0 {
+		return ShaderObject{}, errors.New("empty function name")
+	}
+	sf = ShaderObject{
+		NamePtr:    name,
+		funcSource: shaderDef,
+		Binding:    -1,
+	}
+	return sf, nil
+}
+
+func (ssbo ShaderObject) IsFunction() bool { return len(ssbo.funcSource) > 0 }
+func (ssbo ShaderObject) IsBindable() bool { return !ssbo.IsFunction() }
 
 func MakeShaderBufferReadOnly[T any](namePtr []byte, data []T) (ssbo ShaderObject, err error) {
 	var z T
@@ -291,6 +315,13 @@ func (p *Programmer) writeShaders(w io.Writer, nodes []Shader) (n int, objs []Sh
 					conflictFound := nameHash == hash(old.NamePtr, 0)
 					if !conflictFound {
 						continue
+					}
+					if obj.IsFunction() && bytes.Equal(obj.funcSource, old.funcSource) {
+						continue OBJWRITE // Skip this function, is duplicate.
+					} else if obj.IsFunction() {
+						type ShaderFunction uint8
+						obj.Element = reflect.TypeOf(ShaderFunction(0))
+						break // conflicting function name.
 					}
 					// Conflict found!
 					if obj.Data == old.Data && obj.Size == old.Size && obj.Element == old.Element {
@@ -496,6 +527,11 @@ func AppendShaderBufferDecl(dst []byte, BlockName, instanceName string, ssbo Sha
 		return dst, err
 	} else if BlockName == "" && instanceName == "" {
 		return nil, errors.New("AppendShaderBufferDecl requires BlockName for a valid SSBO declaration")
+	} else if ssbo.funcSource != nil {
+		dst = append(dst, '\n')
+		dst = append(dst, ssbo.funcSource...)
+		dst = append(dst, '\n')
+		return dst, nil
 	}
 
 	typename, std, err := glTypename(ssbo.Element)
@@ -525,6 +561,11 @@ func AppendShaderBufferDecl(dst []byte, BlockName, instanceName string, ssbo Sha
 }
 
 func (obj ShaderObject) Validate() error {
+	if len(obj.NamePtr) == 0 {
+		return errors.New("shader object zero-length name")
+	} else if len(obj.funcSource) > 0 {
+		return nil // Functions only have one required field besides NamePtr
+	}
 	if obj.Data == nil {
 		return errors.New("shader object nil data pointer")
 	} else if obj.Size == 0 {
@@ -533,8 +574,6 @@ func (obj ShaderObject) Validate() error {
 		return errors.New("shader object negative length of data")
 	} else if !obj.read {
 		return errors.New("shader object no usage defined")
-	} else if len(obj.NamePtr) == 0 {
-		return errors.New("shader object zero-length name")
 	} else if obj.Binding < 0 {
 		return errors.New("shader object negative binding point")
 	}

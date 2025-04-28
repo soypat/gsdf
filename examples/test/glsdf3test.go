@@ -491,8 +491,11 @@ func visualize(sdf glbuild.Shader3D, filename string) error {
 	written, ssbos, err := programmer.WriteShaderToyVisualizerSDF3(fp, sdf)
 	if err != nil {
 		return err
-	} else if len(ssbos) > 0 {
-		return errors.New("objectsunsupported in frag visualizer")
+	}
+	for i := range ssbos {
+		if ssbos[i].IsBindable() {
+			return fmt.Errorf("bindable objects not supported in frag visualizer. got %+v", ssbos[i])
+		}
 	}
 	stat, err := fp.Stat()
 	if err != nil {

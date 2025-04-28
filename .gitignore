@@ -53,6 +53,8 @@ local
 
 # GPU shaders
 *.glsl
+# These are library shaders that are used by gsdf. This is where we define reusable shader functions.
+!glbuild/glsllib/*.glsl
 # 3D triangle files.
 *.stl
 

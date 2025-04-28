@@ -24,6 +24,8 @@ All images and shapes in readme were generated using this library.
 
 - High test coverage (when GPU available, not the case in CI)
 
+- **NEW!**: Reusable GLSL code between shaders. See [`glbuild/glsllib`](glbuild/glsllib)
+
 - Extremely coherent API design.
 
 - UI for visualizing parts, rendered directly from shaders. See [UI example](./examples/ui-mandala) by running `go run ./examples/ui-mandala`
