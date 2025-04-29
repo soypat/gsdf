@@ -263,6 +263,11 @@ func (p *Programmer) WriteShaderToyVisualizerSDF3(w io.Writer, obj Shader3D) (n 
 	if err != nil {
 		return 0, objs, err
 	}
+	for i := range objs {
+		if objs[i].IsBindable() {
+			return n, objs, errors.New("visualization shader does not support binding SSBOs. Create your SDFs with no shader buffers by unsetting FlagUseShaderBuffers in gsdf.Builder flags")
+		}
+	}
 	ngot, err := w.Write([]byte("\nfloat sdf(vec3 p) { return " + baseName + "(p); }\n\n"))
 	n += ngot
 	if err != nil {
