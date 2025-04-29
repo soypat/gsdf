@@ -6,8 +6,8 @@ import (
 	"slices"
 
 	"github.com/chewxy/math32"
-	"github.com/soypat/glgl/math/ms2"
-	"github.com/soypat/glgl/math/ms3"
+	"github.com/soypat/geometry/ms2"
+	"github.com/soypat/geometry/ms3"
 )
 
 // SDF3 implements a 3D signed distance field in vectorized

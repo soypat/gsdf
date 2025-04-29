@@ -3,7 +3,7 @@ package glrender
 import (
 	"io"
 
-	"github.com/soypat/glgl/math/ms3"
+	"github.com/soypat/geometry/ms3"
 )
 
 const sqrt3 = 1.73205080757

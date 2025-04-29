@@ -8,8 +8,8 @@ import (
 	"unsafe"
 
 	"github.com/chewxy/math32"
-	"github.com/soypat/glgl/math/ms2"
-	"github.com/soypat/glgl/math/ms3"
+	"github.com/soypat/geometry/ms2"
+	"github.com/soypat/geometry/ms3"
 	"github.com/soypat/glgl/v4.6-core/glgl"
 	"github.com/soypat/gsdf/glbuild"
 )

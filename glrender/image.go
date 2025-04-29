@@ -7,7 +7,7 @@ import (
 	"image/color"
 
 	"github.com/chewxy/math32"
-	"github.com/soypat/glgl/math/ms2"
+	"github.com/soypat/geometry/ms2"
 	"github.com/soypat/gsdf/gleval"
 )
 

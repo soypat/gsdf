@@ -6,7 +6,7 @@ import (
 	"unicode"
 
 	"github.com/golang/freetype/truetype"
-	"github.com/soypat/glgl/math/ms2"
+	"github.com/soypat/geometry/ms2"
 	"github.com/soypat/gsdf"
 	"github.com/soypat/gsdf/glbuild"
 	"golang.org/x/image/font"

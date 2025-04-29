@@ -4,7 +4,7 @@ import (
 	"errors"
 
 	"github.com/chewxy/math32"
-	"github.com/soypat/glgl/math/ms3"
+	"github.com/soypat/geometry/ms3"
 	"github.com/soypat/gsdf/gleval"
 )
 

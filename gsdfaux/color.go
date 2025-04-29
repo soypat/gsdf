@@ -4,8 +4,8 @@ import (
 	"image/color"
 
 	math "github.com/chewxy/math32"
-	"github.com/soypat/glgl/math/ms1"
-	"github.com/soypat/glgl/math/ms3"
+	"github.com/soypat/geometry/ms1"
+	"github.com/soypat/geometry/ms3"
 )
 
 // A great portion of logic in this file taken from Esme Lamb's (@dedelala)

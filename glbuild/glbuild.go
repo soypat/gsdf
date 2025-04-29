@@ -12,10 +12,10 @@ import (
 	"strings"
 	"unsafe"
 
-	"github.com/soypat/glgl/math/md2"
-	"github.com/soypat/glgl/math/md3"
-	"github.com/soypat/glgl/math/ms2"
-	"github.com/soypat/glgl/math/ms3"
+	"github.com/soypat/geometry/md2"
+	"github.com/soypat/geometry/md3"
+	"github.com/soypat/geometry/ms2"
+	"github.com/soypat/geometry/ms3"
 )
 
 // Shader stores information for automatically generating SDF Shader pipelines

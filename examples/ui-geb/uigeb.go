@@ -6,8 +6,8 @@ import (
 	"math"
 	"runtime"
 
-	"github.com/soypat/glgl/math/ms2"
-	"github.com/soypat/glgl/math/ms3"
+	"github.com/soypat/geometry/ms2"
+	"github.com/soypat/geometry/ms3"
 	"github.com/soypat/gsdf"
 	"github.com/soypat/gsdf/forge/textsdf"
 	"github.com/soypat/gsdf/glbuild"
