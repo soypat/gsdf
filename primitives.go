@@ -4,6 +4,7 @@ import (
 	"github.com/chewxy/math32"
 	"github.com/soypat/glgl/math/ms3"
 	"github.com/soypat/gsdf/glbuild"
+	"github.com/soypat/gsdf/glbuild/glsllib"
 )
 
 // NewBoundsBoxFrame creates a BoxFrame from a bb ([ms3.Box]) such that the BoxFrame envelops the bb.
@@ -89,15 +90,12 @@ func (s *box) AppendShaderName(b []byte) []byte {
 }
 
 func (s *box) AppendShaderBody(b []byte) []byte {
-	b = glbuild.AppendFloatDecl(b, "r", s.round)
-	b = glbuild.AppendVec3Decl(b, "d", ms3.Scale(0.5, s.dims)) // Inigo's SDF is x2 size.
-	b = append(b, `vec3 q = abs(p)-d+r;
-return length(max(q,0.0)) + min(max(q.x,max(q.y,q.z)),0.0)-r;`...)
-	return b
+	v := ms3.Scale(0.5, s.dims)
+	return appendTypicalReturnFuncCall(b, "gsdfBox3D", "p", v.X, v.Y, v.Z, s.round)
 }
 
 func (u *box) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
-	return objects
+	return append(objects, glsllib.Box3D())
 }
 
 func (s *box) Bounds() ms3.Box {
@@ -143,18 +141,7 @@ func (s *cylinder) AppendShaderName(b []byte) []byte {
 
 func (s *cylinder) AppendShaderBody(b []byte) []byte {
 	r, h, round := s.args()
-	b = append(b, "p = p.xzy;\n"...)
-	b = glbuild.AppendFloatDecl(b, "r", r)
-	b = glbuild.AppendFloatDecl(b, "h", h) // Correct height for rounding effect.
-	if s.round == 0 {
-		b = append(b, `vec2 d = abs(vec2(length(p.xz),p.y)) - vec2(r,h);
-return min(max(d.x,d.y),0.0) + length(max(d,0.0));`...)
-	} else {
-		b = glbuild.AppendFloatDecl(b, "rd", round)
-		b = append(b, `vec2 d = vec2( length(p.xz)-r+rd, abs(p.y) - h );
-return min(max(d.x,d.y),0.0) + length(max(d,0.0)) - rd;`...)
-	}
-	return b
+	return appendTypicalReturnFuncCall(b, "gsdfCylinder3D", "p", r, h, round)
 }
 
 func (c *cylinder) args() (r, h, round float32) {
@@ -162,7 +149,7 @@ func (c *cylinder) args() (r, h, round float32) {
 }
 
 func (u *cylinder) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
-	return objects
+	return append(objects, glsllib.Cylinder3D())
 }
 
 // NewHexagonalPrism creates a hexagonal prism given a face-to-face dimension and height.
@@ -199,20 +186,11 @@ func (s *hex) AppendShaderName(b []byte) []byte {
 }
 
 func (s *hex) AppendShaderBody(b []byte) []byte {
-	b = glbuild.AppendFloatDecl(b, "_h", s.h)
-	b = glbuild.AppendFloatDecl(b, "side", s.side)
-	b = append(b, `vec2 h = vec2(side, _h);
-const vec3 k = vec3(-0.8660254038, 0.5, 0.57735);
-p = abs(p);
-p.xy -= 2.0*min(dot(k.xy, p.xy), 0.0)*k.xy;
-vec2 aux = p.xy-vec2(clamp(p.x,-k.z*h.x,k.z*h.x), h.x);
-vec2 d = vec2( length(aux)*sign(p.y-h.x), p.z-h.y );
-return min(max(d.x,d.y),0.0) + length(max(d,0.0));`...)
-	return b
+	return appendTypicalReturnFuncCall(b, "gsdfHexagon3D", "p", s.side, s.h)
 }
 
 func (u *hex) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
-	return objects
+	return append(objects, glsllib.Hexagon3D())
 }
 
 // NewTriangularPrism creates a 3D triangular prism with a given triangle cross-sectional height (2D)
@@ -257,13 +235,7 @@ func (s *torus) AppendShaderName(b []byte) []byte {
 }
 
 func (s *torus) AppendShaderBody(b []byte) []byte {
-	b = glbuild.AppendFloatDecl(b, "t1", s.rGreater) // Counteract rounding effect.
-	b = glbuild.AppendFloatDecl(b, "t2", s.rLesser)
-	b = append(b, `p = p.xzy;
-vec2 t = vec2(t1, t2);
-vec2 q = vec2(length(p.xz)-t.x,p.y);
-return length(q)-t.y;`...)
-	return b
+	return appendTypicalReturnFuncCall(b, "gsdfTorus3D", "p.xzy", s.rGreater, s.rLesser)
 }
 
 func (s *torus) Bounds() ms3.Box {
@@ -275,7 +247,7 @@ func (s *torus) Bounds() ms3.Box {
 }
 
 func (u *torus) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
-	return objects
+	return append(objects, glsllib.Torus3D())
 }
 
 // NewBoxFrame creates a framed box with the frame being composed of square beams of thickness e.
@@ -310,15 +282,7 @@ func (bf *boxframe) AppendShaderName(b []byte) []byte {
 
 func (bf *boxframe) AppendShaderBody(b []byte) []byte {
 	e, bb := bf.args()
-	b = glbuild.AppendFloatDecl(b, "e", e)
-	b = glbuild.AppendVec3Decl(b, "b", bb)
-	b = append(b, `p = abs(p)-b;
-vec3 q = abs(p+e)-e;
-return min(min(
-      length(max(vec3(p.x,q.y,q.z),0.0))+min(max(p.x,max(q.y,q.z)),0.0),
-      length(max(vec3(q.x,p.y,q.z),0.0))+min(max(q.x,max(p.y,q.z)),0.0)),
-      length(max(vec3(q.x,q.y,p.z),0.0))+min(max(q.x,max(q.y,p.z)),0.0));`...)
-	return b
+	return appendTypicalReturnFuncCall(b, "gsdfBoxFrame3D", "p", bb.X, bb.Y, bb.Z, e)
 }
 
 func (bf *boxframe) Bounds() ms3.Box {
@@ -333,5 +297,5 @@ func (bf *boxframe) args() (e float32, b ms3.Vec) {
 }
 
 func (u *boxframe) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
-	return objects
+	return append(objects, glsllib.BoxFrame3D())
 }

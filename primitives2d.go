@@ -175,10 +175,7 @@ func (a *arc2D) AppendShaderName(b []byte) []byte {
 
 func (a *arc2D) AppendShaderBody(b []byte) []byte {
 	s, c := math32.Sincos(a.angle / 2)
-	b = append(b, "return gsdfArc2D(p,"...)
-	b = glbuild.AppendFloats(b, ',', '-', '.', a.radius, a.thick/2, s, c)
-	b = append(b, ");"...)
-	return b
+	return appendTypicalReturnFuncCall(b, "gsdfArc2D", "p", a.radius, a.thick/2, s, c)
 }
 
 func (a *arc2D) ForEach2DChild(userData any, fn func(userData any, s *glbuild.Shader2D) error) error {
@@ -258,9 +255,7 @@ func (t *equilateralTri2d) AppendShaderName(b []byte) []byte {
 }
 
 func (t *equilateralTri2d) AppendShaderBody(b []byte) []byte {
-	b = glbuild.AppendFloatDecl(b, "h", t.hTri/sqrt3)
-	b = append(b, `return gsdfEqTri(p, h);`...)
-	return b
+	return appendTypicalReturnFuncCall(b, "gsdfEqTri", "p", t.hTri/sqrt3)
 }
 
 func (t *equilateralTri2d) ForEach2DChild(userData any, fn func(userData any, s *glbuild.Shader2D) error) error {
@@ -301,9 +296,7 @@ func (c *rect2D) AppendShaderName(b []byte) []byte {
 }
 
 func (c *rect2D) AppendShaderBody(b []byte) []byte {
-	b = glbuild.AppendVec2Decl(b, "b", ms2.Scale(0.5, c.d))
-	b = append(b, `return gsdfRect2D(p, b);`...)
-	return b
+	return appendTypicalReturnFuncCall(b, "gsdfRect2D", "p", c.d.X/2, c.d.Y/2)
 }
 
 func (c *rect2D) ForEach2DChild(userData any, fn func(userData any, s *glbuild.Shader2D) error) error {
@@ -339,9 +332,7 @@ func (c *hex2D) AppendShaderName(b []byte) []byte {
 }
 
 func (c *hex2D) AppendShaderBody(b []byte) []byte {
-	b = glbuild.AppendFloatDecl(b, "r", c.side)
-	b = append(b, `return gsdfHexagon2D(p,r);`...)
-	return b
+	return appendTypicalReturnFuncCall(b, "gsdfHexagon2D", "p", c.side)
 }
 
 func (c *hex2D) ForEach2DChild(userData any, fn func(userData any, s *glbuild.Shader2D) error) error {
@@ -377,9 +368,7 @@ func (oct *oct2D) AppendShaderName(b []byte) []byte {
 }
 
 func (oct *oct2D) AppendShaderBody(b []byte) []byte {
-	b = glbuild.AppendFloatDecl(b, "r", oct.c)
-	b = append(b, `return gsdfOctagon2D(p,r);`...)
-	return b
+	return appendTypicalReturnFuncCall(b, "gsdfOctagon2D", "p", oct.c)
 }
 
 func (oct *oct2D) ForEach2DChild(userData any, fn func(userData any, s *glbuild.Shader2D) error) error {
@@ -416,9 +405,7 @@ func (c *ellipse2D) AppendShaderName(b []byte) []byte {
 }
 
 func (c *ellipse2D) AppendShaderBody(b []byte) []byte {
-	b = glbuild.AppendVec2Decl(b, "ab", ms2.Vec{X: c.a, Y: c.b})
-	b = append(b, `return gsdfEllipse2D(p, ab);`...)
-	return b
+	return appendTypicalReturnFuncCall(b, "gsdfEllipse2D", "p", c.a, c.b)
 }
 
 func (c *ellipse2D) ForEach2DChild(userData any, fn func(userData any, s *glbuild.Shader2D) error) error {
@@ -561,9 +548,7 @@ func (c *diamond) AppendShaderName(b []byte) []byte {
 }
 
 func (c *diamond) AppendShaderBody(b []byte) []byte {
-	b = glbuild.AppendVec2Decl(b, "b", ms2.Scale(0.5, c.d))
-	b = append(b, `return gsdfDiamond2D(p,b);`...)
-	return b
+	return appendTypicalReturnFuncCall(b, "gsdfDiamond2D", "p", c.d.X/2, c.d.Y/2)
 }
 
 func (c *diamond) ForEach2DChild(userData any, fn func(userData any, s *glbuild.Shader2D) error) error {
@@ -603,11 +588,7 @@ func (c *x2d) AppendShaderName(b []byte) []byte {
 }
 
 func (c *x2d) AppendShaderBody(b []byte) []byte {
-	b = glbuild.AppendFloatDecl(b, "w", c.dim)
-	b = glbuild.AppendFloatDecl(b, "r", c.thick)
-	b = append(b, `p = abs(p);
-	return length(p-min(p.x+p.y,w)*0.5) - r;`...)
-	return b
+	return appendTypicalReturnFuncCall(b, "gsdfRoundedX2D", "p", c.dim, c.thick)
 }
 
 func (c *x2d) ForEach2DChild(userData any, fn func(userData any, s *glbuild.Shader2D) error) error {
@@ -615,7 +596,7 @@ func (c *x2d) ForEach2DChild(userData any, fn func(userData any, s *glbuild.Shad
 }
 
 func (u *x2d) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
-	return objects
+	return append(objects, glsllib.RoundedX2D())
 }
 
 type quadbezier2d struct {
@@ -672,9 +653,7 @@ func (c *quadbezier2d) AppendShaderBody(b []byte) []byte {
 	b = glbuild.AppendVec2Decl(b, "A", c.a)
 	b = glbuild.AppendVec2Decl(b, "B", c.b)
 	b = glbuild.AppendVec2Decl(b, "C", c.c)
-	b = glbuild.AppendFloatDecl(b, "t", c.thick/2)
-	b = append(b, `return gsdfBezierQ2D(p,A,B,C,t);`...)
-	return b
+	return appendTypicalReturnFuncCall(b, "gsdfBezierQ2D", "p,A,B,C", c.thick/2)
 }
 
 func (c *quadbezier2d) ForEach2DChild(userData any, fn func(userData any, s *glbuild.Shader2D) error) error {

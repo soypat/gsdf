@@ -1,4 +1,5 @@
-float gsdfEllipse2D(vec2 p, vec2 ab) {
+float gsdfEllipse2D(vec2 p, float a, float b) {
+vec2 ab = vec2(a,b);
 p = abs(p);
 if( p.x > p.y ) {
 	p=p.yx;

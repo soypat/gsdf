@@ -11,7 +11,7 @@ var ellipseSrc []byte
 
 // Ellipse2D is the SDF definition for a 2D ellipse:
 //
-//	float gsdfEllipse(vec2 p, vec2 ab)
+//	float gsdfEllipse2D(vec2 p, float a, float b)
 func Ellipse2D() glbuild.ShaderObject {
 	obj, _ := glbuild.MakeShaderFunction(ellipseSrc)
 	return obj
@@ -28,23 +28,12 @@ func EquilateralTriangle2D() glbuild.ShaderObject {
 	return obj
 }
 
-//go:embed linesq2D.glsl
-var line2DSrc []byte
-
-// LineSquared2D is the SDF definition for a single 2D line (distance squared for performance reasons):
-//
-//	float gsdfLineSq2D(vec2 p, vec4 v1v2)
-func LineSquared2D() glbuild.ShaderObject {
-	obj, _ := glbuild.MakeShaderFunction(line2DSrc)
-	return obj
-}
-
 //go:embed rect2D.glsl
 var rect2DSrc []byte
 
 // Rectangle2D is the SDF definition for a 2D rectangle:
 //
-//	float gsdfRect2D(vec2 p, vec2 dims)
+//	float gsdfRect2D(vec2 p, float x, float y)
 func Rectangle2D() glbuild.ShaderObject {
 	obj, _ := glbuild.MakeShaderFunction(rect2DSrc)
 	return obj
@@ -94,24 +83,24 @@ func QuadraticBezier2D() glbuild.ShaderObject {
 	return obj
 }
 
-//go:embed winding.glsl
-var windingSrc []byte
-
-// WindingNumber is a winding number implementation for polygon SDF calculation.
-//
-//	vec2 gsdfWinding(vec2 p, vec2 v1, vec2 v2)
-func WindingNumber() glbuild.ShaderObject {
-	obj, _ := glbuild.MakeShaderFunction(windingSrc)
-	return obj
-}
-
 //go:embed diamond2D.glsl
 var diamond2DSrc []byte
 
-// WindingNumber is a winding number implementation for polygon SDF calculation.
+// Diamond2D is the SDF definition for a 2D diamond shape:
 //
-//	vec2 gsdfWinding(vec2 p, vec2 v1, vec2 v2)
+//	float gsdfDiamond2D(vec2 p, float x, float y)
 func Diamond2D() glbuild.ShaderObject {
 	obj, _ := glbuild.MakeShaderFunction(diamond2DSrc)
+	return obj
+}
+
+//go:embed roundedX2D.glsl
+var x2DSrc []byte
+
+// RoundedX2D is the SDF definition for a 2D rounded X:
+//
+//	float gsdfRoundedX2D(vec2 p, float w, float r)
+func RoundedX2D() glbuild.ShaderObject {
+	obj, _ := glbuild.MakeShaderFunction(x2DSrc)
 	return obj
 }

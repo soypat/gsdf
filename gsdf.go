@@ -219,3 +219,21 @@ func hashshaderptr(s glbuild.Shader) uint64 {
 	v := *(*[2]uintptr)(unsafe.Pointer(&s))
 	return (uint64(v[0]) ^ (uint64(v[1]) << 8)) * 0xbf58476d1ce4e5b9
 }
+
+// appendTypicalReturnFuncCall appends a function call of the following style to the dst buffer and returns the result:
+//
+//	return <funcname>([firstArgs], [s0], [s1]...);
+func appendTypicalReturnFuncCall(dst []byte, funcname string, firstArgs string, s ...float32) []byte {
+	dst = append(dst, "return "...)
+	dst = append(dst, funcname...)
+	dst = append(dst, '(')
+	dst = append(dst, firstArgs...)
+	if len(s) > 0 {
+		if len(firstArgs) != 0 {
+			dst = append(dst, ',')
+		}
+		dst = glbuild.AppendFloats(dst, ',', '-', '.', s...)
+	}
+	dst = append(dst, ");"...)
+	return dst
+}
