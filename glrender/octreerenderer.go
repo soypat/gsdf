@@ -23,7 +23,7 @@ type Octree struct {
 	// decomposing an octree branch in DFS down to the smallest octree unit will use up the entire buffer.
 	cubes []icube
 	// levels is the octree total amount of cube levels.
-	levels int
+
 	// markedToPrune is a counter that keeps track of total amount of cubes in cubes buffer that
 	// have been marked as moved to prunecubes buffer for pruning.
 	markedToPrune int
@@ -118,7 +118,7 @@ func (oc *Octree) Reset(s gleval.SDF3, cubeResolution float32) error {
 		resolution: cubeResolution,
 		cubes:      oc.cubes[:1],
 		prunecubes: oc.prunecubes[:0],
-		levels:     levels,
+
 		// Reuse distbuf and posbuf.
 		distbuf: oc.distbuf,
 		posbuf:  oc.posbuf[:0],

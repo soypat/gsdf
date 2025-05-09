@@ -154,9 +154,9 @@ func elemSize[T any]() int {
 // PolygonGPU implements a direct polygon evaluation via GPU.
 type PolygonGPU struct {
 	Vertices    []ms2.Vec
-	evaluations uint64
-	shader      string
+	prog        glgl.Program
 	invocX      int
+	evaluations uint64
 }
 
 func (poly *PolygonGPU) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {
@@ -179,8 +179,15 @@ func (poly *PolygonGPU) Configure(cfg ComputeConfig) error {
 	if cfg.InvocX < 1 {
 		return errZeroInvoc
 	}
+	shader := fmt.Sprintf(polyshader, cfg.InvocX)
+	glprog, err := glgl.CompileProgram(glgl.ShaderSource{
+		Compute: shader,
+	})
+	if err != nil {
+		return errors.New(shader + "\n" + err.Error())
+	}
+	poly.prog = glprog
 	poly.invocX = cfg.InvocX
-	poly.shader = fmt.Sprintf(polyshader, cfg.InvocX)
 	return nil
 }
 

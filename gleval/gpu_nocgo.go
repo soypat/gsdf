@@ -27,3 +27,7 @@ func (lines *DisplaceMulti2D) evaluate(pos []ms2.Vec, dist []float32, userData a
 func computeEvaluate[T ms2.Vec | ms3.Vec](pos []T, dist []float32, invocX int, objects []glbuild.ShaderObject) (err error) {
 	return errNoCGO
 }
+
+func (b *Batcher) runBinop(binopBody string, cfg ComputeConfig, dst, A, B []float32) error {
+	return errNoCGO
+}

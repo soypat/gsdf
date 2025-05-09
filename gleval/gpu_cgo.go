@@ -15,6 +15,63 @@ import (
 	"github.com/soypat/gsdf/glbuild"
 )
 
+func (b *Batcher) runUnion(dst, A, B []float32) error {
+	return b.runBinop("return min(a,b);", b.cfg, dst, A, B)
+}
+
+func (b *Batcher) runDiff(dst, A, B []float32) error {
+	return b.runBinop("return max(a,-b);", b.cfg, dst, A, B)
+}
+func (b *Batcher) runIntersect(dst, A, B []float32) error {
+	return b.runBinop("return max(a,b);", b.cfg, dst, A, B)
+}
+
+func (b *Batcher) runBinop(binopBody string, cfg ComputeConfig, dst, A, B []float32) error {
+	if len(dst) != len(A) || len(A) != len(B) {
+		return errors.New("unequal buffer lengths")
+	}
+	b.shaderStore = fmt.Appendf(b.shaderStore[:0], baseBinOpShader, cfg.InvocX, binopBody)
+	b.shaderStore = append(b.shaderStore, 0)
+	prog, err := glgl.CompileProgram(glgl.ShaderSource{Compute: string(b.shaderStore)})
+	if err != nil {
+		return err
+	}
+	prog.Bind()
+	defer prog.Delete()
+	defer prog.Unbind()
+	var p runtime.Pinner
+	ssboA := loadSSBO(A, 0, gl.STATIC_DRAW)
+	ssboB := loadSSBO(B, 1, gl.STATIC_DRAW)
+	ssboOut := createSSBO(elemSize[float32]()*len(dst), 2, gl.DYNAMIC_READ)
+	p.Pin(&ssboA)
+	p.Pin(&ssboB)
+	p.Pin(&ssboOut)
+	defer p.Unpin()
+	defer gl.DeleteBuffers(1, &ssboA)
+	defer gl.DeleteBuffers(1, &ssboB)
+	defer gl.DeleteBuffers(1, &ssboOut)
+	err = glgl.Err()
+	if err != nil {
+		return err
+	}
+	nWorkX := (len(dst) + cfg.InvocX - 1) / cfg.InvocX
+	gl.DispatchCompute(uint32(nWorkX), 1, 1)
+	err = glgl.Err()
+	if err != nil {
+		return err
+	}
+	gl.MemoryBarrier(gl.SHADER_STORAGE_BARRIER_BIT)
+	err = glgl.Err()
+	if err != nil {
+		return err
+	}
+	err = copySSBO(dst, ssboOut)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (lines *Lines2DGPU) evaluate(pos []ms2.Vec, dist []float32, userData any) (err error) {
 	if len(pos) != len(dist) {
 		return errors.New("position and distance buffer length mismatch")
@@ -57,14 +114,8 @@ func (lines *Lines2DGPU) evaluate(pos []ms2.Vec, dist []float32, userData any) (
 func (poly *PolygonGPU) evaluate(pos []ms2.Vec, dist []float32, userData any) (err error) {
 	if len(pos) != len(dist) {
 		return errors.New("position and distance buffer length mismatch")
-	} else if poly.shader == "" {
-		return errors.New("need to initialize PolygonGPU before first use")
 	}
-	prog, err := glgl.CompileProgram(glgl.ShaderSource{Compute: poly.shader})
-	if err != nil {
-		return fmt.Errorf("compiling GL program: %w", err)
-	}
-	defer prog.Delete()
+	prog := poly.prog
 	prog.Bind()
 	err = glgl.Err()
 	if err != nil {
@@ -80,7 +131,6 @@ func (poly *PolygonGPU) evaluate(pos []ms2.Vec, dist []float32, userData any) (e
 	p.Pin(&ssbo)
 	defer p.Unpin()
 	defer gl.DeleteBuffers(1, &ssbo)
-
 	err = computeEvaluate(pos, dist, poly.invocX, nil)
 	if err != nil {
 		return err

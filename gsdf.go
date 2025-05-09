@@ -1,6 +1,7 @@
 package gsdf
 
 import (
+	"bytes"
 	_ "embed"
 	"errors"
 	"fmt"
@@ -49,7 +50,7 @@ type Builder struct {
 func (bld *Builder) useGPU(components int) bool {
 	lim := bld.limVecGPU
 	if lim == 0 {
-		lim = 1024 // Typically older GPUs support a maximum of 1024 components (float32s).
+		lim = 128 // Beware: Older GPUs typically support a maximum of 1024 components (float32s).
 	}
 	return bld.flags&FlagUseShaderBuffers != 0 || components > lim
 }
@@ -101,6 +102,20 @@ func onBuildOp[T glbuild.Shader](bld *Builder, s T) T {
 
 func onBuildPrimitive[T glbuild.Shader](bld *Builder, s T) T {
 	return s
+}
+
+func extractReturnExpression(returnExpr []byte) ([]byte, error) {
+	returnExpr = bytes.TrimSpace(returnExpr)
+	returnExpr = bytes.TrimPrefix(returnExpr, []byte("return "))
+	if len(returnExpr) < 3 {
+		return nil, errors.New("too short return expression")
+	}
+	returnExpr = bytes.TrimSpace(returnExpr)
+	idx := bytes.IndexByte(returnExpr, ';')
+	if idx != len(returnExpr)-1 {
+		return nil, errors.New("return expression must have one single semicolon at end")
+	}
+	return returnExpr, nil
 }
 
 // These interfaces are implemented by all SDF interfaces such as SDF3/2 and Shader3D/2D.
