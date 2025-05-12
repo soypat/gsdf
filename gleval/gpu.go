@@ -40,6 +40,7 @@ func NewComputeGPUSDF3(glglSourceCode io.Reader, bb ms3.Box, cfg ComputeConfig) 
 	if err != nil {
 		return nil, err
 	}
+	combinedSource.CompileFlags = cfg.CompileFlags
 	glprog, err := glgl.CompileProgram(combinedSource)
 	if err != nil {
 		return nil, errors.New(string(combinedSource.Compute) + "\n" + err.Error())
@@ -67,6 +68,8 @@ type ComputeConfig struct {
 	InvocX int
 	// ShaderObjects contains buffer data and definitions required by shader for correct evaluation.
 	ShaderObjects []glbuild.ShaderObject
+	// CompileFlags controls compile behaviour, mainly for performance gains at the cost of debuggability and program correctness.
+	CompileFlags glgl.CompileFlags
 }
 
 func (sdf *SDF3Compute) Bounds() ms3.Box {
@@ -103,6 +106,7 @@ func NewComputeGPUSDF2(glglSourceCode io.Reader, bb ms2.Box, cfg ComputeConfig) 
 	if err != nil {
 		return nil, err
 	}
+	combinedSource.CompileFlags = cfg.CompileFlags
 	glprog, err := glgl.CompileProgram(combinedSource)
 	if err != nil {
 		return nil, errors.New(string(combinedSource.Compute) + "\n" + err.Error())
@@ -240,10 +244,10 @@ void main() {
 
 // PolygonGPU implements a direct polygon evaluation via GPU.
 type Lines2DGPU struct {
+	prog        glgl.Program
 	Lines       [][2]ms2.Vec
 	Width       float32
 	evaluations uint64
-	shader      string
 	invocX      int
 }
 
@@ -276,8 +280,16 @@ func (lines *Lines2DGPU) Configure(cfg ComputeConfig) error {
 	if cfg.InvocX < 1 {
 		return errZeroInvoc
 	}
+	shader := fmt.Sprintf(linesshader, cfg.InvocX)
+	glprog, err := glgl.CompileProgram(glgl.ShaderSource{
+		Compute:      shader,
+		CompileFlags: cfg.CompileFlags,
+	})
+	if err != nil {
+		return errors.New(shader + "\n" + err.Error())
+	}
+	lines.prog = glprog
 	lines.invocX = cfg.InvocX
-	lines.shader = fmt.Sprintf(linesshader, cfg.InvocX)
 	return nil
 }
 
@@ -331,10 +343,10 @@ void main() {
 
 // PolygonGPU implements a direct polygon evaluation via GPU.
 type DisplaceMulti2D struct {
+	prog          glgl.Program
 	Displacements []ms2.Vec
 	elemBB        ms2.Box
 	evaluations   uint64
-	shader        []byte
 	invocX        int
 }
 
@@ -368,9 +380,17 @@ func (disp *DisplaceMulti2D) Configure(programmer *glbuild.Programmer, element g
 	} else if len(ssbos) > 0 {
 		return errors.New("objectsunsupported for displace multi")
 	}
+	shader := fmt.Sprintf(multiDisplaceShader, buf.Bytes(), cfg.InvocX, basename)
+	glprog, err := glgl.CompileProgram(glgl.ShaderSource{
+		Compute:      shader,
+		CompileFlags: cfg.CompileFlags,
+	})
+	if err != nil {
+		return err
+	}
+	disp.prog = glprog
 	disp.elemBB = element.Bounds()
 	disp.invocX = cfg.InvocX
-	disp.shader = fmt.Appendf(disp.shader[:0], multiDisplaceShader, buf.Bytes(), cfg.InvocX, basename)
 	return nil
 }
 

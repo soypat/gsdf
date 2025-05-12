@@ -75,30 +75,25 @@ func (b *Batcher) runBinop(binopBody string, cfg ComputeConfig, dst, A, B []floa
 func (lines *Lines2DGPU) evaluate(pos []ms2.Vec, dist []float32, userData any) (err error) {
 	if len(pos) != len(dist) {
 		return errors.New("position and distance buffer length mismatch")
-	} else if lines.shader == "" {
-		return errors.New("need to initialize LinesGPU before first use")
+	} else if lines.prog.ID() == 0 {
+		return errors.New("program id is 0, did you configure Lines2DGPU?")
 	}
-	prog, err := glgl.CompileProgram(glgl.ShaderSource{Compute: lines.shader})
-	if err != nil {
-		return fmt.Errorf("compiling GL program: %w", err)
-	}
-	defer prog.Delete()
+	prog := lines.prog
 	prog.Bind()
+	defer prog.Unbind()
 	loc, err := prog.UniformLocation("WidthOffset\x00")
 	if err != nil {
 		return err
 	}
-	prog.SetUniformf(loc, lines.Width/2)
-	err = glgl.Err()
-	if err != nil {
-		return fmt.Errorf("binding LinesGPU program: %w", err)
-	}
-	defer prog.Unbind()
-	var p runtime.Pinner
-	ssbo := loadSSBO(lines.Lines, 2, gl.STATIC_DRAW)
-	err = glgl.Err()
+	err = prog.SetUniformf(loc, lines.Width/2)
 	if err != nil {
 		return err
+	}
+
+	var p runtime.Pinner
+	ssbo := loadSSBO(lines.Lines, 2, gl.STATIC_DRAW)
+	if ssbo == 0 {
+		return glErrOrMessage("loading lines SSBO got zero id")
 	}
 	p.Pin(&ssbo)
 	defer p.Unpin()
@@ -114,19 +109,16 @@ func (lines *Lines2DGPU) evaluate(pos []ms2.Vec, dist []float32, userData any) (
 func (poly *PolygonGPU) evaluate(pos []ms2.Vec, dist []float32, userData any) (err error) {
 	if len(pos) != len(dist) {
 		return errors.New("position and distance buffer length mismatch")
+	} else if poly.prog.ID() == 0 {
+		return errors.New("bad program compile or PolygonGPU not initialized before first use")
 	}
 	prog := poly.prog
 	prog.Bind()
-	err = glgl.Err()
-	if err != nil {
-		return fmt.Errorf("binding PolygonGPU program: %w", err)
-	}
 	defer prog.Unbind()
 	var p runtime.Pinner
 	ssbo := loadSSBO(poly.Vertices, 2, gl.STATIC_DRAW)
-	err = glgl.Err()
-	if err != nil {
-		return err
+	if ssbo == 0 {
+		return glErrOrMessage("loading polygon vertices SSBO")
 	}
 	p.Pin(&ssbo)
 	defer p.Unpin()
@@ -141,27 +133,17 @@ func (poly *PolygonGPU) evaluate(pos []ms2.Vec, dist []float32, userData any) (e
 func (lines *DisplaceMulti2D) evaluate(pos []ms2.Vec, dist []float32, userData any) (err error) {
 	if len(pos) != len(dist) {
 		return errors.New("position and distance buffer length mismatch")
-	} else if len(lines.shader) == 0 {
-		return errors.New("need to initialize LinesGPU before first use")
+	} else if lines.prog.ID() == 0 {
+		return errors.New("bad compile or need to initialize LinesGPU before first use")
 	}
-	cmp := unsafe.String(&lines.shader[0], len(lines.shader))
-	prog, err := glgl.CompileProgram(glgl.ShaderSource{Compute: cmp})
-	if err != nil {
-		return fmt.Errorf("compiling GL program: %w", err)
-	}
-	defer prog.Delete()
-	prog.Bind()
 
-	err = glgl.Err()
-	if err != nil {
-		return fmt.Errorf("binding LinesGPU program: %w", err)
-	}
+	prog := lines.prog
+	prog.Bind()
 	defer prog.Unbind()
 	var p runtime.Pinner
 	ssbo := loadSSBO(lines.Displacements, 2, gl.STATIC_DRAW)
-	err = glgl.Err()
-	if err != nil {
-		return err
+	if ssbo == 0 {
+		return glErrOrMessage("loading displacements SSBO got zero id")
 	}
 	p.Pin(&ssbo)
 	defer p.Unpin()
@@ -200,17 +182,13 @@ func copySSBO[T any](dst []T, ssbo uint32) error {
 	gl.BindBuffer(gl.SHADER_STORAGE_BUFFER, ssbo)
 	ptr := gl.MapBufferRange(gl.SHADER_STORAGE_BUFFER, 0, bufSize, gl.MAP_READ_BIT)
 	if ptr == nil {
-		err := glgl.Err()
-		if err != nil {
-			return err
-		}
-		return errors.New("failed to map buffer")
+		return glErrOrMessage("failed to map SSBO buffer during copy")
 	}
 	defer gl.UnmapBuffer(gl.SHADER_STORAGE_BUFFER)
 	gpuBytes := unsafe.Slice((*byte)(ptr), bufSize)
 	bufBytes := unsafe.Slice((*byte)(unsafe.Pointer(&dst[0])), bufSize)
 	copy(bufBytes, gpuBytes)
-	return glgl.Err()
+	return nil
 }
 
 func computeEvaluate[T ms2.Vec | ms3.Vec](pos []T, dist []float32, invocX int, objects []glbuild.ShaderObject) (err error) {
@@ -240,16 +218,15 @@ func computeEvaluate[T ms2.Vec | ms3.Vec](pos []T, dist []float32, invocX int, o
 			ssbo := &objects[i]
 			if ssbo.IsBindable() {
 				id := ssbosIDs[iid]
+				if id == 0 {
+					p.Unpin()
+					return glErrOrMessage("zero id for SSBO set by GL during compute binding")
+				}
 				iid++
 				gl.BindBuffer(gl.SHADER_STORAGE_BUFFER, id)
 				gl.BufferData(gl.SHADER_STORAGE_BUFFER, ssbo.Size, ssbo.Data, gl.STATIC_DRAW)
 				gl.BindBufferBase(gl.SHADER_STORAGE_BUFFER, uint32(ssbo.Binding), id)
 			}
-		}
-		err := glgl.Err()
-		if err != nil {
-			p.Unpin()
-			return fmt.Errorf("binding SSBOs: %w", err)
 		}
 	}
 
@@ -259,32 +236,33 @@ func computeEvaluate[T ms2.Vec | ms3.Vec](pos []T, dist []float32, invocX int, o
 	defer p.Unpin()
 
 	posSSBO = loadSSBO(pos, 0, gl.STATIC_DRAW)
-	err = glgl.Err()
-	if err != nil {
-		return err
+	if posSSBO == 0 {
+		return glErrOrMessage("zero SSBO id set by GL during compute loading")
 	}
+
 	defer gl.DeleteBuffers(1, &posSSBO)
 
 	distSSBO = createSSBO(elemSize[float32]()*len(dist), 1, gl.DYNAMIC_READ)
-	err = glgl.Err()
-	if err != nil {
-		return err
+	if distSSBO == 0 {
+		return glErrOrMessage("zero id SSBO creating distance buffer")
 	}
 	nWorkX := (len(dist) + invocX - 1) / invocX
 	defer gl.DeleteBuffers(1, &distSSBO)
 	gl.DispatchCompute(uint32(nWorkX), 1, 1)
-	err = glgl.Err()
-	if err != nil {
-		return err
-	}
 	gl.MemoryBarrier(gl.SHADER_STORAGE_BARRIER_BIT)
-	err = glgl.Err()
-	if err != nil {
-		return err
-	}
 	err = copySSBO(dist, distSSBO)
 	if err != nil {
 		return err
 	}
-	return nil
+	return glgl.Err()
+}
+
+func glErrOrMessage(defaultMsg string) (err error) {
+	err = glgl.Err()
+	if err == nil {
+		err = errors.New(defaultMsg)
+	} else {
+		err = fmt.Errorf("%s: %w", defaultMsg, err)
+	}
+	return err
 }

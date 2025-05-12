@@ -26,6 +26,8 @@ import (
 	"github.com/soypat/gsdf/gsdfaux"
 )
 
+const compileFlags glgl.CompileFlags = glgl.CompileFlagsStrict
+
 func main() {
 	start := time.Now()
 	err := run()
@@ -358,7 +360,10 @@ func test_polygongpu() error {
 	}
 	polyGPU := &gleval.PolygonGPU{Vertices: vecs}
 	invocX, _, _ := programmer.ComputeInvocations()
-	polyGPU.Configure(gleval.ComputeConfig{InvocX: invocX})
+	polyGPU.Configure(gleval.ComputeConfig{
+		InvocX:       invocX,
+		CompileFlags: compileFlags,
+	})
 	return testsdf2("poly", sdfcpu, polyGPU)
 }
 
@@ -387,7 +392,10 @@ func test_multidisplacegpu() error {
 		Displacements: displace,
 	}
 	invocX, _, _ := programmer.ComputeInvocations()
-	err = displGPU.Configure(programmer, circle, gleval.ComputeConfig{InvocX: invocX})
+	err = displGPU.Configure(programmer, circle, gleval.ComputeConfig{
+		InvocX:       invocX,
+		CompileFlags: compileFlags,
+	})
 	if err != nil {
 		return err
 	}
@@ -424,7 +432,10 @@ func test_linesgpu() error {
 		Width: width,
 	}
 	invocX, _, _ := programmer.ComputeInvocations()
-	linesGPU.Configure(gleval.ComputeConfig{InvocX: invocX})
+	linesGPU.Configure(gleval.ComputeConfig{
+		InvocX:       invocX,
+		CompileFlags: compileFlags,
+	})
 	return testsdf2("lines", linesCPU, linesGPU)
 }
 
@@ -632,6 +643,7 @@ func makeGPUSDF3(s glbuild.Shader3D) *gleval.SDF3Compute {
 	sdfgpu, err := gleval.NewComputeGPUSDF3(&source, s.Bounds(), gleval.ComputeConfig{
 		InvocX:        invocX,
 		ShaderObjects: ssbos,
+		CompileFlags:  compileFlags,
 	})
 	if err != nil {
 		panic(err)
@@ -655,6 +667,7 @@ func makeGPUSDF2(s glbuild.Shader2D) gleval.SDF2 {
 	sdfgpu, err := gleval.NewComputeGPUSDF2(&source, s.Bounds(), gleval.ComputeConfig{
 		InvocX:        invocX,
 		ShaderObjects: ssbos,
+		CompileFlags:  compileFlags,
 	})
 	if err != nil {
 		panic(err)

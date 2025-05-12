@@ -16,11 +16,14 @@ import (
 	"github.com/soypat/geometry/ms1"
 	"github.com/soypat/geometry/ms2"
 	"github.com/soypat/geometry/ms3"
+	"github.com/soypat/glgl/v4.6-core/glgl"
 	"github.com/soypat/gsdf"
 	"github.com/soypat/gsdf/glbuild"
 	"github.com/soypat/gsdf/gleval"
 	"github.com/soypat/gsdf/gsdfaux"
 )
+
+const compileFlags = glgl.CompileFlagsStrict
 
 var testGSDFCalled = false
 
@@ -402,6 +405,8 @@ func testShader3D(t *tb, obj glbuild.Shader3D, cfg *shaderTestConfig) {
 	sdfgpu, err := gleval.NewComputeGPUSDF3(&cfg.progbuf, bounds, gleval.ComputeConfig{
 		InvocX:        invocx,
 		ShaderObjects: objs,
+		// Max error handling facilities enabled for tests.
+		CompileFlags: compileFlags,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -421,7 +426,7 @@ func testShader2D(t *tb, obj glbuild.Shader2D, cfg *shaderTestConfig) {
 	failed := t.fail
 	defer func() {
 		if t.fail && !failed {
-			name := "testfail_" + glbuild.SprintShader(obj)
+			name := "testfail_" + glbuild.FormatShader(obj)
 			sdf, _ := gsdfaux.MakeGPUSDF2(obj)
 			gsdfaux.RenderPNGFile(name+"_gpu2d.png", sdf, 500, nil)
 			sdf, _ = gleval.NewCPUSDF2(obj)
@@ -461,6 +466,7 @@ func testShader2D(t *tb, obj glbuild.Shader2D, cfg *shaderTestConfig) {
 	sdfgpu, err := gleval.NewComputeGPUSDF2(&cfg.progbuf, bounds, gleval.ComputeConfig{
 		InvocX:        invocx,
 		ShaderObjects: objs,
+		CompileFlags:  compileFlags,
 	})
 	if err != nil {
 		t.Fatal(err)

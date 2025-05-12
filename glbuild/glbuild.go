@@ -1385,7 +1385,7 @@ func unwrap(s Shader) Shader {
 	return nil
 }
 
-func SprintShader(sh Shader) string {
+func FormatShader(sh Shader) string {
 	if sh == nil {
 		panic("nil shader")
 	}
