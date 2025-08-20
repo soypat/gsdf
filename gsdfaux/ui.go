@@ -19,7 +19,6 @@ func ui(s glbuild.Shader3D, cfg UIConfig) error {
 	bb := s.Bounds()
 	diag := bb.Diagonal()
 	// Initialize GLFW
-	fmt.Println("start")
 	// window, term, err := startGLFW(cfg.Width, cfg.Height)
 	window, term, err := glgl.InitWithCurrentWindow33(glgl.WindowConfig{
 		Title:         "gsdf viewer",
@@ -29,7 +28,6 @@ func ui(s glbuild.Shader3D, cfg UIConfig) error {
 		Height:        cfg.Height,
 		ForwardCompat: true,
 	})
-	fmt.Println("done")
 	if err != nil {
 		log.Fatal(err)
 	}
