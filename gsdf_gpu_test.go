@@ -52,7 +52,14 @@ func testGsdfGPU(cfg *shaderTestConfig) error {
 func ui(s glbuild.Shader3D, width, height int) error {
 	bb := s.Bounds()
 	// Initialize GLFW
-	window, term, err := startGLFW(width, height)
+	window, term, err := glgl.InitWithCurrentWindow33(glgl.WindowConfig{
+		Title:         "gsdf viewer",
+		Version:       [2]int{3, 3},
+		OpenGLProfile: glgl.ProfileCore,
+		Width:         width,
+		Height:        height,
+		ForwardCompat: true,
+	})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -341,28 +348,4 @@ void main() {
 `)
 	buf.WriteByte(0)
 	return buf.String()
-}
-
-func startGLFW(width, height int) (window *glfw.Window, term func(), err error) {
-	if err := glfw.Init(); err != nil {
-		log.Fatalln("Failed to initialize GLFW:", err)
-	}
-
-	// Create GLFW window
-	glfw.WindowHint(glfw.ContextVersionMajor, 4)
-	glfw.WindowHint(glfw.ContextVersionMinor, 6)
-	glfw.WindowHint(glfw.OpenGLProfile, glfw.OpenGLCoreProfile)
-	glfw.WindowHint(glfw.Resizable, glfw.False)
-
-	window, err = glfw.CreateWindow(width, height, "gsdf 3D Shape Visualizer", nil, nil)
-	if err != nil {
-		log.Fatalln("Failed to create GLFW window:", err)
-	}
-	window.MakeContextCurrent()
-
-	// Initialize OpenGL
-	if err := gl.Init(); err != nil {
-		log.Fatalln("Failed to initialize OpenGL:", err)
-	}
-	return window, glfw.Terminate, err
 }

@@ -21,7 +21,7 @@ var errZeroInvoc = errors.New("zero or negative workgroup invocation size, Compu
 func Init1x1GLFW() (terminate func(), err error) {
 	_, terminate, err = glgl.InitWithCurrentWindow33(glgl.WindowConfig{
 		Title:         "compute",
-		Version:       [2]int{4, 6},
+		Version:       [2]int{3, 3},
 		OpenGLProfile: glgl.ProfileCompat,
 		Width:         1,
 		Height:        1,
