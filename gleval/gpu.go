@@ -22,7 +22,7 @@ func Init1x1GLFW() (terminate func(), err error) {
 	_, terminate, err = glgl.InitWithCurrentWindow33(glgl.WindowConfig{
 		Title:         "compute",
 		Version:       [2]int{3, 3},
-		OpenGLProfile: glgl.ProfileCompat,
+		OpenGLProfile: glgl.ProfileCore,
 		Width:         1,
 		Height:        1,
 		HideWindow:    true,
