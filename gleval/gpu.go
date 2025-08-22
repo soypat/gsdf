@@ -372,13 +372,13 @@ func (disp *DisplaceMulti2D) Configure(programmer *glbuild.Programmer, element g
 		return errZeroInvoc
 	}
 	var buf bytes.Buffer
-	basename, n, ssbos, err := programmer.WriteSDFDecl(&buf, element)
+	basename, n, sobjs, err := programmer.WriteSDFDecl(&buf, element)
 	if err != nil {
 		return err
 	} else if n != buf.Len() {
 		return errors.New("length written mismatch")
-	} else if len(ssbos) > 0 {
-		return errors.New("objectsunsupported for displace multi")
+	} else if len(sobjs) > 0 {
+		return errors.New("shader objects unsupported for displace multi")
 	}
 	shader := fmt.Sprintf(multiDisplaceShader, buf.Bytes(), cfg.InvocX, basename)
 	glprog, err := glgl.CompileProgram(glgl.ShaderSource{

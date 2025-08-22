@@ -10,6 +10,7 @@ import (
 	"image/png"
 	"io"
 	"os"
+	"slices"
 
 	"time"
 
@@ -63,6 +64,18 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 		if !cfg.Silent {
 			fmt.Println(args...)
 		}
+	}
+	logDuration := func(duration time.Duration, args ...any) {
+		switch {
+		case duration > time.Minute:
+			duration = duration.Round(time.Second)
+		case duration > time.Second:
+			duration = duration.Round(time.Millisecond)
+		case duration > time.Millisecond:
+			duration = duration.Round(time.Microsecond)
+		}
+		args = append([]any{fmt.Sprintf("%9s", duration.String())}, args...)
+		log(args...)
 	}
 	err = glbuild.ShortenNames3D(&s, 12)
 	if err != nil {
@@ -136,7 +149,7 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 			log("SDF caching omitted", pcnt, "percent of", cache.Evaluations(), "SDF evaluations")
 		}()
 	}
-	log("instantiating evaluation SDF took", watch())
+	logDuration(watch(), "instantiating evaluation SDF")
 	renderer, err := glrender.NewOctreeRenderer(sdf, cfg.Resolution, bufferEvalSize)
 	if err != nil {
 		return err
@@ -159,14 +172,15 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 		_, objects, err = glbuild.NewDefaultProgrammer().WriteShaderToyVisualizerSDF3(cfg.VisualOutput, visual)
 		if err != nil {
 			return fmt.Errorf("writing visual GLSL: %s", err)
-		} else if len(objects) > 0 {
-			return errors.New("objectsunsupported for visual outputs")
+		} else if slices.ContainsFunc(objects, func(b glbuild.ShaderObject) bool { return b.IsBindable() }) {
+			return errors.New("bindable shader objects unsupported for visual outputs")
 		}
+
 		filename := "GLSL visualization"
 		if fp, ok := cfg.VisualOutput.(*os.File); ok {
 			filename = fp.Name()
 		}
-		log("wrote", filename, "in", watch())
+		logDuration(watch(), "wrote", filename)
 	}
 
 	if cfg.STLOutput != nil {
@@ -185,7 +199,7 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 		e := sdf.(interface{ Evaluations() uint64 })
 		omitted := 8 * renderer.TotalPruned()
 		percentOmit := percentUint64(omitted, e.Evaluations()+omitted)
-		log("evaluated SDF", e.Evaluations(), "times and rendered", len(triangles), "triangles in", watch().Round(10*time.Millisecond), "with", percentOmit, "percent evaluations omitted")
+		logDuration(watch(), "evaluated SDF", e.Evaluations(), "times and rendered", len(triangles), "triangles with", percentOmit, "percent evaluations omitted")
 
 		watch = stopwatch()
 		_, err = glrender.WriteBinarySTL(cfg.STLOutput, triangles)
@@ -196,7 +210,7 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 		if fp, ok := cfg.STLOutput.(*os.File); ok {
 			filename = fp.Name()
 		}
-		log("wrote", filename, "in", watch())
+		logDuration(watch(), "wrote", filename)
 	}
 
 	return nil

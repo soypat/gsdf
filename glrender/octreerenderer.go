@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"slices"
 
 	"github.com/soypat/geometry/ms3"
 	"github.com/soypat/gsdf"
@@ -262,8 +263,8 @@ func (oc *Octree) debugVisual(filename string, lvlDescent int, merge glbuild.Sha
 	_, ssbos, err := prog.WriteShaderToyVisualizerSDF3(fp, s)
 	if err != nil {
 		return err
-	} else if len(ssbos) > 0 {
-		return errors.New("objectsunsupported for visual output")
+	} else if slices.ContainsFunc(ssbos, func(b glbuild.ShaderObject) bool { return b.IsBindable() }) {
+		return errors.New("bindable object unsupported for visual output")
 	}
 	return nil
 }
