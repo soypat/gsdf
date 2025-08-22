@@ -162,9 +162,15 @@ func loadSSBO[T any](slice []T, base, usage uint32) (ssbo uint32) {
 	gl.GenBuffers(1, &ssbo)
 	p.Unpin()
 	gl.BindBuffer(gl.SHADER_STORAGE_BUFFER, ssbo)
+	if glgl.Err() != nil {
+		panic("HERE5")
+	}
 	size := len(slice) * elemSize[T]()
 	gl.BufferData(gl.SHADER_STORAGE_BUFFER, size, unsafe.Pointer(&slice[0]), usage)
 	gl.BindBufferBase(gl.SHADER_STORAGE_BUFFER, base, ssbo)
+	if glgl.Err() != nil {
+		panic("HERE6")
+	}
 	return ssbo
 }
 
@@ -212,7 +218,9 @@ func computeEvaluate[T ms2.Vec | ms3.Vec](pos []T, dist []float32, invocX int, o
 		p.Pin(&ssbosIDs[0])
 		gl.GenBuffers(int32(len(ssbosIDs)), &ssbosIDs[0])
 		defer gl.DeleteBuffers(int32(len(ssbosIDs)), &ssbosIDs[0])
-
+		if glgl.Err() != nil {
+			panic("HERE1")
+		}
 		iid := 0
 		for i := range objects {
 			ssbo := &objects[i]
@@ -224,8 +232,17 @@ func computeEvaluate[T ms2.Vec | ms3.Vec](pos []T, dist []float32, invocX int, o
 				}
 				iid++
 				gl.BindBuffer(gl.SHADER_STORAGE_BUFFER, id)
+				if glgl.Err() != nil {
+					panic("HERE2")
+				}
 				gl.BufferData(gl.SHADER_STORAGE_BUFFER, ssbo.Size, ssbo.Data, gl.STATIC_DRAW)
+				if glgl.Err() != nil {
+					panic("HERE3")
+				}
 				gl.BindBufferBase(gl.SHADER_STORAGE_BUFFER, uint32(ssbo.Binding), id)
+				if glgl.Err() != nil {
+					panic("HERE4")
+				}
 			}
 		}
 	}
