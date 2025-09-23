@@ -80,6 +80,11 @@ func (sdf *SDF3Compute) Bounds() ms3.Box {
 func (sdf *SDF3Compute) Evaluations() uint64 { return sdf.evals }
 
 func (sdf *SDF3Compute) Evaluate(pos []ms3.Vec, dist []float32, userData any) error {
+	if len(pos) != len(dist) {
+		return errMismatchBufferLength
+	} else if len(pos) == 0 {
+		return errEmptyBuffers
+	}
 	sdf.prog.Bind()
 	defer sdf.prog.Unbind()
 	err := glgl.Err()
@@ -129,6 +134,11 @@ type SDF2Compute struct {
 }
 
 func (sdf *SDF2Compute) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {
+	if len(pos) != len(dist) {
+		return errMismatchBufferLength
+	} else if len(pos) == 0 {
+		return errEmptyBuffers
+	}
 	sdf.prog.Bind()
 	defer sdf.prog.Unbind()
 	err := glgl.Err()

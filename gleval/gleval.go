@@ -43,6 +43,11 @@ type (
 	bounder3 = interface{ Bounds() ms3.Box }
 )
 
+var (
+	errEmptyBuffers         = errors.New("empty buffers")
+	errMismatchBufferLength = errors.New("position and distance buffer length mismatch")
+)
+
 // NormalsCentralDiff uses central differences algorithm for normal calculation, which are stored in normals for each position.
 // The returned normals are not normalized (converted to unit length).
 func NormalsCentralDiff(s SDF3, pos []ms3.Vec, normals []ms3.Vec, step float32, userData any) error {
@@ -53,6 +58,8 @@ func NormalsCentralDiff(s SDF3, pos []ms3.Vec, normals []ms3.Vec, step float32, 
 		return errors.New("length of position must match length of normals")
 	} else if s == nil {
 		return errors.New("nil SDF3")
+	} else if len(pos) == 0 {
+		return errEmptyBuffers
 	}
 	vp, err := GetVecPool(userData)
 	if err != nil {
@@ -151,6 +158,11 @@ func (c3 *BlockCachedSDF3) Evaluations() uint64 {
 
 // Evaluate implements the [SDF3] interface with cached evaluation.
 func (c3 *BlockCachedSDF3) Evaluate(pos []ms3.Vec, dist []float32, userData any) error {
+	if len(pos) != len(dist) {
+		return errMismatchBufferLength
+	} else if len(pos) == 0 {
+		return errEmptyBuffers
+	}
 	bb := c3.sdf.Bounds()
 	seekPos := c3.posbuf[:0]
 	idx := c3.idxbuf[:0]
@@ -227,6 +239,11 @@ func (c3 *cachedExactSDF3) Evaluations() uint64 {
 
 // Evaluate implements the [SDF3] interface with cached evaluation.
 func (c3 *cachedExactSDF3) Evaluate(pos []ms3.Vec, dist []float32, userData any) error {
+	if len(pos) != len(dist) {
+		return errMismatchBufferLength
+	} else if len(pos) == 0 {
+		return errEmptyBuffers
+	}
 	if c3.m == nil {
 		c3.m = make(map[[3]uint32]float32)
 	}
