@@ -14,7 +14,7 @@ import (
 	"time"
 
 	math "github.com/chewxy/math32"
-	"github.com/soypat/glgl/v4.6-core/glgl"
+	"github.com/soypat/glgl/v4.1-core/glgl"
 	"github.com/soypat/gsdf"
 	"github.com/soypat/gsdf/glbuild"
 	"github.com/soypat/gsdf/gleval"

@@ -10,7 +10,7 @@ import (
 	"github.com/chewxy/math32"
 	"github.com/soypat/geometry/ms2"
 	"github.com/soypat/geometry/ms3"
-	"github.com/soypat/glgl/v4.6-core/glgl"
+	"github.com/soypat/glgl/v4.1-core/glgl"
 	"github.com/soypat/gsdf/glbuild"
 )
 
@@ -21,7 +21,7 @@ var errZeroInvoc = errors.New("zero or negative workgroup invocation size, Compu
 func Init1x1GLFW() (terminate func(), err error) {
 	_, terminate, err = glgl.InitWithCurrentWindow33(glgl.WindowConfig{
 		Title:         "compute",
-		Version:       [2]int{4, 6},
+		Version:       [2]int{4, 1},
 		OpenGLProfile: glgl.ProfileCompat,
 		Width:         1,
 		Height:        1,
