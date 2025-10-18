@@ -18,6 +18,8 @@ import (
 	"github.com/soypat/geometry/ms3"
 )
 
+const VersionStr = "#version 430\n"
+
 // Shader stores information for automatically generating SDF Shader pipelines
 // and evaluating them correctly on a GPU.
 type Shader interface {
@@ -140,7 +142,7 @@ func MakeShaderBufferReadOnly[T any](namePtr []byte, data []T) (ssbo ShaderObjec
 	return ssbo, nil
 }
 
-var defaultComputeHeader = []byte("#shader compute\n#version 430\n")
+var defaultComputeHeader = []byte("#shader compute\n" + VersionStr)
 
 // NewDefaultProgrammer returns a Programmer with reasonable default parameters for use with glgl package on the local machine.
 func NewDefaultProgrammer() *Programmer {

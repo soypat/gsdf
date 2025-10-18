@@ -5,7 +5,6 @@ package gsdfaux
 import (
 	"bytes"
 	"fmt"
-	"log"
 	"math"
 	"time"
 
@@ -22,7 +21,7 @@ func ui(s glbuild.Shader3D, cfg UIConfig) error {
 	window, term, err := glgl.InitWithCurrentWindow33(glgl.WindowConfig{
 		Title:         "gsdf 3D Shape Visualizer",
 		NotResizable:  true,
-		Version:       [2]int{3, 2},
+		Version:       [2]int{4, 3},
 		OpenGLProfile: glgl.ProfileAny,
 		ForwardCompat: true,
 		Width:         cfg.Width,
@@ -46,7 +45,7 @@ func ui(s glbuild.Shader3D, cfg UIConfig) error {
 	// // Compile shaders and link program
 	fragSrc := makeFragSource(root, sdfDecl.String())
 	prog, err := glgl.CompileProgram(glgl.ShaderSource{
-		Vertex: `#version 460
+		Vertex: glbuild.VersionStr + `
 in vec2 aPos;
 out vec2 vTexCoord;
 void main() {
@@ -248,7 +247,7 @@ OUTER:
 func makeFragSource(rootSDFName, sdfDecl string) string {
 	var buf bytes.Buffer
 
-	buf.WriteString("#version 460\n")
+	buf.WriteString(glbuild.VersionStr)
 	buf.WriteString(sdfDecl + "\n")
 	// Function to calculate the SDF (Signed Distance Function)
 	buf.WriteString("float sdf(vec3 p) {\n\treturn " + rootSDFName + "(p); \n};\n")
@@ -353,28 +352,4 @@ void main() {
 `)
 	buf.WriteByte(0)
 	return buf.String()
-}
-
-func startGLFW(width, height int) (window *glfw.Window, term func(), err error) {
-	if err := glfw.Init(); err != nil {
-		log.Fatalln("Failed to initialize GLFW:", err)
-	}
-
-	// Create GLFW window
-	glfw.WindowHint(glfw.ContextVersionMajor, 4)
-	glfw.WindowHint(glfw.ContextVersionMinor, 6)
-	glfw.WindowHint(glfw.OpenGLProfile, glfw.OpenGLCoreProfile)
-	glfw.WindowHint(glfw.Resizable, glfw.False)
-
-	window, err = glfw.CreateWindow(width, height, "gsdf 3D Shape Visualizer", nil, nil)
-	if err != nil {
-		log.Fatalln("Failed to create GLFW window:", err)
-	}
-	window.MakeContextCurrent()
-
-	// Initialize OpenGL
-	if err := gl.Init(); err != nil {
-		log.Fatalln("Failed to initialize OpenGL:", err)
-	}
-	return window, glfw.Terminate, err
 }
