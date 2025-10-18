@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-gl/gl/v4.6-core/gl"
+	"github.com/go-gl/gl/v4.1-core/gl"
 	"github.com/go-gl/glfw/v3.3/glfw"
-	"github.com/soypat/glgl/v4.6-core/glgl"
+	"github.com/soypat/glgl/v4.1-core/glgl"
 	"github.com/soypat/gsdf/glbuild"
 	"github.com/soypat/gsdf/gleval"
 )
@@ -71,7 +71,7 @@ func ui(s glbuild.Shader3D, width, height int) error {
 	// Print OpenGL version
 	// // Compile shaders and link program
 	prog, err := glgl.CompileProgram(glgl.ShaderSource{
-		Vertex: `#version 460
+		Vertex: glbuild.VersionStr + `
 in vec2 aPos;
 out vec2 vTexCoord;
 void main() {
@@ -245,7 +245,7 @@ void main() {
 func makeFragSource(rootSDFName, sdfDecl string) string {
 	var buf bytes.Buffer
 
-	buf.WriteString("#version 460\n")
+	buf.WriteString(glbuild.VersionStr)
 	buf.WriteString(sdfDecl + "\n")
 	// Function to calculate the SDF (Signed Distance Function)
 	buf.WriteString("float sdf(vec3 p) {\n\treturn " + rootSDFName + "(p); \n};\n")

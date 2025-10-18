@@ -16,7 +16,7 @@ import (
 	"github.com/soypat/geometry/ms1"
 	"github.com/soypat/geometry/ms2"
 	"github.com/soypat/geometry/ms3"
-	"github.com/soypat/glgl/v4.6-core/glgl"
+	"github.com/soypat/glgl/v4.1-core/glgl"
 	"github.com/soypat/gsdf"
 	"github.com/soypat/gsdf/glbuild"
 	"github.com/soypat/gsdf/gleval"
@@ -292,16 +292,18 @@ func testPrimitives2D(t *tb, cfg *shaderTestConfig) {
 	// Non-SSBO shapes which use dynamic buffers.
 	poly := bld.NewPolygon(vertices)
 	polySelfClosed := bld.NewPolygon([]ms2.Vec{{X: 0, Y: 0}, {X: 0, Y: 1}, {X: 1, Y: 1}, {X: 0, Y: 0}})
-
+	flags := bld.Flags()
 	// Create shapes to test usage of dynamic buffers as SSBOs.
-	bld.SetFlags(bld.Flags() | gsdf.FlagUseShaderBuffers)
+	bld.SetFlags(flags | gsdf.FlagUseShaderBuffers)
 
 	polySSBO := bld.NewPolygon(vertices)
 	linesSSBO := bld.NewLines2D(segments, 0.1)
 	displaceSSBO := bld.TranslateMulti2D(poly, vertices)
 
-	bld.SetFlags(bld.Flags() &^ gsdf.FlagUseShaderBuffers)
-
+	// Next polys generated with no SSBOs.
+	bld.SetFlags(flags | gsdf.FlagNoShaderBuffers)
+	linesNoSSBO := bld.NewLines2D(segments, 0.1)
+	polyNoSSBO := bld.NewPolygon(vertices)
 	var primitives = []glbuild.Shader2D{
 		bld.NewCircle(maxdim),
 		bld.NewLine2D(0, 0, dimVec.X, dimVec.Y, thick),
@@ -313,7 +315,9 @@ func testPrimitives2D(t *tb, cfg *shaderTestConfig) {
 		poly,
 		polySelfClosed,
 		polySSBO,
+		polyNoSSBO,
 		linesSSBO,
+		linesNoSSBO,
 		displaceSSBO,
 		bld.NewOctagon(dimVec.X),
 		bld.NewDiamond2D(dimVec.X, dimVec.Y),

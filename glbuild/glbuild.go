@@ -18,6 +18,8 @@ import (
 	"github.com/soypat/geometry/ms3"
 )
 
+const VersionStr = "#version 430\n"
+
 // Shader stores information for automatically generating SDF Shader pipelines
 // and evaluating them correctly on a GPU.
 type Shader interface {
@@ -140,7 +142,7 @@ func MakeShaderBufferReadOnly[T any](namePtr []byte, data []T) (ssbo ShaderObjec
 	return ssbo, nil
 }
 
-var defaultComputeHeader = []byte("#shader compute\n#version 430\n")
+var defaultComputeHeader = []byte("#shader compute\n" + VersionStr)
 
 // NewDefaultProgrammer returns a Programmer with reasonable default parameters for use with glgl package on the local machine.
 func NewDefaultProgrammer() *Programmer {
@@ -887,6 +889,15 @@ func AppendFloatDecl(b []byte, floatVarname string, v float32) []byte {
 	return b
 }
 
+func AppendIntDecl(b []byte, intVarname string, v int) []byte {
+	b = append(b, "int "...)
+	b = append(b, intVarname...)
+	b = append(b, '=')
+	b = strconv.AppendInt(b, int64(v), 10)
+	b = append(b, ';', '\n')
+	return b
+}
+
 func AppendMat2Decl(b []byte, mat2Varname string, m22 ms2.Mat2) []byte {
 	arr := m22.Array()
 	return appendMatDecl(b, "mat2", mat2Varname, 2, 2, arr[:])
@@ -957,53 +968,37 @@ func AppendFloats(b []byte, sep, neg, decimal byte, s ...float32) []byte {
 const maxLineLim = 500
 
 func AppendFloatSliceDecl(b []byte, floatSliceVarname string, vecs []float32) []byte {
-	lineStart := len(b)
-	b = appendStartSliceDecl(b, "float", floatSliceVarname, len(vecs))
-	for i, v := range vecs {
-		last := i == len(vecs)-1
-		b = AppendFloat(b, '-', '.', v)
-		if !last {
-			b = append(b, ',')
-			lineLen := len(b) - lineStart
-			if lineLen > maxLineLim {
-				b = append(b, '\n') // Break up line for VERY long polygon vertex lists.
-				lineStart = len(b)
-			}
-		}
-	}
-	b = append(b, ");\n"...)
-	return b
+	return AppendGenericSliceDecl(b, "float", floatSliceVarname, len(vecs), func(b []byte, i int) []byte {
+		return AppendFloat(b, '-', '.', vecs[i])
+	})
 }
 
 func AppendVec2SliceDecl(b []byte, vec2Varname string, vecs []ms2.Vec) []byte {
-	lineStart := len(b)
-	b = appendStartSliceDecl(b, "vec2", vec2Varname, len(vecs))
-	for i, v := range vecs {
-		last := i == len(vecs)-1
+	return AppendGenericSliceDecl(b, "vec2", vec2Varname, len(vecs), func(b []byte, i int) []byte {
+		v := vecs[i]
 		b = append(b, "vec2("...)
 		b = AppendFloats(b, ',', '-', '.', v.X, v.Y)
 		b = append(b, ')')
-		if !last {
-			b = append(b, ',')
-			lineLen := len(b) - lineStart
-			if lineLen > maxLineLim {
-				b = append(b, '\n') // Break up line for VERY long polygon vertex lists.
-				lineStart = len(b)
-			}
-		}
-	}
-	b = append(b, ");\n"...)
-	return b
+		return b
+	})
 }
 
 func AppendVec3SliceDecl(b []byte, vec3Varname string, vecs []ms3.Vec) []byte {
-	lineStart := len(b)
-	b = appendStartSliceDecl(b, "vec3", vec3Varname, len(vecs))
-	for i, v := range vecs {
-		last := i == len(vecs)-1
+	return AppendGenericSliceDecl(b, "vec3", vec3Varname, len(vecs), func(b []byte, i int) []byte {
+		v := vecs[i]
 		b = append(b, "vec3("...)
 		b = AppendFloats(b, ',', '-', '.', v.X, v.Y, v.Z)
 		b = append(b, ')')
+		return b
+	})
+}
+
+func AppendGenericSliceDecl(b []byte, typename, varname string, nelem int, appendElement func(b []byte, i int) []byte) []byte {
+	lineStart := len(b)
+	b = appendStartSliceDecl(b, typename, varname, nelem)
+	for i := 0; i < nelem; i++ {
+		last := i == nelem-1
+		b = appendElement(b, i)
 		if !last {
 			b = append(b, ',')
 			lineLen := len(b) - lineStart
@@ -1025,6 +1020,7 @@ func appendStartSliceDecl(b []byte, typeName, varName string, length int) []byte
 	b = strconv.AppendInt(b, l, 10)
 	b = append(b, ']')
 	typeEnd := len(b)
+	b = append(b, ' ')
 	b = append(b, varName...)
 	b = append(b, '=')
 	b = append(b, b[typeStart:typeEnd]...) // Reuse typename appended earlier.

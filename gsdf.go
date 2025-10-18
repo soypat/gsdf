@@ -34,6 +34,9 @@ const (
 	// FlagUseShaderBuffers enforces the use of shader object for all newly built
 	// SDFs which require a dynamic array(s) to be rendered correctly.
 	FlagUseShaderBuffers
+	// FlagNoShaderBuffers if set will cause the Builder to avoid all shader buffer usage, instead depending on
+	// the shader program entirely for shape definition.
+	FlagNoShaderBuffers
 )
 
 // Builder wraps all SDF primitive and operation logic generation.
@@ -46,13 +49,18 @@ type Builder struct {
 	limVecGPU int
 }
 
-// useGPU enables selection of GPU over CPU algorithm depending on Builder configuration.
-func (bld *Builder) useGPU(components int) bool {
+// useShaderBuffer enables selection of GPU over CPU algorithm depending on Builder configuration.
+func (bld *Builder) useShaderBuffer(components int) bool {
+	avoidGPU := bld.flags&FlagNoShaderBuffers != 0
+	if avoidGPU {
+		return false
+	}
 	lim := bld.limVecGPU
 	if lim == 0 {
 		lim = 128 // Beware: Older GPUs typically support a maximum of 1024 components (float32s).
 	}
-	return bld.flags&FlagUseShaderBuffers != 0 || components > lim
+	useGPU := bld.flags&FlagUseShaderBuffers != 0
+	return useGPU || components > lim
 }
 
 func makeHashName[T any](dst []byte, name string, vec []T) []byte {
@@ -67,6 +75,11 @@ func (bld *Builder) Flags() Flags {
 }
 
 func (bld *Builder) SetFlags(flags Flags) error {
+	avoidGPU := bld.flags&FlagNoShaderBuffers != 0
+	useGPU := bld.flags&FlagUseShaderBuffers != 0
+	if avoidGPU && useGPU {
+		return errors.New("invalid flag setup: both use/avoid shader buffer bits set")
+	}
 	bld.flags = flags
 	return nil
 }

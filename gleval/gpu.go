@@ -10,7 +10,7 @@ import (
 	"github.com/chewxy/math32"
 	"github.com/soypat/geometry/ms2"
 	"github.com/soypat/geometry/ms3"
-	"github.com/soypat/glgl/v4.6-core/glgl"
+	"github.com/soypat/glgl/v4.1-core/glgl"
 	"github.com/soypat/gsdf/glbuild"
 )
 
@@ -21,7 +21,7 @@ var errZeroInvoc = errors.New("zero or negative workgroup invocation size, Compu
 func Init1x1GLFW() (terminate func(), err error) {
 	_, terminate, err = glgl.InitWithCurrentWindow33(glgl.WindowConfig{
 		Title:         "compute",
-		Version:       [2]int{4, 6},
+		Version:       [2]int{4, 1},
 		OpenGLProfile: glgl.ProfileCompat,
 		Width:         1,
 		Height:        1,
@@ -206,7 +206,7 @@ func (poly *PolygonGPU) Configure(cfg ComputeConfig) error {
 }
 
 // winding number from http://geomalgorithms.com/a03-_inclusion.html
-const polyshader = `#version 430
+const polyshader = glbuild.VersionStr + `
 
 layout(local_size_x = %d, local_size_y = 1, local_size_z = 1) in;
 
@@ -304,7 +304,7 @@ func (lines *Lines2DGPU) Configure(cfg ComputeConfig) error {
 }
 
 // winding number from http://geomalgorithms.com/a03-_inclusion.html
-const linesshader = `#version 430
+const linesshader = glbuild.VersionStr + `
 
 layout(local_size_x = %d, local_size_y = 1, local_size_z = 1) in;
 
@@ -405,7 +405,7 @@ func (disp *DisplaceMulti2D) Configure(programmer *glbuild.Programmer, element g
 }
 
 // winding number from http://geomalgorithms.com/a03-_inclusion.html
-const multiDisplaceShader = `#version 430
+const multiDisplaceShader = glbuild.VersionStr + `
 
 %s
 

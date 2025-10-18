@@ -1,6 +1,10 @@
 package gleval
 
-import "errors"
+import (
+	"errors"
+
+	"github.com/soypat/gsdf/glbuild"
+)
 
 type BatcherConfig struct {
 	GPUCompute ComputeConfig
@@ -25,7 +29,7 @@ type Batcher struct {
 	shaderStore []byte
 }
 
-const baseBinOpShader = `#version 430
+const baseBinOpShader = glbuild.VersionStr + `
 layout(local_size_x = %d, local_size_y = 1, local_size_z = 1) in;
 
 // Input1 of binary operation.
