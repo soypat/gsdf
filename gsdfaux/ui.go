@@ -19,9 +19,17 @@ func ui(s glbuild.Shader3D, cfg UIConfig) error {
 	bb := s.Bounds()
 	diag := bb.Diagonal()
 	// Initialize GLFW
-	window, term, err := startGLFW(cfg.Width, cfg.Height)
+	window, term, err := glgl.InitWithCurrentWindow33(glgl.WindowConfig{
+		Title:         "gsdf 3D Shape Visualizer",
+		NotResizable:  true,
+		Version:       [2]int{3, 2},
+		OpenGLProfile: glfw.OpenGLCompatProfile,
+		ForwardCompat: true,
+		Width:         cfg.Width,
+		Height:        cfg.Height,
+	})
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	defer term()
 	var sdfDecl bytes.Buffer
