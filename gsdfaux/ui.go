@@ -23,13 +23,13 @@ func ui(s glbuild.Shader3D, cfg UIConfig) error {
 		Title:         "gsdf 3D Shape Visualizer",
 		NotResizable:  true,
 		Version:       [2]int{3, 2},
-		OpenGLProfile: glfw.OpenGLCompatProfile,
+		OpenGLProfile: glgl.ProfileAny,
 		ForwardCompat: true,
 		Width:         cfg.Width,
 		Height:        cfg.Height,
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("initializing UI glfw: %w", err)
 	}
 	defer term()
 	var sdfDecl bytes.Buffer
