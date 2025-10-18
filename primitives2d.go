@@ -80,16 +80,19 @@ func (bld *Builder) NewLines2D(segments [][2]ms2.Vec, width float32) glbuild.Sha
 		}
 	}
 	hash := hash2vec2(segments...) + width
-	bufName := []byte("ssboLines2d_")
-	bufName = glbuild.AppendFloat(bufName, 'n', 'p', hash)
-	return &lines2D{points: segments, width: width, bufName: bufName, hash: hash}
+	lines := &lines2D{points: segments, width: width, hash: hash}
+	if bld.useShaderBuffer(len(segments) * 4) {
+		bufName := []byte("ssboLines2d_")
+		bufName = glbuild.AppendFloat(bufName, 'n', 'p', hash)
+		return &lines2Dssbo{lines2D: *lines, bufname: bufName}
+	}
+	return lines
 }
 
 type lines2D struct {
-	hash    float32
-	bufName []byte
-	points  [][2]ms2.Vec
-	width   float32
+	hash   float32
+	points [][2]ms2.Vec
+	width  float32
 }
 
 func (l *lines2D) Bounds() ms2.Box {
@@ -112,8 +115,15 @@ func (l *lines2D) AppendShaderName(b []byte) []byte {
 
 func (l *lines2D) AppendShaderBody(b []byte) []byte {
 	b = glbuild.AppendFloatDecl(b, "w", l.width/2)
-	b = glbuild.AppendDefineDecl(b, "points", string(l.bufName))
-	b = append(b, `const int num = points.length();
+	b = glbuild.AppendGenericSliceDecl(b, "vec4", "points", len(l.points), func(b []byte, i int) []byte {
+		pt := l.points[i]
+		b = append(b, "vec4("...)
+		b = glbuild.AppendFloats(b, ',', '-', '.', pt[0].X, pt[0].Y, pt[1].X, pt[1].Y)
+		b = append(b, ')')
+		return b
+	})
+	b = glbuild.AppendIntDecl(b, "num", len(l.points))
+	b = append(b, `
 float d2 = 1.0e23;
 for (int i=0; i<num; i++)
 {
@@ -130,7 +140,31 @@ func (l *lines2D) ForEach2DChild(userData any, fn func(userData any, s *glbuild.
 }
 
 func (u *lines2D) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
-	ssbo, err := glbuild.MakeShaderBufferReadOnly(u.bufName, u.points)
+	return append(objects, glsllib.LineSquared2D())
+}
+
+type lines2Dssbo struct {
+	lines2D
+	bufname []byte
+}
+
+func (l *lines2Dssbo) AppendShaderBody(b []byte) []byte {
+	b = glbuild.AppendFloatDecl(b, "w", l.width/2)
+	b = glbuild.AppendDefineDecl(b, "points", string(l.bufname))
+	b = append(b, `const int num = points.length();
+float d2 = 1.0e23;
+for (int i=0; i<num; i++)
+{
+	d2 = min(d2,gsdfLineSq2D(p, points[i]));
+}
+return sqrt(d2)-w;
+`...)
+	b = glbuild.AppendUndefineDecl(b, "points")
+	return b
+}
+
+func (u *lines2Dssbo) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
+	ssbo, err := glbuild.MakeShaderBufferReadOnly(u.bufname, u.points)
 	if err != nil {
 		panic(err)
 	}
@@ -427,8 +461,8 @@ func (bld *Builder) NewPolygon(vertices []ms2.Vec) glbuild.Shader2D {
 		bld.shapeErrorf(err.Error())
 	}
 	poly := poly2D{vert: vertices}
-	if bld.useGPU(len(vertices) * 2) {
-		return &polyGPU{poly2D: poly, bufname: makeHashName(nil, "ssboPoly", vertices)}
+	if bld.useShaderBuffer(len(vertices) * 2) {
+		return &polySSBO{poly2D: poly, bufname: makeHashName(nil, "ssboPoly", vertices)}
 	}
 	return &poly
 }
@@ -498,19 +532,19 @@ func (u *poly2D) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.S
 	return append(objects, glsllib.WindingNumber())
 }
 
-type polyGPU struct {
+type polySSBO struct {
 	poly2D
 	bufname []byte
 }
 
-func (c *polyGPU) AppendShaderBody(b []byte) []byte {
+func (c *polySSBO) AppendShaderBody(b []byte) []byte {
 	b = glbuild.AppendDefineDecl(b, "v", string(c.bufname))
 	b = append(b, polyShader...)
 	b = glbuild.AppendUndefineDecl(b, "v")
 	return b
 }
 
-func (u *polyGPU) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
+func (u *polySSBO) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
 	ssbo, err := glbuild.MakeShaderBufferReadOnly(u.bufname, u.vert)
 	if err != nil {
 		panic(err)

@@ -159,8 +159,11 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 		_, objects, err = glbuild.NewDefaultProgrammer().WriteShaderToyVisualizerSDF3(cfg.VisualOutput, visual)
 		if err != nil {
 			return fmt.Errorf("writing visual GLSL: %s", err)
-		} else if len(objects) > 0 {
-			return errors.New("objectsunsupported for visual outputs")
+		}
+		for i := range objects {
+			if objects[i].IsBindable() {
+				return fmt.Errorf("bindable objects unsupported for visual glsl shader generation: %v", objects[i])
+			}
 		}
 		filename := "GLSL visualization"
 		if fp, ok := cfg.VisualOutput.(*os.File); ok {

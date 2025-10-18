@@ -50,6 +50,7 @@ func run() error {
 	flag.UintVar(&flagResDiv, "resdiv", 200, "Set resolution in bounding box diagonal divisions. Useful for prototyping when constant speed of rendering is desired.")
 	flag.Parse()
 	var bld gsdf.Builder
+	bld.SetFlags(gsdf.FlagNoShaderBuffers)
 	object, err := scene(&bld)
 	if err != nil {
 		return err
