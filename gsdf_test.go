@@ -156,6 +156,7 @@ func testGSDF(cfg *shaderTestConfig) error {
 		testRandomUnary3D,
 		testBinary2D,
 		testRandomUnary2D,
+		test2DCorpus,
 	}
 	for _, test := range tests {
 		test(t, cfg)
@@ -363,13 +364,66 @@ func testBinary2D(t *tb, cfg *shaderTestConfig) {
 	}
 }
 
+func test2DCorpus(t *tb, cfg *shaderTestConfig) {
+	bld := cfg.bld
+	type testCase struct {
+		shader    glbuild.Shader2D
+		pos       []ms2.Vec
+		shouldErr bool
+	}
+	var cases = []testCase{
+		{
+			shader:    bld.NewCircle(1),
+			pos:       []ms2.Vec{}, // Empty position.
+			shouldErr: true,
+		},
+	}
+	err := bld.Err()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tcase := range cases {
+		shader := tcase.shader
+		pos := tcase.pos
+		dist := cfg.distbuf[0][:len(pos)]
+		sdfcpu, err := gleval.AssertSDF2(shader)
+		if err != nil {
+			t.Fatal(err)
+		}
+		sdfgpu, err := cfg.makeGPUSDF2(shader, shader.Bounds())
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = sdfcpu.Evaluate(pos, dist, &cfg.vp)
+		if err != nil {
+			if !tcase.shouldErr {
+				t.Error(err)
+			}
+		}
+		if !fieldIsValid2(t, pos, dist) {
+			t.Fatal("invalid CPU field", string(appendShaderName(nil, shader)))
+		}
+		if !cfg.useGPU {
+			return
+		}
+		err = sdfgpu.Evaluate(pos, dist, nil)
+		if err != nil {
+			if !tcase.shouldErr {
+				t.Error(err)
+			}
+		}
+		if !fieldIsValid2(t, pos, dist) {
+			t.Fatal("invalid GPU field", string(appendShaderName(nil, shader)))
+		}
+	}
+}
+
 func testShader3D(t *tb, obj glbuild.Shader3D, cfg *shaderTestConfig) {
 	bld := cfg.bld
 	vp := &cfg.vp
 	bounds := obj.Bounds()
-	invocx, _, _ := cfg.prog.ComputeInvocations()
-	nx, ny, nz := cfg.div3(bounds)
 
+	nx, ny, nz := cfg.div3(bounds)
 	pos := ms3.AppendGrid(cfg.posbufs[0][:0], bounds, nx, ny, nz)
 	distCPU := cfg.distbuf[0][:len(pos)]
 	distGPU := cfg.distbuf[1][:len(pos)]
@@ -387,34 +441,18 @@ func testShader3D(t *tb, obj glbuild.Shader3D, cfg *shaderTestConfig) {
 		t.Errorf("%s: %s", name, err)
 		cfg.failedObj = obj
 	}
-
-	cfg.progbuf.Reset()
-	n, objs, err := cfg.prog.WriteComputeSDF3(&cfg.progbuf, obj)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if n != cfg.progbuf.Len() {
-		t.Fatalf("written bytes not match length of buffer %d != %d", n, cfg.progbuf.Len())
-	}
-	if !cfg.useGPU {
-		return // No GPU usage permitted, nothing else to do.
-	}
 	// Get CPU positional evaluations.
 	err = sdfcpu.Evaluate(pos, distCPU, vp)
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	// Do GPU evaluation.
-	sdfgpu, err := gleval.NewComputeGPUSDF3(&cfg.progbuf, bounds, gleval.ComputeConfig{
-		InvocX:        invocx,
-		ShaderObjects: objs,
-		// Max error handling facilities enabled for tests.
-		CompileFlags: compileFlags,
-	})
+	sdfgpu, err := cfg.makeGPUSDF3(obj, bounds)
 	if err != nil {
 		t.Fatal(err)
+	} else if !cfg.useGPU {
+		return // No GPU usage permitted, nothing else to do.
 	}
+	// Do GPU evaluation.
 	err = sdfgpu.Evaluate(pos, distGPU, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -438,7 +476,6 @@ func testShader2D(t *tb, obj glbuild.Shader2D, cfg *shaderTestConfig) {
 		}
 	}()
 	bounds := obj.Bounds()
-	invocx, _, _ := cfg.prog.ComputeInvocations()
 	nx, ny := cfg.div2(bounds)
 
 	pos := ms2.AppendGrid(cfg.posbuf2s[0][:0], bounds, nx, ny)
@@ -450,30 +487,16 @@ func testShader2D(t *tb, obj glbuild.Shader2D, cfg *shaderTestConfig) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Do GPU evaluation.
-	cfg.progbuf.Reset()
-	n, objs, err := cfg.prog.WriteComputeSDF2(&cfg.progbuf, obj)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if n != cfg.progbuf.Len() {
-		t.Fatalf("written bytes not match length of buffer %d != %d", n, cfg.progbuf.Len())
-	}
-	if !cfg.useGPU {
-		return // No GPU usage permitted, end run here.
-	}
-
 	err = sdfcpu.Evaluate(pos, distCPU, &cfg.vp)
 	if err != nil {
 		t.Fatal(err)
 	}
-	sdfgpu, err := gleval.NewComputeGPUSDF2(&cfg.progbuf, bounds, gleval.ComputeConfig{
-		InvocX:        invocx,
-		ShaderObjects: objs,
-		CompileFlags:  compileFlags,
-	})
+	// Do GPU evaluation.
+	sdfgpu, err := cfg.makeGPUSDF2(obj, bounds)
 	if err != nil {
 		t.Fatal(err)
+	} else if !cfg.useGPU {
+		return // No GPU usage permitted, finish here.
 	}
 	err = sdfgpu.Evaluate(pos, distGPU, nil)
 	if err != nil {
@@ -657,7 +680,7 @@ func randomArray2D(bld *gsdf.Builder, a glbuild.Shader2D, rng *rand.Rand) glbuil
 
 func randomSymmetry2D(bld *gsdf.Builder, a glbuild.Shader2D, rng *rand.Rand) glbuild.Shader2D {
 	q := rng.Uint32()
-	for q&0b111 == 0 {
+	for q&0b11 == 0 {
 		q = rng.Uint32()
 	}
 	return bld.Symmetry2D(a, q&1 != 0, q&2 != 0)
@@ -794,4 +817,73 @@ func getFnName(fnPtr any) string {
 	name := runtime.FuncForPC(reflect.ValueOf(fnPtr).Pointer()).Name()
 	idx := strings.LastIndexByte(name, '.')
 	return name[idx+1:]
+}
+
+func fieldIsValid2(t *tb, pos []ms2.Vec, dist []float32) bool {
+	if len(pos) != len(dist) {
+		panic("invalid use of fieldIsValid")
+	} else if len(pos) == 0 {
+		return true
+	}
+	lastPos := pos[0]
+	lastDist := dist[0]
+	for i := range pos {
+		p := pos[i]
+		d := dist[i]
+		pdist2 := ms2.Norm2(ms2.Sub(p, lastPos))
+		distdiff := math32.Abs(lastDist - d)
+		distdiff2 := distdiff * distdiff
+		if math32.IsNaN(d) {
+			t.Error("NaN value detected")
+		} else if distdiff2 > pdist2 {
+			t.Error("field is not euclidean")
+		}
+		lastPos = p
+		lastDist = d
+	}
+	return true
+}
+
+func (cfg *shaderTestConfig) makeGPUSDF2(shader glbuild.Shader2D, bounds ms2.Box) (gleval.SDF2, error) {
+	cfg.progbuf.Reset()
+	n, objs, err := cfg.prog.WriteComputeSDF2(&cfg.progbuf, shader)
+	if err != nil {
+		return nil, fmt.Errorf("writing %s compute sdf2: %w", appendShaderName(nil, shader), err)
+	} else if n != cfg.progbuf.Len() {
+		return nil, fmt.Errorf("written %s calculated != actual %d!=%d", appendShaderName(nil, shader), n, cfg.progbuf.Len())
+	}
+	invocx, _, _ := cfg.prog.ComputeInvocations()
+	if !cfg.useGPU {
+		return nil, nil // no GPU available to compile. End test here.
+	}
+	sdfgpu, err := gleval.NewComputeGPUSDF2(&cfg.progbuf, bounds, gleval.ComputeConfig{
+		InvocX:        invocx,
+		ShaderObjects: objs,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("creating %s GPUSDF2: %w", appendShaderName(nil, shader), err)
+	}
+	return sdfgpu, err
+}
+
+func (cfg *shaderTestConfig) makeGPUSDF3(shader glbuild.Shader3D, bounds ms3.Box) (gleval.SDF3, error) {
+	cfg.progbuf.Reset()
+	n, objs, err := cfg.prog.WriteComputeSDF3(&cfg.progbuf, shader)
+	if err != nil {
+		return nil, fmt.Errorf("writing %s compute sdf2: %w", appendShaderName(nil, shader), err)
+	} else if n != cfg.progbuf.Len() {
+		return nil, fmt.Errorf("written %s calculated != actual %d!=%d", appendShaderName(nil, shader), n, cfg.progbuf.Len())
+	}
+	invocx, _, _ := cfg.prog.ComputeInvocations()
+	if !cfg.useGPU {
+		return nil, nil // no GPU available to compile. End test here.
+	}
+	sdfgpu, err := gleval.NewComputeGPUSDF3(&cfg.progbuf, bounds, gleval.ComputeConfig{
+		InvocX:        invocx,
+		ShaderObjects: objs,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("creating %s GPUSDF2: %w", appendShaderName(nil, shader), err)
+	}
+	return sdfgpu, err
 }
