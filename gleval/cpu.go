@@ -86,7 +86,9 @@ func (sdf *SDF3CPU) Evaluate(pos []ms3.Vec, dist []float32, userData any) error 
 	if useOwnVecPool {
 		userData = &sdf.vp
 	} else if len(pos) != len(dist) {
-		return errors.New("position and distance buffer length mismatch")
+		return errMismatchBufferLength
+	} else if len(dist) == 0 {
+		return errEmptyBuffers
 	}
 	err := sdf.SDF.Evaluate(pos, dist, userData)
 	var err2 error
@@ -129,7 +131,9 @@ func (sdf *SDF2CPU) Evaluate(pos []ms2.Vec, dist []float32, userData any) error 
 	if useOwnVecPool {
 		userData = &sdf.vp
 	} else if len(pos) != len(dist) {
-		return errors.New("position and distance buffer length mismatch")
+		return errMismatchBufferLength
+	} else if len(pos) == 0 {
+		return errEmptyBuffers
 	}
 	err := sdf.SDF.Evaluate(pos, dist, userData)
 	var err2 error
