@@ -2,13 +2,14 @@ package glrender
 
 import (
 	"bytes"
+	"errors"
 	"image"
 	"image/png"
 	"math"
 	"os"
 	"testing"
 
-	"github.com/chewxy/math32"
+	"github.com/soypat/geometry/i3"
 	"github.com/soypat/geometry/ms3"
 	"github.com/soypat/gsdf"
 	"github.com/soypat/gsdf/forge/threads"
@@ -172,72 +173,6 @@ func TestRenderImage(t *testing.T) {
 	png.Encode(fp, img)
 }
 
-func TestIcube(t *testing.T) {
-	const tol = 1e-4
-	const LVLs = 4
-	const RES = 1.0
-	const maxdim = RES * (1 << (LVLs - 1))
-	bb := ms3.Box{Max: ms3.Vec{X: maxdim, Y: maxdim, Z: maxdim}}
-	topcube, origin, err := makeICube(bb, RES)
-	if err != nil {
-		t.Error(err)
-	}
-	if origin != (ms3.Vec{}) {
-		t.Error("expected origin at (0,0,0)")
-	}
-	t.Log("truebb", bb)
-	levelsVisual("levels.glsl", topcube, 3, origin, RES)
-
-	subcubes := topcube.octree()
-	t.Log("top", topcube.lvl, topcube.lvlIdx(), topcube.box(origin, topcube.size(RES)), topcube.size(RES))
-	for i, subcube := range subcubes {
-		subsize := subcube.size(RES)
-		subbox := subcube.box(origin, subsize)
-		size := subbox.Size()
-		if math32.Abs(size.Max()-subsize) > tol || math32.Abs(size.Min()-subsize) > tol {
-			t.Log("size mismatch", size, subsize)
-		}
-		t.Log("sub", subcube.lvl, subcube.lvlIdx(), subbox, subsize)
-		if (i == 0 || i == 1) && subcube.lvl > 1 {
-			subcube = subcube.octree()[1]
-			t.Log("subsub", subcube.lvl, subcube.lvlIdx(), subcube.box(origin, subcube.size(RES)), subcube.size(RES))
-		}
-	}
-	levels := topcube.lvl
-	_ = levels
-}
-
-func levelsVisual(filename string, startCube icube, targetLvl int, origin ms3.Vec, res float32) {
-	topBB := startCube.box(origin, startCube.size(res))
-	cubes := []icube{startCube}
-	i := 0
-	for cubes[i].lvl > targetLvl {
-		subcubes := cubes[i].octree()
-		cubes = append(cubes, subcubes[:]...)
-		i++
-	}
-	cubes = cubes[i:]
-	bb := bld.NewBoundsBoxFrame(topBB)
-	s := bld.NewSphere(res)
-	s = bld.Translate(s, origin.X, origin.Y, origin.Z)
-	s = bld.Union(bb, s)
-	for _, c := range cubes {
-		bb := bld.NewBoundsBoxFrame(c.box(origin, c.size(res)))
-		s = bld.Union(s, bb)
-	}
-	s = bld.Scale(s, 0.5/s.Bounds().Size().Max())
-	glbuild.ShortenNames3D(&s, 12)
-	prog := glbuild.NewDefaultProgrammer()
-	fp, err := os.Create(filename)
-	if err != nil {
-		panic(err)
-	}
-	_, _, err = prog.WriteShaderToyVisualizerSDF3(fp, s)
-	if err != nil {
-		panic(err)
-	}
-}
-
 func makeBolt(t *testing.T) glbuild.Shader3D {
 	const L, shank = 8, 3
 	threader := threads.ISO{D: 3, P: 0.5, Ext: true}
@@ -252,4 +187,55 @@ func makeBolt(t *testing.T) glbuild.Shader3D {
 	}
 	M3 = bld.Rotate(M3, 2.5*math.Pi/2, ms3.Vec{X: 1, Z: 0.1})
 	return M3
+}
+
+// DebugVisual not guaranteed to stay.
+func (oc *Octree) debugVisual(filename string, lvlDescent int, merge glbuild.Shader3D, bld *gsdf.Builder) error {
+	if lvlDescent > 3 {
+		return errors.New("too large level descent")
+	}
+	origin, res := oc.oct.Origin, oc.oct.Resolution
+	startCube, _, err := makeICube(oc.bounds, res)
+	if err != nil {
+		return err
+	}
+	targetLevel := startCube.Level - lvlDescent
+	if targetLevel < 1 {
+		targetLevel = 1
+	}
+	// func levelsVisual(filename string, startCube icube, targetLvl int, origin ms3.Vec, res float32) {
+	topBB := oc.oct.CubeBox(startCube, oc.oct.CubeSize(startCube))
+	cubes := []i3.Cube{startCube}
+	i := 0
+	for cubes[i].Level > targetLevel {
+		subcubes := cubes[i].Octree()
+		cubes = append(cubes, subcubes[:]...)
+		i++
+	}
+	cubes = cubes[i:]
+	bb := bld.NewBoundsBoxFrame(topBB)
+	s := bld.NewSphere(res / 2)
+	s = bld.Translate(s, origin.X, origin.Y, origin.Z)
+	s = bld.Union(s, bb)
+	if merge != nil {
+		s = bld.Union(s, merge)
+	}
+	for _, c := range cubes {
+		bb := bld.NewBoundsBoxFrame(oc.oct.CubeBox(c, oc.oct.CubeSize(c)))
+		s = bld.Union(s, bb)
+	}
+	s = bld.Scale(s, 0.5/s.Bounds().Size().Max())
+	glbuild.ShortenNames3D(&s, 12)
+	prog := glbuild.NewDefaultProgrammer()
+	fp, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	_, ssbos, err := prog.WriteShaderToyVisualizerSDF3(fp, s)
+	if err != nil {
+		return err
+	} else if len(ssbos) > 0 {
+		return errors.New("objectsunsupported for visual output")
+	}
+	return nil
 }

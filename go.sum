@@ -12,6 +12,8 @@ github.com/soypat/geometry v0.0.0-20250618223846-196a4c63e8ef h1:7SMdeUipfzssy+Y
 github.com/soypat/geometry v0.0.0-20250618223846-196a4c63e8ef/go.mod h1:ks6uGIIvsbkaGB7RBLG8pc2yHYBIxZ1FSRSNPtXPAwY=
 github.com/soypat/geometry v0.0.0-20250718121518-cc41fcad0ec7 h1:+fKPpSStUmn9WAtq4LDzj3QsbWzdxeUi6EH4rShvH7E=
 github.com/soypat/geometry v0.0.0-20250718121518-cc41fcad0ec7/go.mod h1:ks6uGIIvsbkaGB7RBLG8pc2yHYBIxZ1FSRSNPtXPAwY=
+github.com/soypat/geometry v0.0.0-20251107203642-291c5648d529 h1:b+KprI7Gk38IeRGgV94xIuCyARhdXTGU2WioxmLEjbw=
+github.com/soypat/geometry v0.0.0-20251107203642-291c5648d529/go.mod h1:ks6uGIIvsbkaGB7RBLG8pc2yHYBIxZ1FSRSNPtXPAwY=
 github.com/soypat/glgl v0.0.0-20241218113040-663b03b49704 h1:KU+Ofl/VEFFM/uNpDPu+2Ds8RrkJUu21Ef0klG7xK08=
 github.com/soypat/glgl v0.0.0-20241218113040-663b03b49704/go.mod h1:1LcEp6XHSMCI91WlJHzl/aW4Bp5v6yQOiYFyjrlk350=
 github.com/soypat/glgl v0.0.0-20250512221855-eace9dbeac6b h1:jLkbsOoLch2xE1o0m0jlkaJyoKyk0ajhML/tOKkSVYg=
