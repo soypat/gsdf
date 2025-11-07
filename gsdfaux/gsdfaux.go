@@ -59,8 +59,13 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 	if cfg.STLOutput == nil && cfg.VisualOutput == nil {
 		return errors.New("RenderShader3D requires output parameter in config")
 	}
-	log := func(args ...any) {
+	log := func(elapsed time.Duration, args ...any) {
 		if !cfg.Silent {
+			if elapsed != 0 {
+				fmt.Printf("[%s] ", elapsed.String())
+			} else {
+				fmt.Printf("[-] ")
+			}
 			fmt.Println(args...)
 		}
 	}
@@ -72,9 +77,9 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 	bufferEvalSize := 4096 // Default "sensible" value.
 	bb := s.Bounds()
 	var sdf gleval.SDF3
-	watch := stopwatch()
+	fromStart := stopwatch()
 	if cfg.UseGPU {
-		log("using GPU\tᵍᵒᵗᵗᵃ ᵍᵒ ᶠᵃˢᵗ")
+		log(0, "using GPU\tᵍᵒᵗᵗᵃ ᵍᵒ ᶠᵃˢᵗ")
 		{
 			terminate, err := gleval.Init1x1GLFW()
 			if err != nil {
@@ -89,17 +94,18 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 		// OpenGL does not expose an API to calculate this number so we take a best guess.
 		// 32 was the optimal guess for a AMD ATI Radeon RX 6800, with 1024 invocations, resulting in 32678 size of buffer (32*32*32).
 		const guessedNumberOfParallelWorkers = 32
-		invoc := glgl.MaxComputeInvocations()
-		bufferEvalSize = invoc * guessedNumberOfParallelWorkers
 
 		source := new(bytes.Buffer)
 		prog := glbuild.NewDefaultProgrammer()
-
-		log("compute invocation size ", invoc)
+		invoc := glgl.MaxComputeInvocations()
+		bufferEvalSize = invoc * guessedNumberOfParallelWorkers
 		if invoc < 1 {
 			return errors.New("zero or negative GPU invocation size")
 		}
 		prog.SetComputeInvocations(invoc, 1, 1)
+
+		log(fromStart(), "init GL with compute invocation size ", invoc)
+		watch := stopwatch()
 		var objects []glbuild.ShaderObject
 		_, objects, err = prog.WriteComputeSDF3(source, s)
 		if err != nil {
@@ -109,8 +115,9 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 			InvocX:        invoc,
 			ShaderObjects: objects,
 		})
+		log(watch(), "GPU shader generated and compiled")
 	} else {
-		log("using CPU")
+		log(0, "using CPU")
 		cpusdf, err := gleval.NewCPUSDF3(s)
 		if err != nil {
 			return err
@@ -133,17 +140,17 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 		sdf = &cache
 		defer func() {
 			pcnt := percentUint64(cache.CacheHits(), cache.Evaluations())
-			log("SDF caching omitted", pcnt, "percent of", cache.Evaluations(), "SDF evaluations")
+			log(0, "SDF caching omitted", pcnt, "percent of", cache.Evaluations(), "SDF evaluations")
 		}()
 	}
-	log("instantiating evaluation SDF took", watch())
+	log(fromStart(), "instantiating evaluation SDF took")
 	renderer, err := glrender.NewOctreeRenderer(sdf, cfg.Resolution, bufferEvalSize)
 	if err != nil {
 		return err
 	}
 
 	if cfg.VisualOutput != nil {
-		watch = stopwatch()
+		visualWatch := stopwatch()
 		const sceneSize = 1.4
 		// We include the bounding box in the visualization.
 		bb := s.Bounds()
@@ -169,7 +176,7 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 		if fp, ok := cfg.VisualOutput.(*os.File); ok {
 			filename = fp.Name()
 		}
-		log("wrote", filename, "in", watch())
+		log(visualWatch(), "wrote", filename)
 	}
 
 	if cfg.STLOutput != nil {
@@ -179,7 +186,7 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 			userData = maybeVP
 		}
 
-		watch = stopwatch()
+		watch := stopwatch()
 		triangles, err := glrender.RenderAll(renderer, userData)
 		if err != nil {
 			return fmt.Errorf("rendering triangles: %s", err)
@@ -188,7 +195,7 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 		e := sdf.(interface{ Evaluations() uint64 })
 		omitted := 8 * renderer.TotalPruned()
 		percentOmit := percentUint64(omitted, e.Evaluations()+omitted)
-		log("evaluated SDF", e.Evaluations(), "times and rendered", len(triangles), "triangles in", watch().Round(10*time.Millisecond), "with", percentOmit, "percent evaluations omitted")
+		log(watch(), "evaluated SDF", e.Evaluations(), "times and rendered", len(triangles), "triangles with", percentOmit, "percent evaluations omitted in octree pruning step")
 
 		watch = stopwatch()
 		_, err = glrender.WriteBinarySTL(cfg.STLOutput, triangles)
@@ -199,16 +206,30 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 		if fp, ok := cfg.STLOutput.(*os.File); ok {
 			filename = fp.Name()
 		}
-		log("wrote", filename, "in", watch())
+		log(watch(), "wrote", filename)
 	}
-
+	log(fromStart(), "render done")
 	return nil
 }
 
 func stopwatch() func() time.Duration {
 	start := time.Now()
 	return func() time.Duration {
-		return time.Since(start)
+		dur := time.Since(start)
+		switch {
+		case dur < time.Microsecond:
+			return dur
+		case dur < time.Millisecond:
+			return dur.Round(100 * time.Nanosecond)
+		case dur < 100*time.Millisecond:
+			return dur.Round(10 * time.Microsecond)
+		case dur < time.Second:
+			return dur.Round(1 * time.Millisecond)
+		case dur < 10*time.Second:
+			return dur.Round(10 * time.Millisecond)
+		default:
+			return dur.Round(100 * time.Millisecond)
+		}
 	}
 }
 

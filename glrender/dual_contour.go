@@ -4,15 +4,17 @@ import (
 	"errors"
 
 	"github.com/chewxy/math32"
+	"github.com/soypat/geometry/i3"
 	"github.com/soypat/geometry/ms3"
 	"github.com/soypat/gsdf/gleval"
 )
 
 type DualContourRenderer struct {
 	sdf       gleval.SDF3
+	oct       ms3.Octree
 	contourer DualContourer
-	cubeMap   map[ivec]int
-	cubebuf   []icube
+	cubeMap   map[i3.Vec]int
+	cubebuf   []i3.Cube
 	posbuf    []ms3.Vec
 	distbuf   []float32
 	// cubeinfo stores both cube and edge information for dual contouring algorithm.
@@ -33,15 +35,16 @@ func (dcr *DualContourRenderer) Reset(sdf gleval.SDF3, res float32, vertexPlacer
 	if err != nil {
 		return err
 	}
-	nCubes := int(topCube.decomposesTo(1))
+	nCubes := int(topCube.DecomposesTo(1))
 	if cap(dcr.cubebuf) < nCubes*2 {
-		dcr.cubebuf = make([]icube, 0, nCubes*2) // Want to fully decompose cube.
+		dcr.cubebuf = make([]i3.Cube, 0, nCubes*2) // Want to fully decompose cube.
 	}
 	var ok bool
-	dcr.cubebuf, ok = octreeDecomposeBFS(dcr.cubebuf[:0], topCube, 1)
+	dcr.oct = ms3.Octree{Resolution: res, Origin: origin}
+	dcr.cubebuf, ok = dcr.oct.DecomposeBFS(dcr.cubebuf[:0], topCube, 1)
 	if !ok {
 		return errors.New("unable to decompose top level cube")
-	} else if dcr.cubebuf[0].lvl != 1 {
+	} else if dcr.cubebuf[0].Level != 1 {
 		return errors.New("short buffer decomposing all cubes")
 	} else if len(dcr.cubebuf) != nCubes {
 		panic("failed to decompose all edges?")
@@ -54,7 +57,7 @@ func (dcr *DualContourRenderer) Reset(sdf gleval.SDF3, res float32, vertexPlacer
 	posbuf := dcr.posbuf[:cap(dcr.posbuf)]
 
 	// Keep cubes that contain a surface and their neighbors.
-	dcr.cubebuf, _, err = octreePrune(sdf, dcr.cubebuf, origin, res, posbuf, dcr.distbuf[:len(posbuf)], userData, 2, true)
+	dcr.cubebuf, _, err = octreePrunea(sdf, dcr.cubebuf, origin, res, posbuf, dcr.distbuf[:len(posbuf)], userData, 2, true)
 	if err != nil {
 		return err
 	}
@@ -64,7 +67,7 @@ func (dcr *DualContourRenderer) Reset(sdf gleval.SDF3, res float32, vertexPlacer
 		dcr.cubeinfo = make([]DualCube, nCubes)
 	}
 	if dcr.cubeMap == nil {
-		dcr.cubeMap = make(map[ivec]int)
+		dcr.cubeMap = make(map[i3.Vec]int)
 	}
 	clear(dcr.cubeMap)
 	dcr.res = res
@@ -84,8 +87,9 @@ func (dcr *DualContourRenderer) RenderAll(dst []ms3.Triangle, userData any) ([]m
 	cubes := dcr.cubeinfo[:len(edges)]
 
 	for e, edge := range edges {
-		sz := edge.size(res)
-		edgeOrig := edge.origin(origin, sz)
+
+		sz := dcr.oct.CubeSize(edge)
+		edgeOrig := dcr.oct.CubeOrigin(edge, sz)
 		// posbuf has edge origin, edge extremes in x,y,z and the center of the voxel.
 		posbuf = append(posbuf,
 			edgeOrig,
@@ -94,7 +98,7 @@ func (dcr *DualContourRenderer) RenderAll(dst []ms3.Triangle, userData any) ([]m
 			ms3.Add(edgeOrig, ms3.Vec{Z: sz}),
 		)
 		cubes[e].FinalVertex = edgeOrig // By default set to center.
-		cubeMap[edge.ivec] = e
+		cubeMap[edge.Vec] = e
 	}
 
 	lenPos := len(posbuf)
@@ -108,7 +112,7 @@ func (dcr *DualContourRenderer) RenderAll(dst []ms3.Triangle, userData any) ([]m
 	posbuf = posbuf[:0]
 	for e, edge := range edges {
 		// First for loop accumulates edge biases into voxels/cubes.
-		cube := makeDualCube(edge.ivec, distbuf[e*4:])
+		cube := makeDualCube(edge.Vec, distbuf[e*4:])
 		cubes[e] = cube
 		if !cube.IsActive() {
 			continue
@@ -180,7 +184,7 @@ func (dcr *DualContourRenderer) RenderAll(dst []ms3.Triangle, userData any) ([]m
 	return dst, nil
 }
 
-func makeDualCube(ivec ivec, data []float32) DualCube {
+func makeDualCube(ivec i3.Vec, data []float32) DualCube {
 	if len(data) < 4 {
 		panic("short dual cube info buffer")
 	}
@@ -196,7 +200,7 @@ func makeDualCube(ivec ivec, data []float32) DualCube {
 // DualCube corresponds to a voxel anmd contains both cube and edge data.
 type DualCube struct {
 	// ivec stores the octree index of the cube, used to find neighboring cube ivec indices and the absolute position of the cube.
-	ivec ivec
+	ivec i3.Vec
 	// Neighbors contains neighboring index into dualCube buffer and contributing edge intersect axis.
 	//  - Neighbors[0]: Index into dualCube buffer to cube neighbor with edge.
 	//  - Neighbors[1]: Intersecting axis. 0 is x; 1 is y; 2 is z.
@@ -212,7 +216,9 @@ type DualCube struct {
 }
 
 func (dc *DualCube) SizeAndOrigin(res float32, octreeOrigin ms3.Vec) (float32, ms3.Vec) {
-	return res, icube{ivec: dc.ivec, lvl: 1}.origin(octreeOrigin, res)
+	cb := i3.Cube{Vec: dc.ivec, Level: 1}
+	oct := ms3.Octree{Resolution: res, Origin: octreeOrigin}
+	return res, oct.CubeOrigin(cb, oct.CubeSize(cb))
 }
 
 func (dc *DualCube) IsActive() bool {
@@ -235,22 +241,22 @@ func (dc *DualCube) FlipX() bool           { return dc.XDist-dc.OrigDist < 0 }
 func (dc *DualCube) FlipY() bool           { return dc.YDist-dc.OrigDist < 0 }
 func (dc *DualCube) FlipZ() bool           { return dc.ZDist-dc.OrigDist < 0 }
 
-func (dc *DualCube) EdgeNeighborsX() [4]ivec {
+func (dc *DualCube) EdgeNeighborsX() [4]i3.Vec {
 	const sub = -(1 << minIcubeLvl)
 	v := dc.ivec
-	return [4]ivec{v.Add(ivec{y: sub, z: sub}), v.Add(ivec{z: sub}), v, v.Add(ivec{y: sub})}
+	return [4]i3.Vec{v.Add(i3.Vec{Y: sub, Z: sub}), v.Add(i3.Vec{Z: sub}), v, v.Add(i3.Vec{Y: sub})}
 }
 
-func (dc *DualCube) EdgeNeighborsY() [4]ivec {
+func (dc *DualCube) EdgeNeighborsY() [4]i3.Vec {
 	const sub = -(1 << minIcubeLvl)
 	v := dc.ivec
-	return [4]ivec{v.Add(ivec{x: sub, z: sub}), v.Add(ivec{x: sub}), v, v.Add(ivec{z: sub})}
+	return [4]i3.Vec{v.Add(i3.Vec{X: sub, Z: sub}), v.Add(i3.Vec{X: sub}), v, v.Add(i3.Vec{Z: sub})}
 }
 
-func (dc *DualCube) EdgeNeighborsZ() [4]ivec {
+func (dc *DualCube) EdgeNeighborsZ() [4]i3.Vec {
 	const sub = -(1 << minIcubeLvl)
 	v := dc.ivec
-	return [4]ivec{v.Add(ivec{x: sub, y: sub}), v.Add(ivec{y: sub}), v, v.Add(ivec{x: sub})}
+	return [4]i3.Vec{v.Add(i3.Vec{X: sub, Y: sub}), v.Add(i3.Vec{Y: sub}), v, v.Add(i3.Vec{X: sub})}
 }
 
 // minecraftRender performs a minecraft-like render of the SDF using a dual contour method.
@@ -261,12 +267,18 @@ func minecraftRender(dst []ms3.Triangle, sdf gleval.SDF3, res float32) ([]ms3.Tr
 	if err != nil {
 		return dst, err
 	}
-	decomp := topCube.decomposesTo(1)
-	cubes := make([]icube, 0, decomp*2)
-	cubes, ok := octreeDecomposeBFS(cubes, topCube, 1)
+	oct := ms3.Octree{
+		Resolution: res,
+		Origin:     origin,
+	}
+
+	decomp := topCube.DecomposesTo(1)
+	cubes := make([]i3.Cube, 0, decomp*2)
+
+	cubes, ok := oct.DecomposeBFS(cubes, topCube, 1)
 	if !ok {
 		return dst, errors.New("unable to decompose top level cube")
-	} else if cubes[0].lvl != 1 {
+	} else if cubes[0].Level != 1 {
 		return dst, errors.New("short buffer decomposing all cubes")
 	}
 
@@ -274,8 +286,8 @@ func minecraftRender(dst []ms3.Triangle, sdf gleval.SDF3, res float32) ([]ms3.Tr
 	iCubes := 0
 	for ; iCubes < len(cubes); iCubes++ {
 		cube := cubes[iCubes]
-		sz := cube.size(res)
-		cubeOrig := cube.origin(origin, sz)
+		sz := oct.CubeSize(cube)
+		cubeOrig := oct.CubeOrigin(cube, sz)
 		// Append origin and edge-end vertices.
 		posbuf = append(posbuf,
 			cubeOrig,
@@ -292,9 +304,9 @@ func minecraftRender(dst []ms3.Triangle, sdf gleval.SDF3, res float32) ([]ms3.Tr
 	}
 	for j := 0; j < iCubes; j++ {
 		cube := cubes[j]
-		sz := cube.size(res)
-		srcOrig := cube.origin(origin, sz)
-		dci := makeDualCube(cube.ivec, distbuf[j*4:])
+		sz := oct.CubeSize(cube)
+		srcOrig := oct.CubeOrigin(cube, sz)
+		dci := makeDualCube(cube.Vec, distbuf[j*4:])
 		origOff := sz
 		if dci.ActiveX() {
 			xOrig := ms3.Add(srcOrig, ms3.Vec{X: origOff})
