@@ -619,7 +619,12 @@ type annulus2D struct {
 }
 
 func (u *annulus2D) Bounds() ms2.Box {
-	return u.s.Bounds()
+	bb := u.s.Bounds()
+	expansion := ms2.Vec{X: u.r, Y: u.r}
+	return ms2.Box{
+		Min: ms2.Sub(bb.Min, expansion),
+		Max: ms2.Add(bb.Max, expansion),
+	}
 }
 
 func (s *annulus2D) ForEach2DChild(userData any, fn func(userData any, s *glbuild.Shader2D) error) error {

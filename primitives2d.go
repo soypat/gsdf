@@ -356,7 +356,8 @@ func (bld *Builder) NewHexagon(side float32) glbuild.Shader2D {
 
 func (c *hex2D) Bounds() ms2.Box {
 	s := c.side
-	return ms2.NewBox(-s, -s, s, s)
+	w := s / tribisect // Horizontal extent to vertices = 2s/√3
+	return ms2.NewBox(-w, -s, w, s)
 }
 
 func (c *hex2D) AppendShaderName(b []byte) []byte {

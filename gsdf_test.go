@@ -73,11 +73,18 @@ func (cfg *shaderTestConfig) div(dim float32) int {
 }
 
 func TestGSDF(t *testing.T) {
+	finishedOK := false
+	defer func() {
+		if !finishedOK {
+			t.Fatal("program did not finish correctly")
+		}
+	}()
 	cfg := newShaderTestConfig()
 	err := testGSDF(cfg)
 	if err != nil {
 		t.Error(err)
 	}
+	finishedOK = true
 }
 
 func TestTransformDuplicateBug(t *testing.T) {
@@ -466,6 +473,7 @@ func testShader3D(t *tb, obj glbuild.Shader3D, cfg *shaderTestConfig) {
 
 func testShader2D(t *tb, obj glbuild.Shader2D, cfg *shaderTestConfig) {
 	failed := t.fail
+	vp := &cfg.vp
 	defer func() {
 		if t.fail && !failed {
 			name := "testfail_" + glbuild.FormatShader(obj)
@@ -487,10 +495,16 @@ func testShader2D(t *tb, obj glbuild.Shader2D, cfg *shaderTestConfig) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	err = test_bounds2d(sdfcpu, vp, cfg)
+	if err != nil {
+		t.Fatalf("%T: %s", obj, err)
+	}
+
 	err = sdfcpu.Evaluate(pos, distCPU, &cfg.vp)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	// Do GPU evaluation.
 	sdfgpu, err := cfg.makeGPUSDF2(obj, bounds)
 	if err != nil {
@@ -542,11 +556,16 @@ func (t *tb) Errorf(msg string, args ...any) {
 
 func (t *tb) Fatal(args ...any) {
 	t.fail = true
-	log.Fatal(args...)
+	t.Error(args...)
+	t.exit()
 }
 func (t *tb) Fatalf(msg string, args ...any) {
 	t.fail = true
-	log.Fatalf(msg, args...)
+	t.Errorf(msg, args...)
+	t.exit()
+}
+func (t *tb) exit() {
+	panic("testing fatal error")
 }
 
 func randomRotation(bld *gsdf.Builder, a glbuild.Shader3D, rng *rand.Rand) glbuild.Shader3D {
@@ -810,6 +829,47 @@ func test_bounds(sdf gleval.SDF3, userData any, cfg *shaderTestConfig) (err erro
 			}
 		}
 	}
+	return nil
+}
+
+func test_bounds2d(sdf gleval.SDF2, userData any, cfg *shaderTestConfig) (err error) {
+	const eps = 1e-2
+	// see test_bounds for commentary on how this works.
+	bb := sdf.Bounds()
+	size := bb.Size()
+	nx, ny := cfg.div2(bb)
+	var offs = [3]float32{-1, 0, 1}
+	N := nx * ny
+	dist := cfg.distbuf[0][:N]
+	newPos := cfg.posbuf2s[1][:N]
+	normals := cfg.posbuf2s[2][:N]
+	wantNormals := cfg.posbuf2s[3][:N]
+	wantNormals = ms2.AppendGrid(wantNormals[:0], bb.Add(ms2.Scale(-1, bb.Center())), nx, ny)
+	var offsize ms2.Vec
+	for _, xo := range offs {
+		offsize.X = xo * (size.X + eps)
+		for _, yo := range offs {
+			offsize.Y = yo * (size.Y + eps)
+			if xo == 0 && yo == 0 {
+				continue // Would perform no change to bounding box.
+			}
+			newBB := bb.Add(offsize)
+			// New mesh lies outside of bounding box.
+			newPos = ms2.AppendGrid(newPos[:0], newBB, nx, ny)
+			// Calculate expected normal directions.
+			err = sdf.Evaluate(newPos, dist, userData)
+			if err != nil {
+				return err
+			}
+			for i, d := range dist {
+				if d < 0 {
+					return fmt.Errorf("ext bounding box point %v (d=%f) within SDF off=%+v", newPos[i], d, offsize)
+				}
+			}
+			// TODO: measure normal gradient like 3D version.
+		}
+	}
+	_ = normals
 	return nil
 }
 
