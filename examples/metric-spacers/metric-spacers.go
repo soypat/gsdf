@@ -37,20 +37,25 @@ func buildSpacer(bld *gsdf.Builder, holeDiameter, length float32) (glbuild.Shade
 
 func run() error {
 	var (
-		useGPU      bool
-		resolution  float64
-		flagResDiv  uint
-		flagSpacers string
+		useGPU        bool
+		resolution    float64
+		flagResDiv    uint
+		flagSpacers   string
+		scaleDiameter float64
 	)
 	flag.BoolVar(&useGPU, "gpu", false, "enable GPU usage")
 	flag.Float64Var(&resolution, "res", 0, "Set resolution in shape units. Useful for setting the minimum level of detail to a fixed amount for final result. If not set resdiv used [mm/in]")
 	flag.UintVar(&flagResDiv, "resdiv", 200, "Set resolution in bounding box diagonal divisions. Useful for prototyping when constant speed of rendering is desired.")
 	flag.StringVar(&flagSpacers, "spacers", "M3x5", "Spacers to generate with format arg[,arg] where arg has format M<d>x<L> d is diameter of hole and L is length.")
+	flag.Float64Var(&scaleDiameter, "dscale", 1, "Scale diameter of spacers.")
 	flag.Parse()
 	strSpacers := strings.Split(flagSpacers, ",")
 	if len(strSpacers) == 0 {
 		flag.PrintDefaults()
 		return errors.New("invalid spacers")
+	}
+	if scaleDiameter <= 0 {
+		return errors.New("invalid diameter scale parameter")
 	}
 	log.Println("start program")
 	var bld gsdf.Builder
@@ -74,7 +79,8 @@ func run() error {
 		if err != nil {
 			return err
 		}
-		sdf, err := buildSpacer(&bld, float32(d), float32(L))
+		diamCorrected := d * scaleDiameter
+		sdf, err := buildSpacer(&bld, float32(diamCorrected), float32(L))
 		if err != nil {
 			return fmt.Errorf("building spacer %s: %w", strSpacer, err)
 		}
