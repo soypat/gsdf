@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"unicode"
 
-	"github.com/golang/freetype/truetype"
 	"github.com/soypat/geometry/ms2"
 	"github.com/soypat/gsdf"
 	"github.com/soypat/gsdf/glbuild"
 	"golang.org/x/image/font"
+	"golang.org/x/image/font/sfnt"
 	"golang.org/x/image/math/fixed"
 )
 
@@ -26,8 +26,8 @@ type FontConfig struct {
 
 // Font implements font parsing and glyph (character) generation.
 type Font struct {
-	ttf truetype.Font
-	gb  truetype.GlyphBuf
+	buf sfnt.Buffer
+	sfn *sfnt.Font
 	// basicGlyphs optimized array access for common ASCII glyphs.
 	basicGlyphs [lastBasic - firstBasic + 1]glyph
 	// Other kinds of glyphs.
@@ -50,12 +50,12 @@ func (f *Font) Configure(cfg FontConfig) error {
 
 // LoadTTFBytes loads a TTF file blob into f. After calling Load the Font is ready to generate text SDFs.
 func (f *Font) LoadTTFBytes(ttf []byte) error {
-	font, err := truetype.Parse(ttf)
+	font, err := sfnt.Parse(ttf)
 	if err != nil {
 		return err
 	}
 	f.reset()
-	f.ttf = *font
+	f.sfn = font
 	return nil
 }
 
@@ -88,38 +88,48 @@ type glyph struct {
 // Glyph locations are set starting at x=0 and appended in positive x direction.
 func (f *Font) TextLine(s string) (glbuild.Shader2D, error) {
 	var shapes []glbuild.Shader2D
-	scale := f.scale()
-	var idxPrev truetype.Index
-	var xOfs int64
-	scalout := f.scaleout()
+	ppem := f.scale()
+
+	var idxPrev sfnt.GlyphIndex
+	var xOfs fixed.Int26_6
+	scaleout := f.scaleout()
 	for ic, c := range s {
 		if !unicode.IsGraphic(c) {
 			return nil, fmt.Errorf("char %q not graphic", c)
 		}
 
-		idx := truetype.Index(c)
-		hm := f.ttf.HMetric(scale, idx)
+		idx, err := f.sfn.GlyphIndex(&f.buf, c)
+		if err != nil {
+			return nil, fmt.Errorf("char %q glyph index: %w", c, err)
+		}
+
+		advance, err := f.sfn.GlyphAdvance(&f.buf, idx, ppem, font.HintingNone)
+		if err != nil {
+			return nil, fmt.Errorf("char %q advance: %w", c, err)
+		}
+
 		if unicode.IsSpace(c) {
 			if c == '\t' {
-				hm.AdvanceWidth *= 4
+				advance *= 4
 			}
-			xOfs += int64(hm.AdvanceWidth)
+			xOfs += advance
 			continue
 		}
+
 		charshape, err := f.Glyph(c)
 		if err != nil {
 			return nil, fmt.Errorf("char %q: %w", c, err)
 		}
 
-		kern := f.ttf.Kern(scale, idxPrev, idx)
-		xOfs += int64(kern)
-		idxPrev = idx
-		if ic == 0 {
-			xOfs += int64(hm.LeftSideBearing)
+		if ic > 0 {
+			kern, _ := f.sfn.Kern(&f.buf, idxPrev, idx, ppem, font.HintingNone)
+			xOfs += kern
 		}
-		charshape = f.bld.Translate2D(charshape, float32(xOfs)*scalout, 0)
+		idxPrev = idx
+
+		charshape = f.bld.Translate2D(charshape, float32(xOfs)*scaleout, 0)
 		shapes = append(shapes, charshape)
-		xOfs += int64(hm.AdvanceWidth)
+		xOfs += advance
 	}
 	if len(shapes) == 1 {
 		return shapes[0], nil
@@ -132,12 +142,17 @@ func (f *Font) TextLine(s string) (glbuild.Shader2D, error) {
 
 // Kern returns the horizontal adjustment for the given glyph pair. A positive kern means to move the glyphs further apart.
 func (f *Font) Kern(c0, c1 rune) float32 {
-	return float32(f.ttf.Kern(f.scale(), truetype.Index(c0), truetype.Index(c1)))
+	idx0, _ := f.sfn.GlyphIndex(&f.buf, c0)
+	idx1, _ := f.sfn.GlyphIndex(&f.buf, c1)
+	kern, _ := f.sfn.Kern(&f.buf, idx0, idx1, f.scale(), font.HintingNone)
+	return float32(kern) * f.scaleout()
 }
 
-// Kern returns the horizontal adjustment for the given glyph pair. A positive kern means to move the glyphs further apart.
+// AdvanceWidth returns the horizontal advance width for the given glyph.
 func (f *Font) AdvanceWidth(c rune) float32 {
-	return float32(f.ttf.HMetric(f.scale(), truetype.Index(c)).AdvanceWidth)
+	idx, _ := f.sfn.GlyphIndex(&f.buf, c)
+	advance, _ := f.sfn.GlyphAdvance(&f.buf, idx, f.scale(), font.HintingNone)
+	return float32(advance) * f.scaleout()
 }
 
 // Glyph returns a SDF for a character defined by the argument rune.
@@ -177,11 +192,12 @@ func (f *Font) glyph(c rune) (g *glyph, err error) {
 }
 
 func (f *Font) scale() fixed.Int26_6 {
-	return fixed.Int26_6(f.ttf.FUnitsPerEm())
+	units := f.sfn.UnitsPerEm()
+	return fixed.Int26_6(units)
 }
 
 func (f *Font) rawbounds() ms2.Box {
-	bb := f.ttf.Bounds(f.scale())
+	bb, _ := f.sfn.Bounds(&f.buf, f.scale(), font.HintingNone)
 	return ms2.Box{
 		Min: ms2.Vec{X: float32(bb.Min.X), Y: float32(bb.Min.Y)},
 		Max: ms2.Vec{X: float32(bb.Max.X), Y: float32(bb.Max.Y)},
@@ -196,32 +212,38 @@ func (f *Font) scaleout() float32 {
 }
 
 func (f *Font) makeGlyph(char rune) (glyph, error) {
-	g := &f.gb
 	bld := f.bld
 
-	idx := f.ttf.Index(char)
-	scale := f.scale()
-	// hm := f.ttf.HMetric(scale, idx)
-	err := g.Load(&f.ttf, scale, idx, font.HintingNone)
+	idx, err := f.sfn.GlyphIndex(&f.buf, char)
 	if err != nil {
 		return glyph{}, err
 	}
-	scaleout := f.scaleout()
 
-	tol := f.reltol
-	// Build Glyph.
-	shape, fill, err := glyphCurve(bld, g.Points, 0, g.Ends[0], tol, scaleout)
+	ppem := f.scale()
+	segments, err := f.sfn.LoadGlyph(&f.buf, idx, ppem, nil)
 	if err != nil {
 		return glyph{}, err
-	} else if !fill {
-		_ = fill // This is not an error...
-		// return glyph{}, errors.New("first glyph shape is negative space")
 	}
-	start := g.Ends[0]
-	g.Ends = g.Ends[1:]
-	for _, end := range g.Ends {
-		sdf, fill, err := glyphCurve(bld, g.Points, start, end, tol, scaleout)
-		start = end
+
+	scaleout := f.scaleout()
+	tol := f.reltol
+
+	// Split segments into contours (each MoveTo starts a new contour).
+	contours := splitContours(segments)
+	if len(contours) == 0 {
+		return glyph{}, errors.New("glyph has no contours")
+	}
+
+	// Build first contour.
+	shape, fill, err := segmentsToPolygon(bld, contours[0], tol, scaleout)
+	if err != nil {
+		return glyph{}, err
+	}
+	_ = fill // First contour fill direction is not necessarily an error.
+
+	// Process remaining contours.
+	for _, contour := range contours[1:] {
+		sdf, fill, err := segmentsToPolygon(bld, contour, tol, scaleout)
 		if err != nil {
 			return glyph{}, err
 		}
@@ -234,77 +256,82 @@ func (f *Font) makeGlyph(char rune) (glyph, error) {
 	return glyph{sdf: shape}, nil
 }
 
-func glyphCurve(bld *gsdf.Builder, points []truetype.Point, start, end int, tol, scale float32) (glbuild.Shader2D, bool, error) {
-	var (
-		sampler    = ms2.Spline3Sampler{Spline: quadBezier, Tolerance: tol}
-		windingSum float32
-	)
-	points = points[start:end]
-	n := len(points)
-	i := 0
-	var poly []ms2.Vec
-	vPrev := p2v(points[n-1], scale)
-	for i < n {
-		p0, p1, p2 := points[i], points[(i+1)%n], points[(i+2)%n]
-		onBits := onbits3(points, 0, n, i)
-		v0, v1, v2 := p2v(p0, scale), p2v(p1, scale), p2v(p2, scale)
-		implicit0 := ms2.Scale(0.5, ms2.Add(v0, v1))
-		implicit1 := ms2.Scale(0.5, ms2.Add(v1, v2))
-		switch onBits {
-		case 0b010, 0b110:
-			// implicit off start case?
-			fallthrough
-		case 0b011, 0b111:
-			// on-on Straight line.
-			poly = append(poly, v0)
-			i += 1
-			windingSum += (v0.X - vPrev.X) * (v0.Y + vPrev.Y)
-			vPrev = v0
-			continue
-
-		case 0b000:
-			// implicit-off-implicit.
-			sampler.SetSplinePoints(implicit0, v1, implicit1, ms2.Vec{})
-			v0 = implicit0
-			i += 1
-
-		case 0b001:
-			// on-off-implicit.
-			sampler.SetSplinePoints(v0, v1, implicit1, ms2.Vec{})
-			i += 1
-
-		case 0b100:
-			// implicit-off-on.
-			sampler.SetSplinePoints(implicit0, v1, v2, ms2.Vec{})
-			v0 = implicit0
-			i += 2
-
-		case 0b101:
-			// On-off-on.
-			sampler.SetSplinePoints(v0, v1, v2, ms2.Vec{})
-			i += 2
+// splitContours splits segments into separate contours. Each contour starts with a MoveTo.
+func splitContours(segments sfnt.Segments) []sfnt.Segments {
+	var contours []sfnt.Segments
+	var current sfnt.Segments
+	for _, seg := range segments {
+		if seg.Op == sfnt.SegmentOpMoveTo && len(current) > 0 {
+			contours = append(contours, current)
+			current = nil
 		}
-		poly = append(poly, v0) // Append start point.
-		poly = sampler.SampleBisect(poly, 4)
-		windingSum += (v0.X - vPrev.X) * (v0.Y + vPrev.Y)
-		vPrev = v0
+		current = append(current, seg)
 	}
-	return bld.NewPolygon(poly), windingSum > 0, bld.Err()
+	if len(current) > 0 {
+		contours = append(contours, current)
+	}
+	return contours
 }
 
-func p2v(p truetype.Point, scale float32) ms2.Vec {
+// segmentsToPolygon converts sfnt segments to a polygon.
+// Returns the polygon SDF, whether it's a fill (positive winding), and any error.
+func segmentsToPolygon(bld *gsdf.Builder, segments sfnt.Segments, tol, scale float32) (glbuild.Shader2D, bool, error) {
+	var (
+		poly        []ms2.Vec
+		windingSum  float32
+		prev        ms2.Vec
+		quadsampler = ms2.Spline3Sampler{
+			Spline:    ms2.SplineBezierQuadratic(),
+			Tolerance: tol,
+		}
+		cubicSampler = ms2.Spline3Sampler{
+			Spline:    ms2.SplineBezierCubic(),
+			Tolerance: tol,
+		}
+	)
+
+	for _, seg := range segments {
+		switch seg.Op {
+		case sfnt.SegmentOpMoveTo:
+			// Start of contour - note: sfnt Y axis increases downward, so we negate Y.
+			prev = fixedToVec(seg.Args[0], scale)
+
+		case sfnt.SegmentOpLineTo:
+			p := fixedToVec(seg.Args[0], scale)
+			poly = append(poly, prev)
+			windingSum += (prev.X - p.X) * (prev.Y + p.Y)
+			prev = p
+
+		case sfnt.SegmentOpQuadTo:
+			// Quadratic bezier: prev -> Args[0] (control) -> Args[1] (end)
+			ctrl := fixedToVec(seg.Args[0], scale)
+			end := fixedToVec(seg.Args[1], scale)
+			quadsampler.SetSplinePoints(prev, ctrl, end, ms2.Vec{})
+			poly = append(poly, prev)
+			poly = quadsampler.SampleBisect(poly, 4)
+			windingSum += (prev.X - end.X) * (prev.Y + end.Y)
+			prev = end
+
+		case sfnt.SegmentOpCubeTo:
+			// Cubic bezier: prev -> Args[0] (ctrl1) -> Args[1] (ctrl2) -> Args[2] (end)
+			ctrl1 := fixedToVec(seg.Args[0], scale)
+			ctrl2 := fixedToVec(seg.Args[1], scale)
+			end := fixedToVec(seg.Args[2], scale)
+			cubicSampler.SetSplinePoints(prev, ctrl1, ctrl2, end)
+			poly = append(poly, prev)
+			poly = cubicSampler.SampleBisect(poly, 4)
+			windingSum += (prev.X - end.X) * (prev.Y + end.Y)
+			prev = end
+		}
+	}
+	return bld.NewPolygon(poly), windingSum < 0, bld.Err()
+}
+
+// fixedToVec converts a fixed.Point26_6 to ms2.Vec with scaling.
+// Note: sfnt has Y increasing downward, so we negate Y to flip to standard math coordinates.
+func fixedToVec(p fixed.Point26_6, scale float32) ms2.Vec {
 	return ms2.Vec{
 		X: float32(p.X) * scale,
-		Y: float32(p.Y) * scale,
+		Y: -float32(p.Y) * scale, // Negate Y to flip coordinate system.
 	}
-}
-
-var quadBezier = ms2.SplineBezierQuadratic()
-
-func onbits3(points []truetype.Point, start, end, i int) uint32 {
-	n := end - start
-	p0, p1, p2 := points[i], points[start+(i+1)%n], points[start+(i+2)%n]
-	return p0.Flags&1 |
-		(p1.Flags&1)<<1 |
-		(p2.Flags&1)<<2
 }

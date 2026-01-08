@@ -17,4 +17,5 @@ require (
 require (
 	github.com/go-gl/glfw v0.0.0-20250301202403-da16c1255728 // indirect
 	golang.org/x/exp v0.0.0-20250506013437-ce4c2cf36ca6 // indirect
+	golang.org/x/text v0.20.0 // indirect
 )
