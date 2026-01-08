@@ -11,7 +11,7 @@ import (
 
 func TestABC(t *testing.T) {
 	const okchar = "BCDEFGHIJK"
-	const badchar = "iB~"
+	const badchar = "ABbDdgoOpPqQR"
 	var f Font
 	err := f.LoadTTFBytes(ISO3098TTF())
 	if err != nil {
