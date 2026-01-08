@@ -273,19 +273,21 @@ func splitContours(segments sfnt.Segments) []sfnt.Segments {
 	return contours
 }
 
-var (
-	quadBezier  = ms2.SplineBezierQuadratic()
-	cubicBezier = ms2.SplineBezierCubic()
-)
-
 // segmentsToPolygon converts sfnt segments to a polygon.
 // Returns the polygon SDF, whether it's a fill (positive winding), and any error.
 func segmentsToPolygon(bld *gsdf.Builder, segments sfnt.Segments, tol, scale float32) (glbuild.Shader2D, bool, error) {
 	var (
-		poly       []ms2.Vec
-		windingSum float32
-		prev       ms2.Vec
-		sampler    = ms2.Spline3Sampler{Tolerance: tol}
+		poly        []ms2.Vec
+		windingSum  float32
+		prev        ms2.Vec
+		quadsampler = ms2.Spline3Sampler{
+			Spline:    ms2.SplineBezierQuadratic(),
+			Tolerance: tol,
+		}
+		cubicSampler = ms2.Spline3Sampler{
+			Spline:    ms2.SplineBezierCubic(),
+			Tolerance: tol,
+		}
 	)
 
 	for _, seg := range segments {
@@ -304,10 +306,9 @@ func segmentsToPolygon(bld *gsdf.Builder, segments sfnt.Segments, tol, scale flo
 			// Quadratic bezier: prev -> Args[0] (control) -> Args[1] (end)
 			ctrl := fixedToVec(seg.Args[0], scale)
 			end := fixedToVec(seg.Args[1], scale)
-			sampler.Spline = quadBezier
-			sampler.SetSplinePoints(prev, ctrl, end, ms2.Vec{})
+			quadsampler.SetSplinePoints(prev, ctrl, end, ms2.Vec{})
 			poly = append(poly, prev)
-			poly = sampler.SampleBisect(poly, 4)
+			poly = quadsampler.SampleBisect(poly, 4)
 			windingSum += (prev.X - end.X) * (prev.Y + end.Y)
 			prev = end
 
@@ -316,16 +317,14 @@ func segmentsToPolygon(bld *gsdf.Builder, segments sfnt.Segments, tol, scale flo
 			ctrl1 := fixedToVec(seg.Args[0], scale)
 			ctrl2 := fixedToVec(seg.Args[1], scale)
 			end := fixedToVec(seg.Args[2], scale)
-			sampler.Spline = cubicBezier
-			sampler.SetSplinePoints(prev, ctrl1, ctrl2, end)
+			cubicSampler.SetSplinePoints(prev, ctrl1, ctrl2, end)
 			poly = append(poly, prev)
-			poly = sampler.SampleBisect(poly, 4)
+			poly = cubicSampler.SampleBisect(poly, 4)
 			windingSum += (prev.X - end.X) * (prev.Y + end.Y)
 			prev = end
 		}
 	}
-
-	return bld.NewPolygon(poly), windingSum > 0, bld.Err()
+	return bld.NewPolygon(poly), windingSum < 0, bld.Err()
 }
 
 // fixedToVec converts a fixed.Point26_6 to ms2.Vec with scaling.
