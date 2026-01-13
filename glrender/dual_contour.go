@@ -97,7 +97,6 @@ func (dcr *DualContourRenderer) RenderAll(dst []ms3.Triangle, userData any) ([]m
 			ms3.Add(edgeOrig, ms3.Vec{Y: sz}),
 			ms3.Add(edgeOrig, ms3.Vec{Z: sz}),
 		)
-		cubes[e].FinalVertex = edgeOrig // By default set to center.
 		cubeMap[edge.Vec] = e
 	}
 
@@ -110,26 +109,39 @@ func (dcr *DualContourRenderer) RenderAll(dst []ms3.Triangle, userData any) ([]m
 
 	// posbuf will contain edge intersection position.
 	posbuf = posbuf[:0]
+	// First loop: create all cubes.
 	for e, edge := range edges {
-		// First for loop accumulates edge biases into voxels/cubes.
 		cube := makeDualCube(edge.Vec, distbuf[e*4:])
+		sz := dcr.oct.CubeSize(edge)
+		cube.FinalVertex = dcr.oct.CubeOrigin(edge, sz) // Default to cube origin.
 		cubes[e] = cube
+	}
+	// Second loop: accumulate edge neighbors into cubes.
+	// Must be separate from first loop to avoid overwriting Neighbors when cubes[idx] is assigned.
+	for e := range edges {
+		cube := &cubes[e]
 		if !cube.IsActive() {
 			continue
 		}
 		if cube.ActiveX() {
 			for _, iv := range cube.EdgeNeighborsX() {
-				cubes[cubeMap[iv]].Neighbors = append(cubes[cubeMap[iv]].Neighbors, [3]int{e, 0, -1})
+				if idx, ok := cubeMap[iv]; ok {
+					cubes[idx].Neighbors = append(cubes[idx].Neighbors, [3]int{e, 0, -1})
+				}
 			}
 		}
 		if cube.ActiveY() {
 			for _, iv := range cube.EdgeNeighborsY() {
-				cubes[cubeMap[iv]].Neighbors = append(cubes[cubeMap[iv]].Neighbors, [3]int{e, 1, -1})
+				if idx, ok := cubeMap[iv]; ok {
+					cubes[idx].Neighbors = append(cubes[idx].Neighbors, [3]int{e, 1, -1})
+				}
 			}
 		}
 		if cube.ActiveZ() {
 			for _, iv := range cube.EdgeNeighborsZ() {
-				cubes[cubeMap[iv]].Neighbors = append(cubes[cubeMap[iv]].Neighbors, [3]int{e, 2, -1})
+				if idx, ok := cubeMap[iv]; ok {
+					cubes[idx].Neighbors = append(cubes[idx].Neighbors, [3]int{e, 2, -1})
+				}
 			}
 		}
 	}
@@ -145,34 +157,55 @@ func (dcr *DualContourRenderer) RenderAll(dst []ms3.Triangle, userData any) ([]m
 		}
 		var quad [4]ms3.Vec
 		if cube.ActiveX() {
+			allExist := true
 			for iq, iv := range cube.EdgeNeighborsX() {
-				cinfo := cubes[cubeMap[iv]]
-				quad[iq] = cinfo.FinalVertex
+				if idx, ok := cubeMap[iv]; ok {
+					quad[iq] = cubes[idx].FinalVertex
+				} else {
+					allExist = false
+					break
+				}
 			}
-			if cube.FlipX() {
-				quad = [4]ms3.Vec{quad[3], quad[2], quad[1], quad[0]}
+			if allExist {
+				if cube.FlipX() {
+					quad = [4]ms3.Vec{quad[3], quad[2], quad[1], quad[0]}
+				}
+				quads = append(quads, quad)
 			}
-			quads = append(quads, quad)
 		}
 		if cube.ActiveY() {
+			allExist := true
 			for iq, iv := range cube.EdgeNeighborsY() {
-				cinfo := cubes[cubeMap[iv]]
-				quad[iq] = cinfo.FinalVertex
+				if idx, ok := cubeMap[iv]; ok {
+					quad[iq] = cubes[idx].FinalVertex
+				} else {
+					allExist = false
+					break
+				}
 			}
-			if cube.FlipY() {
-				quad = [4]ms3.Vec{quad[3], quad[2], quad[1], quad[0]}
+			if allExist {
+				if cube.FlipY() {
+					quad = [4]ms3.Vec{quad[3], quad[2], quad[1], quad[0]}
+				}
+				quads = append(quads, quad)
 			}
-			quads = append(quads, quad)
 		}
 		if cube.ActiveZ() {
+			allExist := true
 			for iq, iv := range cube.EdgeNeighborsZ() {
-				cinfo := cubes[cubeMap[iv]]
-				quad[iq] = cinfo.FinalVertex
+				if idx, ok := cubeMap[iv]; ok {
+					quad[iq] = cubes[idx].FinalVertex
+				} else {
+					allExist = false
+					break
+				}
 			}
-			if cube.FlipZ() {
-				quad = [4]ms3.Vec{quad[3], quad[2], quad[1], quad[0]}
+			if allExist {
+				if cube.FlipZ() {
+					quad = [4]ms3.Vec{quad[3], quad[2], quad[1], quad[0]}
+				}
+				quads = append(quads, quad)
 			}
-			quads = append(quads, quad)
 		}
 	}
 	for _, q := range quads {
