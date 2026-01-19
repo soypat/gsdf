@@ -24,6 +24,7 @@ import (
 type RenderConfig struct {
 	STLOutput    io.Writer
 	VisualOutput io.Writer
+	IRMFOutput   io.Writer
 	// Resolution decides the STL output resolution. It correlates with the minimum triangle size.
 	Resolution float32
 	UseGPU     bool
@@ -177,6 +178,12 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 			filename = fp.Name()
 		}
 		log(visualWatch(), "wrote", filename)
+	}
+
+	if cfg.IRMFOutput != nil {
+		if err := renderIRMF(cfg, s); err != nil {
+			return err
+		}
 	}
 
 	if cfg.STLOutput != nil {
