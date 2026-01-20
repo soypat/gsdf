@@ -7,16 +7,17 @@ import (
 	"github.com/soypat/gsdf/glbuild"
 )
 
-func renderIRMF(cfg RenderConfig, s glbuild.Shader3D) error {
+func renderIRMF(cfg RenderConfig, s glbuild.Shader3D, language string) error {
 	irmfWatch := stopwatch()
 	bb := s.Bounds()
 	min, max := bb.Min, bb.Max
 	header := glbuild.IRMFHeader{
-		IRMF:      "1.0",
-		Materials: []string{"material0"},
-		Min:       [3]float32{min.X, min.Y, min.Z},
-		Max:       [3]float32{max.X, max.Y, max.Z},
-		Units:     "mm",
+		IRMFVersion: "1.0",
+		Language:    language,
+		Materials:   []string{"material0"},
+		Min:         [3]float32{min.X, min.Y, min.Z},
+		Max:         [3]float32{max.X, max.Y, max.Z},
+		Units:       "mm",
 	}
 
 	var objects []glbuild.ShaderObject

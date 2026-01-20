@@ -10,6 +10,7 @@ import (
 	"image/png"
 	"io"
 	"os"
+	"reflect"
 
 	"time"
 
@@ -57,7 +58,7 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 		cfg.builder = &gsdf.Builder{}
 	}
 	bld := cfg.builder
-	if cfg.STLOutput == nil && cfg.VisualOutput == nil {
+	if isNil(cfg.STLOutput) && isNil(cfg.VisualOutput) {
 		return errors.New("RenderShader3D requires output parameter in config")
 	}
 	log := func(elapsed time.Duration, args ...any) {
@@ -150,7 +151,7 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 		return err
 	}
 
-	if cfg.VisualOutput != nil {
+	if !isNil(cfg.VisualOutput) {
 		visualWatch := stopwatch()
 		const sceneSize = 1.4
 		// We include the bounding box in the visualization.
@@ -180,13 +181,13 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 		log(visualWatch(), "wrote", filename)
 	}
 
-	if cfg.IRMFOutput != nil {
-		if err := renderIRMF(cfg, s); err != nil {
+	if !isNil(cfg.IRMFOutput) {
+		if err := renderIRMF(cfg, s, "glsl"); err != nil {
 			return err
 		}
 	}
 
-	if cfg.STLOutput != nil {
+	if !isNil(cfg.STLOutput) {
 		var userData any
 		maybeVP, err := gleval.GetVecPool(sdf)
 		if err == nil {
@@ -300,4 +301,16 @@ func MakeGPUSDF2(s glbuild.Shader2D) (sdf gleval.SDF2, err error) {
 		InvocX:        invoc,
 		ShaderObjects: objects,
 	})
+}
+
+func isNil(i any) bool {
+	if i == nil {
+		return true
+	}
+	v := reflect.ValueOf(i)
+	switch v.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Map, reflect.Ptr, reflect.UnsafePointer, reflect.Interface, reflect.Slice:
+		return v.IsNil()
+	}
+	return false
 }
