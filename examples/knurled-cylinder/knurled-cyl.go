@@ -7,6 +7,8 @@ import (
 	"os"
 	"runtime"
 
+	math32 "github.com/chewxy/math32"
+	"github.com/soypat/geometry/ms3"
 	"github.com/soypat/gsdf"
 	"github.com/soypat/gsdf/glbuild"
 	"github.com/soypat/gsdf/gsdfaux"
@@ -41,29 +43,65 @@ func (f Flags) SDFResolution(diagonal float64) float64 {
 }
 
 // BuildShape receives the parameters to define the shape requested by user.
+// Matches the following python program step-by-step:
+//
+//	f = rounded_cylinder(1, 0.1, 5)
+//	x = box((1, 1, 4)).rotate(pi / 4)
+//	x = x.circular_array(24, 1.6)
+//	x = x.twist(0.75) | x.twist(-0.75)
+//	f -= x.k(0.1)
+//	f -= cylinder(0.5).k(0.1)
+//	c = cylinder(0.25).orient(X)
+//	f -= c.translate(Z * -2.5).k(0.1)
+//	f -= c.translate(Z * 2.5).k(0.1)
 func BuildShape(bld *gsdf.Builder, flags Flags) (glbuild.Shader3D, error) {
-	/*
-		# Equivalent python program:
-		# main body
-		f = rounded_cylinder(1, 0.1, 5)
+	r := float32(flags.Diameter / 2)
 
-		# knurling
-		x = box((1, 1, 4)).rotate(pi / 4)
-		x = x.circular_array(24, 1.6)
-		x = x.twist(0.75) | x.twist(-0.75)
-		f -= x.k(0.1)
+	length := float32(flags.Length)
+	if length == 0 {
+		length = 5 * r // Python aspect ratio: length = 5 * radius
+	}
+	holeDiam := float32(flags.HoleDiam)
+	if holeDiam == 0 {
+		holeDiam = r // hole radius = r/2, matching Python's cylinder(0.5) at radius 1
+	}
+	knurlSide := float32(flags.KnurlSize)
+	if knurlSide == 0 {
+		knurlSide = r // Python box side = 1 at radius 1
+	}
 
-		# central hole
-		f -= cylinder(0.5).k(0.1)
+	const (
+		smoothRatio  = float32(0.1)  // smooth blend radius / cylinder radius (Python .k(0.1))
+		twistK       = float32(0.75) // twist radians per unit length at radius 1 (Python twist(0.75))
+		knurlOffsetR = float32(1.6)  // radial placement of knurl boxes (Python circular_array offset)
+		knurlN       = 24            // knurl instances (Python circular_array n)
+	)
 
-		# vent holes
-		c = cylinder(0.25).orient(X)
-		f -= c.translate(Z * -2.5).k(0.1)
-		f -= c.translate(Z * 2.5).k(0.1)
+	sk := smoothRatio * r // smooth blend in world units
 
-		f.save('knurling.stl', samples=2**26)
-	*/
-	var obj glbuild.Shader3D
+	// Main body: rounded cylinder
+	obj := bld.NewCylinder(r, length, smoothRatio*r)
+
+	// Knurling: 45°-rotated box placed at radius 1.6r, repeated 24 times,
+	// then unioned with its mirror twist to create diamond knurl pattern.
+	knurlBox := bld.NewBox(knurlSide, knurlSide, length*0.8, 0)
+	knurlBox = bld.Rotate(knurlBox, math32.Pi/4, ms3.Vec{Z: 1})
+	knurlBox = bld.Translate(knurlBox, knurlOffsetR*r, 0, 0)
+	knurlBox = bld.CircularArray(knurlBox, knurlN, knurlN)
+	knurl := bld.Union(
+		bld.Twist(knurlBox, twistK/r),
+		bld.Twist(knurlBox, -twistK/r),
+	)
+	obj = bld.SmoothDifference(sk, obj, knurl)
+
+	// Central through-hole
+	obj = bld.SmoothDifference(sk, obj, bld.NewCylinder(holeDiam/2, length+2*r, 0))
+
+	// Vent holes along X axis at each end face
+	ventCyl := bld.NewCylinder(0.25*r, 3*r, 0)
+	ventCyl = bld.Rotate(ventCyl, math32.Pi/2, ms3.Vec{Y: 1})
+	obj = bld.SmoothDifference(sk, obj, bld.Translate(ventCyl, 0, 0, -length/2))
+	obj = bld.SmoothDifference(sk, obj, bld.Translate(ventCyl, 0, 0, length/2))
 
 	return obj, bld.Err()
 }
@@ -102,6 +140,10 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("while rendering %q shape: %w", flags.Name, err)
 	}
+	err = gsdfaux.UI(sdf, gsdfaux.UIConfig{
+		Width:  1024,
+		Height: 800,
+	})
 	return nil
 }
 

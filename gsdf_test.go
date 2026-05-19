@@ -264,6 +264,7 @@ func testRandomUnary3D(t *tb, cfg *shaderTestConfig) {
 		randomTranslate,
 		randomArray,
 		randomCircArray,
+		randomTwist,
 	}
 	var OtherUnaryRandomizedOps2D3D = []func(*gsdf.Builder, glbuild.Shader2D, *rand.Rand) glbuild.Shader3D{
 		randomExtrude,
@@ -665,7 +666,11 @@ func randomCircArray(bld *gsdf.Builder, a glbuild.Shader3D, rng *rand.Rand) glbu
 	s := bld.CircularArray(a, nInst, circleDiv)
 	return s
 }
-
+func randomTwist(bld *gsdf.Builder, a glbuild.Shader3D, rng *rand.Rand) glbuild.Shader3D {
+	twistFact := rng.Float32()
+	s := bld.Twist(a, twistFact)
+	return s
+}
 func randomCircArray2D(bld *gsdf.Builder, a glbuild.Shader2D, rng *rand.Rand) glbuild.Shader2D {
 	circleDiv := rng.Intn(16) + 3
 	nInst := rng.Intn(circleDiv) + 1
