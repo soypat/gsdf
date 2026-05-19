@@ -1253,3 +1253,22 @@ func (e *elongate2D) Evaluate(pos []ms2.Vec, dist []float32, userData any) error
 	}
 	return nil
 }
+
+func (e *twist) Evaluate(pos []ms3.Vec, dist []float32, userData any) error {
+	vp, err := gleval.GetVecPool(userData)
+	if err != nil {
+		return err
+	}
+	sdf, err := gleval.AssertSDF3(e.s)
+	if err != nil {
+		return err
+	}
+	transformed := vp.V3.Acquire(len(pos))
+	defer vp.V3.Release(transformed)
+	for i, p := range pos {
+		c := math32.Cos(e.k * p.Z)
+		s := math32.Sin(e.k * p.Z)
+		transformed[i] = ms3.Vec{X: c*p.X - s*p.Y, Y: s*p.X + c*p.Y, Z: p.Z}
+	}
+	return sdf.Evaluate(transformed, dist, userData)
+}
