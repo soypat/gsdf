@@ -2,12 +2,13 @@ package glbuild
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 )
 
-// IRMFHeader represents the JSON header for an Infinite Resolution Materials Format (IRMF) file.
-type IRMFHeader struct {
+// IRMFHeaderV1 represents the JSON header for an Infinite Resolution Materials Format (IRMF) file.
+type IRMFHeaderV1 struct {
 	Author      string         `json:"author,omitempty"`
 	License     string         `json:"license,omitempty"`
 	Date        string         `json:"date,omitempty"`
@@ -26,9 +27,13 @@ type IRMFHeader struct {
 }
 
 // WriteIRMF creates the IRMF shader program for calculating SDF and writes it to the writer.
-func (p *Programmer) WriteIRMF(w io.Writer, obj Shader3D, header IRMFHeader) (n int, objs []ShaderObject, err error) {
+func (ih IRMFHeaderV1) WriteIRMF(w io.Writer, obj Shader3D, programmer *Programmer) (n int, objs []ShaderObject, err error) {
+	if programmer == nil {
+		return 0, nil, errors.New("programmer is nil")
+	}
+
 	// 1. Serialize and write the JSON header wrapped in /*...*/
-	headerData, err := json.MarshalIndent(header, "", "  ")
+	headerData, err := json.MarshalIndent(ih, "", "  ")
 	if err != nil {
 		return 0, nil, fmt.Errorf("marshal error: %w", err)
 	}
@@ -40,14 +45,14 @@ func (p *Programmer) WriteIRMF(w io.Writer, obj Shader3D, header IRMFHeader) (n 
 	}
 
 	// 2. Write the SDF function declarations.
-	baseName, ngot, objs, err := p.WriteSDFDecl(w, obj)
+	baseName, ngot, objs, err := programmer.WriteSDFDecl(w, obj)
 	n += ngot
 	if err != nil {
 		return n, objs, fmt.Errorf("write SDF decl error: %w", err)
 	}
 
 	// 3. Append the IRMF-specific main function. (We assume 1-4 materials for now.)
-	switch header.Language {
+	switch ih.Language {
 	case "glsl":
 		ngot, err = fmt.Fprintf(w, `
 void mainModel4(out vec4 materials, in vec3 xyz) {
@@ -68,7 +73,7 @@ fn mainModel4(xyz: vec3f) -> vec4f {
 			baseName)
 		n += ngot
 	default:
-		return n, nil, fmt.Errorf("unknown IRMF language: %q", header.Language)
+		return n, nil, fmt.Errorf("unknown IRMF language: %q", ih.Language)
 	}
 
 	return n, objs, err

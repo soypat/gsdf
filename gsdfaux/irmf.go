@@ -11,7 +11,7 @@ func renderIRMF(cfg RenderConfig, s glbuild.Shader3D, language string) error {
 	irmfWatch := stopwatch()
 	bb := s.Bounds()
 	min, max := bb.Min, bb.Max
-	header := glbuild.IRMFHeader{
+	header := glbuild.IRMFHeaderV1{
 		IRMFVersion: "1.0",
 		Language:    language,
 		Materials:   []string{"material0"},
@@ -21,7 +21,8 @@ func renderIRMF(cfg RenderConfig, s glbuild.Shader3D, language string) error {
 	}
 
 	var objects []glbuild.ShaderObject
-	_, objects, err := glbuild.NewDefaultProgrammer().WriteIRMF(cfg.IRMFOutput, s, header)
+	programmer := glbuild.NewDefaultProgrammer()
+	_, objects, err := header.WriteIRMF(cfg.IRMFOutput, s, programmer)
 	if err != nil {
 		return fmt.Errorf("writing IRMF: %w", err)
 	}

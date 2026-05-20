@@ -4,6 +4,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"runtime"
@@ -94,13 +95,15 @@ func run() error {
 		if err != nil {
 			return err
 		}
-		var fpirmf *os.File
+		defer fpstl.Close()
+		var irmfOutput io.Writer
 		if writeIRMF {
-			fpirmf, err = os.Create(strSpacers[i] + ".irmf")
+			fpirmf, err := os.Create(strSpacers[i] + ".irmf")
 			if err != nil {
-				fpstl.Close()
 				return err
 			}
+			defer fpirmf.Close()
+			irmfOutput = fpirmf
 		}
 
 		if resolution == 0 {
@@ -108,14 +111,10 @@ func run() error {
 		}
 		err = gsdfaux.RenderShader3D(sdf, gsdfaux.RenderConfig{
 			STLOutput:  fpstl,
-			IRMFOutput: fpirmf,
+			IRMFOutput: irmfOutput,
 			Resolution: float32(resolution),
 			UseGPU:     useGPU,
 		})
-		fpstl.Close()
-		if fpirmf != nil {
-			fpirmf.Close()
-		}
 	}
 	return nil
 }

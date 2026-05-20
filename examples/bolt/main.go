@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"math"
 	"os"
@@ -73,19 +74,20 @@ func run() error {
 	}
 	defer fpvis.Close()
 
-	var fpirmf *os.File
+	var irmfOutput io.Writer
 	if writeIRMF {
-		fpirmf, err = os.Create(irmf)
+		fpirmf, err := os.Create(irmf)
 		if err != nil {
 			return err
 		}
 		defer fpirmf.Close()
+		irmfOutput = fpirmf
 	}
 
 	err = gsdfaux.RenderShader3D(object, gsdfaux.RenderConfig{
 		STLOutput:    fpstl,
 		VisualOutput: fpvis,
-		IRMFOutput:   fpirmf,
+		IRMFOutput:   irmfOutput,
 		Resolution:   float32(resolution),
 		UseGPU:       useGPU,
 	})
