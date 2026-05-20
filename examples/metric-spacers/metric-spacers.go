@@ -4,6 +4,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"runtime"
@@ -42,8 +43,10 @@ func run() error {
 		flagResDiv    uint
 		flagSpacers   string
 		scaleDiameter float64
+		writeIRMF     bool
 	)
 	flag.BoolVar(&useGPU, "gpu", false, "enable GPU usage")
+	flag.BoolVar(&writeIRMF, "irmf", false, "write IRMF file")
 	flag.Float64Var(&resolution, "res", 0, "Set resolution in shape units. Useful for setting the minimum level of detail to a fixed amount for final result. If not set resdiv used [mm/in]")
 	flag.UintVar(&flagResDiv, "resdiv", 200, "Set resolution in bounding box diagonal divisions. Useful for prototyping when constant speed of rendering is desired.")
 	flag.StringVar(&flagSpacers, "spacers", "M3x5", "Spacers to generate with format arg[,arg] where arg has format M<d>x<L> d is diameter of hole and L is length.")
@@ -92,15 +95,26 @@ func run() error {
 		if err != nil {
 			return err
 		}
+		defer fpstl.Close()
+		var irmfOutput io.Writer
+		if writeIRMF {
+			fpirmf, err := os.Create(strSpacers[i] + ".irmf")
+			if err != nil {
+				return err
+			}
+			defer fpirmf.Close()
+			irmfOutput = fpirmf
+		}
+
 		if resolution == 0 {
 			resolution = float64(sdf.Bounds().Diagonal()) / float64(flagResDiv)
 		}
 		err = gsdfaux.RenderShader3D(sdf, gsdfaux.RenderConfig{
 			STLOutput:  fpstl,
+			IRMFOutput: irmfOutput,
 			Resolution: float32(resolution),
 			UseGPU:     useGPU,
 		})
-		fpstl.Close()
 	}
 	return nil
 }

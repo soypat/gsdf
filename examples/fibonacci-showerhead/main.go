@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"runtime"
 
@@ -20,6 +21,7 @@ import (
 const (
 	stl           = "showerhead.stl"
 	visualization = "showerhead.glsl"
+	irmf          = "showerhead.irmf"
 )
 
 func init() {
@@ -92,8 +94,10 @@ func run() error {
 		useGPU     bool
 		resolution float64
 		flagResDiv uint
+		writeIRMF  bool
 	)
 	flag.BoolVar(&useGPU, "gpu", false, "enable GPU usage")
+	flag.BoolVar(&writeIRMF, "irmf", false, "write IRMF file")
 	flag.Float64Var(&resolution, "res", 0, "Set resolution in shape units. Useful for setting the minimum level of detail to a fixed amount for final result. If not set resdiv used [mm/in]")
 	flag.UintVar(&flagResDiv, "resdiv", 200, "Set resolution in bounding box diagonal divisions. Useful for prototyping when constant speed of rendering is desired.")
 	flag.Parse()
@@ -117,9 +121,20 @@ func run() error {
 	}
 	defer fpvis.Close()
 
+	var irmfOutput io.Writer
+	if writeIRMF {
+		fpirmf, err := os.Create(irmf)
+		if err != nil {
+			return err
+		}
+		defer fpirmf.Close()
+		irmfOutput = fpirmf
+	}
+
 	err = gsdfaux.RenderShader3D(object, gsdfaux.RenderConfig{
 		STLOutput:     fpstl,
 		VisualOutput:  fpvis,
+		IRMFOutput:    irmfOutput,
 		Resolution:    float32(resolution),
 		UseGPU:        useGPU,
 		EnableCaching: !useGPU, // Has many unions, part can likely benefit from caching when using CPU.

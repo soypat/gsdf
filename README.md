@@ -26,6 +26,8 @@ All images and shapes in readme were generated using this library.
 
 - **NEW!**: Reusable GLSL code between shaders. See [`glbuild/glsllib`](glbuild/glsllib)
 
+- **NEW!**: [Infinite Resolution Materials Format (IRMF)](https://irmf.io) support.
+
 - Extremely coherent API design.
 
 - UI for visualizing parts, rendered directly from shaders. See [UI example](./examples/ui-mandala) by running `go run ./examples/ui-mandala`
@@ -58,9 +60,10 @@ All images and shapes in readme were generated using this library.
 # Examples
 Find examples under [examples](./examples/) directory. Run on GPU with: `-gpu` flag.
 
-Most 3D examples output two files:
+Most 3D examples output two or three files:
 - `example-name.glsl`: Visualization shader that can be copy pasted into [shadertoy](https://www.shadertoy.com/new) to visualize the part, or rendered within your editor with an extension such as the [Shader Toy Visual Studio Code extension](https://marketplace.visualstudio.com/items?itemName=stevensona.shader-toy).
 - `example-name.stl`: Triangle model file used in 3D printing software such as [Cura](https://ultimaker.com/software/ultimaker-cura/). Can be visualized online in sites such as [View STL](https://www.viewstl.com/).
+- `example-name.irmf`: (When `-irmf` flag is set) Infinite Resolution Materials Format file. Lossless representation of the part for use in IRMF-compatible 3D printers and editors.
 
 
 Output and timings for
@@ -85,7 +88,7 @@ go run ./examples/npt-flange -resdiv 400 -gpu  1,01s user 1,10s system 95% cpu 2
 
 #### CPU rendering in 9 seconds. 0.4M triangles
 ```sh
-time go run ./examples/npt-flange -resdiv 400 
+time go run ./examples/npt-flange -resdiv 400
 using CPU
 instantiating evaluation SDF took 14.173µs
 wrote nptflange.glsl in 73.155µs
@@ -117,7 +120,7 @@ go run ./examples/fibonacci-showerhead -resdiv 350 -gpu  0,87s user 0,69s system
 
 #### CPU rendering in 36 seconds. 0.3M triangles
 ```sh
-time go run ./examples/fibonacci-showerhead -resdiv 350 
+time go run ./examples/fibonacci-showerhead -resdiv 350
 using CPU
 instantiating evaluation SDF took 27.757µs
 wrote showerhead.glsl in 507.155µs
