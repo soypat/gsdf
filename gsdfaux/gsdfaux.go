@@ -195,7 +195,7 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 		e := sdf.(interface{ Evaluations() uint64 })
 		omitted := 8 * renderer.TotalPruned()
 		percentOmit := percentUint64(omitted, e.Evaluations()+omitted)
-		log(watch(), "evaluated SDF", e.Evaluations(), "times and rendered", len(triangles), "triangles with", percentOmit, "percent evaluations omitted in octree pruning step")
+		log(watch(), "evaluated SDF", e.Evaluations(), "times and rendered", len(triangles), "triangles with", percentOmit, "percent evaluations omitted in octree pruning step with resolution", cfg.Resolution)
 
 		watch = stopwatch()
 		_, err = glrender.WriteBinarySTL(cfg.STLOutput, triangles)

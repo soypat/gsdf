@@ -22,9 +22,10 @@ type SDF2 struct {
 // STLConfig controls mesh rendering output for [SDF3.SaveSTL].
 // A zero-value STLConfig is valid and uses safe CPU defaults.
 type STLConfig struct {
-	UseGPU              bool    // enable GPU rendering (requires OpenGL context)
 	Resolution          float64 // minimum triangle size; overrides ResolutionDivisions when > 0
 	ResolutionDivisions uint    // bounding-box subdivisions used when Resolution == 0 (default 1<<9)
+	UseCache            bool    // Enable memory based caching of SDF results. May take up a lot of memory for fine models. Ideal for SDFs that are costly to render.
+	UseGPU              bool    // enable GPU rendering (requires OpenGL context)
 }
 
 var (
