@@ -67,6 +67,43 @@ Output and timings for
 - CPU: 12th Gen Intel i5-12400F (12) @ 4.400GHz
 - GPU: AMD ATI Radeon RX 6800
 
+## `simplesdf` Python-like API
+The simplesdf package provides a extremely simplified API for use by makers who want a more Python-like API. This is particularily useful for short one-off scripts. Note this API uses panics to help track down errors and also is not thread-safe. See [`examples/simple-knurled-cylinder`](./examples/simple-knurled-cylinder/).
+```go
+package main
+
+import (
+	"math"
+	"runtime"
+
+	. "github.com/soypat/gsdf/gsdfaux/simplesdf"
+)
+
+func init() { runtime.LockOSThread() } // Required if using GPU to render shapes or using UI.
+
+func main() {
+	// main body
+	f := Cylinder(1, 5, 0.1)
+
+	// knurling
+	x := Box(1, 1, 4, 0).RotateZ(math.Pi / 4)
+	x = x.Translate(1.6, 0, 0)              // radial placement (fogleman circular_array offset)
+	x = x.CircArray(24, 24)                 // 24 instances evenly around the circle
+	x = x.Twist(0.75).Union(x.Twist(-0.75)) // diamond pattern via mirrored twist
+	f = f.Diff(x.K(0.1))
+
+	// central hole
+	f = f.Diff(Cylinder(0.5, 7, 0).K(0.1))
+
+	// vent holes
+	c := Cylinder(0.25, 3, 0).RotateY(math.Pi / 2) // orient along X
+	f = f.Diff(c.Translate(0, 0, -2.5).K(0.1))
+	f = f.Diff(c.Translate(0, 0, 2.5).K(0.1))
+
+	f.Save("knurling.stl", STLConfig{ResolutionDivisions: 200})
+}
+```
+
 ## npt-flange - 9× GPU speedup
 This was converted from the [original sdf library example](https://github.com/soypat/sdf/blob/main/examples/npt-flange/flange.go).
 

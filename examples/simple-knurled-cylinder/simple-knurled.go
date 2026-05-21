@@ -28,5 +28,5 @@ func main() {
 	f = f.Diff(c.Translate(0, 0, -2.5).K(0.1))
 	f = f.Diff(c.Translate(0, 0, 2.5).K(0.1))
 
-	f.Save("knurling.stl", STLConfig{ResolutionDivisions: 200})
+	f.SaveSTL("knurling.stl", STLConfig{UseGPU: true, ResolutionDivisions: 200})
 }

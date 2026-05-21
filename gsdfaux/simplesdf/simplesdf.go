@@ -19,7 +19,7 @@ type SDF2 struct {
 	k float64
 }
 
-// STLConfig controls mesh rendering output for [SDF3.Save].
+// STLConfig controls mesh rendering output for [SDF3.SaveSTL].
 // A zero-value STLConfig is valid and uses safe CPU defaults.
 type STLConfig struct {
 	UseGPU              bool    // enable GPU rendering (requires OpenGL context)
