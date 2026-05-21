@@ -179,9 +179,11 @@ func (s SDF3) SaveSTL(filename string, cfg ...STLConfig) error {
 	}
 	defer fp.Close()
 	return withErr("rendering 3D sdf to STL", gsdfaux.RenderShader3D(s.s, gsdfaux.RenderConfig{
-		STLOutput:  fp,
-		Resolution: float32(res),
-		UseGPU:     c.UseGPU,
+		STLOutput:     fp,
+		Resolution:    float32(res),
+		UseGPU:        c.UseGPU,
+		EnableCaching: c.UseCache,
+		ParallelCPU:   c.ParallelCPU,
 	}))
 }
 
