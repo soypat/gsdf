@@ -28,7 +28,7 @@ func main() {
 	f = f.Diff(c.Translate(0, 0, -2.5).K(0.1))
 	f = f.Diff(c.Translate(0, 0, 2.5).K(0.1))
 
-	f.SaveSTL("knurling.stl", STLConfig{UseGPU: false, Resolution: 0.01})
+	f.SaveSTL("knurling.stl", STLConfig{Resolution: 0.01, UseGPU: false})
 }
 
 /* Equivalent Python program using github.com/fogleman/sdf library.

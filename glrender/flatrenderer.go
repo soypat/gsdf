@@ -3,6 +3,7 @@ package glrender
 import (
 	"errors"
 	"io"
+	"sync"
 
 	"github.com/chewxy/math32"
 	"github.com/soypat/geometry/ms3"
@@ -14,13 +15,14 @@ import (
 // of how many cubes share it, reducing evaluation count ~6x compared to the octree
 // renderer for typical dense models.
 type FlatRenderer struct {
-	s          gleval.SDF3
-	res        float32
-	origin     ms3.Vec
-	nx, ny, nz int
+	s           gleval.SDF3
+	res         float32
+	origin      ms3.Vec
+	nx, ny, nz  int
+	numParallel int
 	// grid stores SDF distances at all (nx+1)*(ny+1)*(nz+1) corners.
 	grid []float32
-	// posbuf/distbuf used during initialization, freed afterward.
+	// posbuf/distbuf are the single-goroutine evaluation buffers, freed after init.
 	posbuf  []ms3.Vec
 	distbuf []float32
 	// cubeIdx is the current marching iteration state.
@@ -31,12 +33,16 @@ type FlatRenderer struct {
 
 // Reset reinitializes the FlatRenderer for a new SDF and resolution, reusing
 // existing buffer allocations where possible to avoid garbage.
-func (fr *FlatRenderer) Reset(s gleval.SDF3, cubeResolution float32, evalBufferSize int) error {
+// numParallel sets the number of goroutines used during grid evaluation; 1 means serial.
+func (fr *FlatRenderer) Reset(s gleval.SDF3, cubeResolution float32, evalBufferSize, numParallel int) error {
 	if cubeResolution <= 0 {
 		return errors.New("invalid renderer cube resolution")
 	}
 	if evalBufferSize < 8 {
 		return errors.New("flat renderer eval buffer size must be at least 8")
+	}
+	if numParallel < 1 {
+		return errors.New("flat renderer numParallel must be at least 1")
 	}
 	bb := s.Bounds()
 	bb = bb.ScaleCentered(ms3.Vec{X: 1.01, Y: 1.01, Z: 1.01})
@@ -61,17 +67,30 @@ func (fr *FlatRenderer) Reset(s gleval.SDF3, cubeResolution float32, evalBufferS
 	}
 
 	*fr = FlatRenderer{
-		s:       s,
-		res:     cubeResolution,
-		origin:  bb.Min,
-		nx:      nx,
-		ny:      ny,
-		nz:      nz,
-		grid:    grid[:gridSize],
-		posbuf:  posbuf[:evalBufferSize],
-		distbuf: distbuf[:evalBufferSize],
+		s:           s,
+		res:         cubeResolution,
+		origin:      bb.Min,
+		nx:          nx,
+		ny:          ny,
+		nz:          nz,
+		numParallel: numParallel,
+		grid:        grid[:gridSize],
+		posbuf:      posbuf[:evalBufferSize],
+		distbuf:     distbuf[:evalBufferSize],
 	}
 	return nil
+}
+
+// NewFlatRenderer creates a FlatRenderer for the given SDF at the given resolution.
+// evalBufferSize controls how many positions are batched per SDF evaluation call.
+// numParallel is the number of goroutines used during grid evaluation; 1 means serial.
+// Use Reset to reinitialize with a new SDF without reallocating.
+func NewFlatRenderer(s gleval.SDF3, cubeResolution float32, evalBufferSize, numParallel int) (*FlatRenderer, error) {
+	var fr FlatRenderer
+	if err := fr.Reset(s, cubeResolution, evalBufferSize, numParallel); err != nil {
+		return nil, err
+	}
+	return &fr, nil
 }
 
 // Evaluations returns the number of SDF evaluations performed during grid initialization.
@@ -79,27 +98,73 @@ func (fr *FlatRenderer) Evaluations() uint64 {
 	return fr.evaluations
 }
 
-// evalGrid evaluates all (nx+1)*(ny+1)*(nz+1) grid corners, storing results in fr.grid.
-// Corners are ordered: i + j*(nx+1) + k*(nx+1)*(ny+1), with i innermost.
+// evalGrid dispatches grid evaluation over numParallel goroutines, splitting work
+// by k-layers so each goroutine writes to a contiguous, non-overlapping region of fr.grid.
 func (fr *FlatRenderer) evalGrid(userData any) error {
+	if fr.numParallel <= 1 {
+		n, err := fr.evalKRange(0, fr.nz+1, fr.posbuf, fr.distbuf, userData)
+		fr.evaluations += n
+		return err
+	}
+
+	// Clamp goroutine count: no point spawning more than there are k-planes.
+	numG := fr.numParallel
+	if numG > fr.nz+1 {
+		numG = fr.nz + 1
+	}
+	errs := make([]error, numG)
+	counts := make([]uint64, numG)
 	bufSize := len(fr.posbuf)
-	batchStart := 0
+	var wg sync.WaitGroup
+	wg.Add(numG)
+	for g := 0; g < numG; g++ {
+		kStart := g * (fr.nz + 1) / numG
+		kEnd := (g + 1) * (fr.nz + 1) / numG
+		go func(g, kStart, kEnd int) {
+			defer wg.Done()
+			posbuf := make([]ms3.Vec, bufSize)
+			distbuf := make([]float32, bufSize)
+			var vp gleval.VecPool // independent pool per goroutine; never shared
+			counts[g], errs[g] = fr.evalKRange(kStart, kEnd, posbuf, distbuf, &vp)
+		}(g, kStart, kEnd)
+	}
+	wg.Wait()
+	for _, err := range errs {
+		if err != nil {
+			return err
+		}
+	}
+	for _, n := range counts {
+		fr.evaluations += n
+	}
+	return nil
+}
+
+// evalKRange evaluates grid corners for k in [kStart, kEnd) using the provided
+// buffers and writes distances directly into fr.grid. Returns the number of
+// evaluations performed.
+func (fr *FlatRenderer) evalKRange(kStart, kEnd int, posbuf []ms3.Vec, distbuf []float32, userData any) (uint64, error) {
+	bufSize := len(posbuf)
+	sz := (fr.nx + 1) * (fr.ny + 1) // points per k-plane
+	gridOffset := kStart * sz
+	batchStart := gridOffset
 	posIdx := 0
-	for k := 0; k <= fr.nz; k++ {
+	var evals uint64
+	for k := kStart; k < kEnd; k++ {
 		for j := 0; j <= fr.ny; j++ {
 			for i := 0; i <= fr.nx; i++ {
-				fr.posbuf[posIdx] = ms3.Vec{
+				posbuf[posIdx] = ms3.Vec{
 					X: fr.origin.X + float32(i)*fr.res,
 					Y: fr.origin.Y + float32(j)*fr.res,
 					Z: fr.origin.Z + float32(k)*fr.res,
 				}
 				posIdx++
 				if posIdx == bufSize {
-					if err := fr.s.Evaluate(fr.posbuf, fr.distbuf, userData); err != nil {
-						return err
+					if err := fr.s.Evaluate(posbuf, distbuf, userData); err != nil {
+						return evals, err
 					}
-					copy(fr.grid[batchStart:], fr.distbuf)
-					fr.evaluations += uint64(bufSize)
+					copy(fr.grid[batchStart:], distbuf)
+					evals += uint64(bufSize)
 					batchStart += bufSize
 					posIdx = 0
 				}
@@ -107,13 +172,13 @@ func (fr *FlatRenderer) evalGrid(userData any) error {
 		}
 	}
 	if posIdx > 0 {
-		if err := fr.s.Evaluate(fr.posbuf[:posIdx], fr.distbuf[:posIdx], userData); err != nil {
-			return err
+		if err := fr.s.Evaluate(posbuf[:posIdx], distbuf[:posIdx], userData); err != nil {
+			return evals, err
 		}
-		copy(fr.grid[batchStart:], fr.distbuf[:posIdx])
-		fr.evaluations += uint64(posIdx)
+		copy(fr.grid[batchStart:], distbuf[:posIdx])
+		evals += uint64(posIdx)
 	}
-	return nil
+	return evals, nil
 }
 
 // ReadTriangles implements [Renderer]. On the first call it evaluates all grid

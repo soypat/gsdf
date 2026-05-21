@@ -183,6 +183,7 @@ func (s SDF3) SaveSTL(filename string, cfg ...STLConfig) error {
 		Resolution:    float32(res),
 		UseGPU:        c.UseGPU,
 		EnableCaching: c.UseCache,
+		ParallelCPU:   c.ParallelCPU,
 	}))
 }
 

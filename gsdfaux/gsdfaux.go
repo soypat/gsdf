@@ -10,6 +10,7 @@ import (
 	"image/png"
 	"io"
 	"os"
+	"runtime"
 
 	"time"
 
@@ -31,8 +32,10 @@ type RenderConfig struct {
 	// EnableCaching uses [gleval.BlockCachedSDF3] to omit potential evaluations.
 	// Can cut down on times for very complex SDFs, mainly when using CPU.
 	EnableCaching bool
-	renderer      renderer
-	builder       *gsdf.Builder
+	// number of goroutines to use in parallel to evaluate CPU bound SDFs. If zero defaults to runtime.GOMAXPROCS(0)-1.
+	ParallelCPU int
+	renderer    renderer
+	builder     *gsdf.Builder
 }
 
 type renderer uint8
@@ -155,8 +158,13 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 	log(fromStart(), "instantiating evaluation SDF took")
 	var renderer glrender.Renderer
 	if cfg.renderer == renderWithFlatMC || !cfg.UseGPU {
+		maxprocs := cfg.ParallelCPU
+		if maxprocs == 0 {
+			maxprocs = max(1, runtime.GOMAXPROCS(0)-1)
+		}
+		log(0, "CPU parallel evaluation on", maxprocs, "goroutines")
 		var fr glrender.FlatRenderer
-		err = fr.Reset(sdf, cfg.Resolution, bufferEvalSize)
+		err = fr.Reset(sdf, cfg.Resolution, bufferEvalSize, maxprocs)
 		renderer = &fr
 	} else {
 		renderer, err = glrender.NewOctreeRenderer(sdf, cfg.Resolution, bufferEvalSize)

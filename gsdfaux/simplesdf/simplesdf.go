@@ -24,6 +24,7 @@ type SDF2 struct {
 type STLConfig struct {
 	Resolution          float64 // minimum triangle size; overrides ResolutionDivisions when > 0
 	ResolutionDivisions uint    // bounding-box subdivisions used when Resolution == 0 (default 1<<9)
+	ParallelCPU         int     // Parallel CPU threads to spawn to evaluate SDF. Not used for GPU evaluation.
 	UseCache            bool    // Enable memory based caching of SDF results. May take up a lot of memory for fine models. Ideal for SDFs that are costly to render.
 	UseGPU              bool    // enable GPU rendering (requires OpenGL context)
 }
