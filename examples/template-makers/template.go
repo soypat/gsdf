@@ -44,10 +44,10 @@ func (f Flags) SDFResolution(diagonal float64) float64 {
 }
 
 // BuildShape receives the parameters to define the shape requested by user.
-func BuildShape(bld *gsdf.Builder, flags Flags) (glbuild.Shader3D, error) {
-	var obj glbuild.Shader3D
-
-	return obj, bld.Err()
+func BuildShape(bld *gsdf.Builder, flags Flags) (obj glbuild.Shader3D, err error) {
+	obj = bld.NewCylinder(10, 20, 1)
+	err = bld.Err()
+	return obj, err
 }
 
 func run() error {

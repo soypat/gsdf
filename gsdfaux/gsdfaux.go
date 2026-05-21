@@ -142,7 +142,7 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 	if err != nil || sdf == nil {
 		return fmt.Errorf("instantiating SDF: %s", err)
 	}
-	if cfg.EnableCaching {
+	if cfg.EnableCaching && cfg.UseGPU {
 		var cache gleval.BlockCachedSDF3
 		cacheRes := cfg.Resolution / 2
 		err = cache.Reset(sdf, cacheRes, cacheRes, cacheRes)

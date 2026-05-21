@@ -63,9 +63,7 @@ Most 3D examples output two files:
 - `example-name.stl`: Triangle model file used in 3D printing software such as [Cura](https://ultimaker.com/software/ultimaker-cura/). Can be visualized online in sites such as [View STL](https://www.viewstl.com/).
 
 
-Output and timings for
-- CPU: 12th Gen Intel i5-12400F (12) @ 4.400GHz
-- GPU: AMD ATI Radeon RX 6800
+CPU output and timings on 12th Gen Intel i5-12400F (12) @ 4.400GHz. GPU timings on AMD ATI Radeon RX 6800 (may be outdated).
 
 ## `simplesdf` Python-like API
 The simplesdf package provides a extremely simplified API for use by makers who want a more Python-like API. This is particularily useful for short one-off scripts. Note this API uses panics to help track down errors and also is not thread-safe. See [`examples/simple-knurled-cylinder`](./examples/simple-knurled-cylinder/).
@@ -104,65 +102,72 @@ func main() {
 }
 ```
 
-## npt-flange - 9× GPU speedup
+## npt-flange
 This was converted from the [original sdf library example](https://github.com/soypat/sdf/blob/main/examples/npt-flange/flange.go).
 
-#### GPU rendering in 1 second. 0.4M triangles
+#### GPU rendering in 1.1 seconds. 0.4M triangles
 ```sh
-time go run ./examples/npt-flange -resdiv 400 -gpu
-using GPU       ᵍᵒᵗᵗᵃ ᵍᵒ ᶠᵃˢᵗ
-compute invocation size  1024
-instantiating evaluation SDF took 115.587024ms
-wrote nptflange.glsl in 97.829µs
-evaluated SDF 46148621 times and rendered 423852 triangles in 1.103100086s with 95.7 percent evaluations omitted
-wrote nptflange.stl in 710.038498ms
+ time go run ./examples/npt-flange -resdiv 400 -gpu
+[-] using GPU   ᵍᵒᵗᵗᵃ ᵍᵒ ᶠᵃˢᵗ
+[53.54ms] init GL with compute invocation size  1024
+[7.73ms] GPU shader generated and compiled
+[61.3ms] instantiating evaluation SDF took
+[109.4µs] wrote nptflange.glsl
+[706ms] evaluated SDF 46148745 times and rendered 423852 triangles with 95.7 percent evaluations omitted in octree pruning step with resolution 0.21679485
+[371ms] wrote nptflange.stl
+[1.14s] render done
 finished npt-flange example
-go run ./examples/npt-flange -resdiv 400 -gpu  1,01s user 1,10s system 95% cpu 2,217 total
+go run ./examples/npt-flange -resdiv 400 -gpu  0,75s user 0,49s system 102% cpu 1,219 total
 ```
 
-#### CPU rendering in 9 seconds. 0.4M triangles
+#### CPU rendering in 0.7 seconds. 0.4M triangles
 ```sh
-time go run ./examples/npt-flange -resdiv 400 
-using CPU
-instantiating evaluation SDF took 14.173µs
-wrote nptflange.glsl in 73.155µs
-evaluated SDF 46147934 times and rendered 423852 triangles in 8.482344469s with 95.7 percent evaluations omitted
-wrote nptflange.stl in 703.931017ms
+time go run ./examples/npt-flange -resdiv 400
+[-] using CPU
+[29.7µs] instantiating evaluation SDF took
+[-] CPU parallel evaluation on 11 goroutines
+[101.6µs] wrote nptflange.glsl
+[313ms] evaluated SDF 6711686 times and rendered 423852 triangles with resolution 0.21679485
+[341ms] wrote nptflange.stl
+[654ms] render done
 finished npt-flange example
-go run ./examples/npt-flange -resdiv 400  9,01s user 0,82s system 103% cpu 9,481 total
+go run ./examples/npt-flange -resdiv 400  2,78s user 0,38s system 422% cpu 0,747 total
 ```
 
 ![npt-flange-example](https://github.com/user-attachments/assets/32a00926-0a1e-47f0-8b6c-dda940240265)
 
 
-### fibonacci-showerhead - 40× GPU speedup
+### fibonacci-showerhead
 
-Note that the amount of triangles is very similar to the NPT flange example, but the speedup is much more notable due to the complexity of the part.
+Note that the amount of triangles is very similar to the NPT flange example, but this part is more computationally complex.
 
-#### GPU rendering in 0.87 seconds. 0.3M triangles
+#### GPU rendering in 0.7 seconds. 0.3M triangles
 ```sh
 time go run ./examples/fibonacci-showerhead -resdiv 350 -gpu
-using GPU       ᵍᵒᵗᵗᵃ ᵍᵒ ᶠᵃˢᵗ
-compute invocation size  1024
-instantiating evaluation SDF took 108.241558ms
-wrote showerhead.glsl in 581.351µs
-evaluated SDF 14646305 times and rendered 309872 triangles in 768.731027ms with 89.08 percent evaluations omitted
-wrote showerhead.stl in 509.470328ms
+[-] using GPU   ᵍᵒᵗᵗᵃ ᵍᵒ ᶠᵃˢᵗ
+[47.1ms] init GL with compute invocation size  1024
+[62.9ms] GPU shader generated and compiled
+[110ms] instantiating evaluation SDF took
+[539.3µs] wrote showerhead.glsl
+[337ms] evaluated SDF 14646431 times and rendered 309872 triangles with 89.08 percent evaluations omitted in octree pruning step with resolution 0.2979682
+[252ms] wrote showerhead.stl
+[701ms] render done
 showerhead example done
-go run ./examples/fibonacci-showerhead -resdiv 350 -gpu  0,87s user 0,69s system 94% cpu 1,646 total
+go run ./examples/fibonacci-showerhead -resdiv 350 -gpu  0,60s user 0,36s system 118% cpu 0,814 total
 ```
 
-#### CPU rendering in 36 seconds. 0.3M triangles
+#### CPU rendering in 1.3 seconds. 0.3M triangles
 ```sh
-time go run ./examples/fibonacci-showerhead -resdiv 350 
-using CPU
-instantiating evaluation SDF took 27.757µs
-wrote showerhead.glsl in 507.155µs
-evaluated SDF 14645989 times and rendered 309872 triangles in 35.794768353s with 89.08 percent evaluations omitted
-wrote showerhead.stl in 499.13903ms
-SDF caching omitted 21.62 percent of 14645989 SDF evaluations
+time go run ./examples/fibonacci-showerhead -resdiv 350
+[-] using CPU
+[34µs] instantiating evaluation SDF took
+[-] CPU parallel evaluation on 11 goroutines
+[326.4µs] wrote showerhead.glsl
+[909ms] evaluated SDF 1512025 times and rendered 309872 triangles with resolution 0.2979682
+[255ms] wrote showerhead.stl
+[1.16s] render done
 showerhead example done
-go run ./examples/fibonacci-showerhead -resdiv 350  36,16s user 0,76s system 100% cpu 36,591 total
+go run ./examples/fibonacci-showerhead -resdiv 350  8,00s user 0,29s system 663% cpu 1,248 total
 ```
 
 ![fibonacci-showerhead](https://github.com/user-attachments/assets/a72c366c-6ee0-43ba-9128-087a76524ff9)
