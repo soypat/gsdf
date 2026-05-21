@@ -31,8 +31,17 @@ type RenderConfig struct {
 	// EnableCaching uses [gleval.BlockCachedSDF3] to omit potential evaluations.
 	// Can cut down on times for very complex SDFs, mainly when using CPU.
 	EnableCaching bool
+	renderer      renderer
 	builder       *gsdf.Builder
 }
+
+type renderer uint8
+
+const (
+	_                  renderer = iota
+	renderWithOctreeMC          // octree with marching cubes
+	renderWithFlatMC            // flat renderer with marching cubes
+)
 
 type UIConfig struct {
 	Width, Height int
@@ -144,7 +153,14 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 		}()
 	}
 	log(fromStart(), "instantiating evaluation SDF took")
-	renderer, err := glrender.NewOctreeRenderer(sdf, cfg.Resolution, bufferEvalSize)
+	var renderer glrender.Renderer
+	if cfg.renderer == renderWithFlatMC || !cfg.UseGPU {
+		var fr glrender.FlatRenderer
+		err = fr.Reset(sdf, cfg.Resolution, bufferEvalSize)
+		renderer = &fr
+	} else {
+		renderer, err = glrender.NewOctreeRenderer(sdf, cfg.Resolution, bufferEvalSize)
+	}
 	if err != nil {
 		return err
 	}
@@ -193,9 +209,13 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 		}
 
 		e := sdf.(interface{ Evaluations() uint64 })
-		omitted := 8 * renderer.TotalPruned()
-		percentOmit := percentUint64(omitted, e.Evaluations()+omitted)
-		log(watch(), "evaluated SDF", e.Evaluations(), "times and rendered", len(triangles), "triangles with", percentOmit, "percent evaluations omitted in octree pruning step with resolution", cfg.Resolution)
+		if octree, ok := renderer.(*glrender.Octree); ok {
+			omitted := 8 * octree.TotalPruned()
+			percentOmit := percentUint64(omitted, e.Evaluations()+omitted)
+			log(watch(), "evaluated SDF", e.Evaluations(), "times and rendered", len(triangles), "triangles with", percentOmit, "percent evaluations omitted in octree pruning step with resolution", cfg.Resolution)
+		} else {
+			log(watch(), "evaluated SDF", e.Evaluations(), "times and rendered", len(triangles), "triangles with resolution", cfg.Resolution)
+		}
 
 		watch = stopwatch()
 		_, err = glrender.WriteBinarySTL(cfg.STLOutput, triangles)
