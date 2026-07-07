@@ -232,7 +232,7 @@ func testBinOp3D(t *tb, cfg *shaderTestConfig) {
 
 func testRandomUnary2D(t *tb, cfg *shaderTestConfig) {
 	bld := cfg.bld
-	obj := bld.NewRectangle(1, 0.61)
+	obj := bld.NewRectangle(1, 0.61, 0)
 	obj = bld.Translate2D(obj, 2, .3)
 	var RandUnary2D = []func(*gsdf.Builder, glbuild.Shader2D, *rand.Rand) glbuild.Shader2D{
 		randomArray2D, // Not sure why does not work.
@@ -275,7 +275,7 @@ func testRandomUnary3D(t *tb, cfg *shaderTestConfig) {
 		result := op(bld, s2, cfg.rng)
 		testShader3D(t, result, cfg)
 	}
-	s2d := bld.NewRectangle(1, 0.57)
+	s2d := bld.NewRectangle(1, 0.57, 0)
 	for _, op := range OtherUnaryRandomizedOps2D3D {
 		result := op(bld, s2d, cfg.rng)
 		testShader3D(t, result, cfg)
@@ -315,7 +315,8 @@ func testPrimitives2D(t *tb, cfg *shaderTestConfig) {
 	var primitives = []glbuild.Shader2D{
 		bld.NewCircle(maxdim),
 		bld.NewLine2D(0, 0, dimVec.X, dimVec.Y, thick),
-		bld.NewRectangle(dimVec.X, dimVec.Y),
+		bld.NewRectangle(dimVec.X, dimVec.Y, 0),
+		bld.NewRectangle(dimVec.X, dimVec.Y, min(dimVec.X/2, dimVec.Y/2)),
 		bld.NewArc(dimVec.X, math.Pi/3, thick),
 		bld.NewHexagon(maxdim),
 		bld.NewEquilateralTriangle(maxdim),
@@ -357,7 +358,7 @@ func testBinary2D(t *tb, cfg *shaderTestConfig) {
 	union := func(a, b glbuild.Shader2D) glbuild.Shader2D {
 		return bld.Union2D(a, b)
 	}
-	s2 := bld.NewRectangle(1, 0.61)
+	s2 := bld.NewRectangle(1, 0.61, 0)
 	s1 := bld.NewCircle(0.4)
 	s1 = bld.Translate2D(s1, 0.45, 1)
 	var BinaryOps2D = []func(a, b glbuild.Shader2D) glbuild.Shader2D{

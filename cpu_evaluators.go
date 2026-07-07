@@ -683,10 +683,19 @@ func (t *equilateralTri2d) Evaluate(pos []ms2.Vec, dist []float32, userData any)
 }
 
 func (c *rect2D) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {
-	b := ms2.Scale(0.5, c.d)
-	for i, p := range pos {
-		d := ms2.Sub(ms2.AbsElem(p), b)
-		dist[i] = ms2.Norm(ms2.MaxElem(d, ms2.Vec{})) + math32.Min(0, math32.Max(d.X, d.Y))
+	r := c.radius()
+	b := ms2.Scale(0.5, c.dims())
+	if r != 0 {
+		r2 := ms2.Vec{X: r, Y: r}
+		for i, p := range pos {
+			d := ms2.Add(ms2.Sub(ms2.AbsElem(p), b), r2)
+			dist[i] = ms2.Norm(ms2.MaxElem(d, ms2.Vec{})) + math32.Min(0, math32.Max(d.X, d.Y)) - r
+		}
+	} else {
+		for i, p := range pos {
+			d := ms2.Sub(ms2.AbsElem(p), b)
+			dist[i] = ms2.Norm(ms2.MaxElem(d, ms2.Vec{})) + math32.Min(0, math32.Max(d.X, d.Y))
+		}
 	}
 	return nil
 }

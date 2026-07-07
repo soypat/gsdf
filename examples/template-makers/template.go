@@ -6,6 +6,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
@@ -30,6 +31,7 @@ type Flags struct {
 	Resolution          float64 // If non-zero will define the minimum level of detail of shape. Lower=finer resolution. Overrides ResolutionDivisions.
 	ResolutionDivisions uint    // If Resolution not set this will define number of subdivisions of SDF dominion. Higher=finer resolution.
 
+	NoShow bool // If set will omit showing part in UI.
 	// Below are shape definitions.
 	// This is what you change to fit your needs!
 
@@ -52,13 +54,12 @@ func BuildShape(bld *gsdf.Builder, flags Flags) (obj glbuild.Shader3D, err error
 
 func run() error {
 	var flags Flags
-
 	// Rendering config:
 	flag.StringVar(&flags.Name, "name", defaultName, "Name of shape. Used for filenames and logging.")
 	flag.BoolVar(&flags.UseGPU, "gpu", false, "enable GPU usage")
 	flag.Float64Var(&flags.Resolution, "res", 0, "Set resolution in shape units. Useful for setting the minimum level of detail to a fixed amount for final result. If not set resdiv used [mm/in]")
 	flag.UintVar(&flags.ResolutionDivisions, "resdiv", 200, "Set resolution in bounding box diagonal divisions. Useful for prototyping when constant speed of rendering is desired.")
-
+	flag.BoolVar(&flags.NoShow, "noshow", false, "If s")
 	// Shape config:
 	flag.Float64Var(&flags.Diameter, "d", 20, "Diameter of cylinder.")
 	flag.Parse()
@@ -75,7 +76,6 @@ func run() error {
 		return err
 	}
 	defer fpstl.Close()
-
 	err = gsdfaux.RenderShader3D(sdf, gsdfaux.RenderConfig{
 		STLOutput:  fpstl,
 		Resolution: float32(resolution),
@@ -83,6 +83,13 @@ func run() error {
 	})
 	if err != nil {
 		return fmt.Errorf("while rendering %q shape: %w", flags.Name, err)
+	}
+	if !flags.NoShow {
+		return gsdfaux.UI(sdf, gsdfaux.UIConfig{
+			Width:   800,
+			Height:  600,
+			Context: context.Background(),
+		})
 	}
 	return nil
 }
