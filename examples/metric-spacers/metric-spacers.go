@@ -20,18 +20,19 @@ func init() {
 	runtime.LockOSThread() // For when using GPU this is required.
 }
 
-func buildSpacer(bld *gsdf.Builder, holeDiameter, length float32) (glbuild.Shader3D, error) {
+func buildSpacer(bld *gsdf.Builder, holeDiameter, length, scale float32) (glbuild.Shader3D, error) {
 	// hexFaceToFace := math.Ceil(holeDiameter*1.4) - 0.15
 	// hexRadius := hexFaceToFace / math.Cos(30.*math.Pi/180.) / 2
+	metric := holeDiameter
+	holeDiameter *= scale
 	hex := bld.NewHexagon(holeDiameter * 1.15)
 	sdf, err := gleval.NewCPUSDF2(hex)
 	hex = bld.Difference2D(hex, bld.NewCircle(holeDiameter/2))
 	hex3d := bld.Extrude(hex, length)
-
 	if err != nil {
 		return nil, err
 	}
-	gsdfaux.RenderPNGFile(fmt.Sprintf("M%gx%g.png", holeDiameter, length), sdf, 1000, nil)
+	gsdfaux.RenderPNGFile(fmt.Sprintf("M%gx%g.png", metric, length), sdf, 1000, nil)
 	return hex3d, bld.Err()
 }
 
@@ -79,8 +80,8 @@ func run() error {
 		if err != nil {
 			return err
 		}
-		diamCorrected := d * scaleDiameter
-		sdf, err := buildSpacer(&bld, float32(diamCorrected), float32(L))
+
+		sdf, err := buildSpacer(&bld, float32(d), float32(L), float32(scaleDiameter))
 		if err != nil {
 			return fmt.Errorf("building spacer %s: %w", strSpacer, err)
 		}
