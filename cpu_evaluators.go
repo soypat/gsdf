@@ -683,10 +683,19 @@ func (t *equilateralTri2d) Evaluate(pos []ms2.Vec, dist []float32, userData any)
 }
 
 func (c *rect2D) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {
-	b := ms2.Scale(0.5, c.d)
-	for i, p := range pos {
-		d := ms2.Sub(ms2.AbsElem(p), b)
-		dist[i] = ms2.Norm(ms2.MaxElem(d, ms2.Vec{})) + math32.Min(0, math32.Max(d.X, d.Y))
+	r := c.radius()
+	b := ms2.Scale(0.5, c.dims())
+	if r != 0 {
+		r2 := ms2.Vec{X: r, Y: r}
+		for i, p := range pos {
+			d := ms2.Add(ms2.Sub(ms2.AbsElem(p), b), r2)
+			dist[i] = ms2.Norm(ms2.MaxElem(d, ms2.Vec{})) + math32.Min(0, math32.Max(d.X, d.Y)) - r
+		}
+	} else {
+		for i, p := range pos {
+			d := ms2.Sub(ms2.AbsElem(p), b)
+			dist[i] = ms2.Norm(ms2.MaxElem(d, ms2.Vec{})) + math32.Min(0, math32.Max(d.X, d.Y))
+		}
 	}
 	return nil
 }
@@ -1252,4 +1261,23 @@ func (e *elongate2D) Evaluate(pos []ms2.Vec, dist []float32, userData any) error
 		dist[i] += qnorm
 	}
 	return nil
+}
+
+func (e *twist) Evaluate(pos []ms3.Vec, dist []float32, userData any) error {
+	vp, err := gleval.GetVecPool(userData)
+	if err != nil {
+		return err
+	}
+	sdf, err := gleval.AssertSDF3(e.s)
+	if err != nil {
+		return err
+	}
+	transformed := vp.V3.Acquire(len(pos))
+	defer vp.V3.Release(transformed)
+	for i, p := range pos {
+		c := math32.Cos(e.k * p.Z)
+		s := math32.Sin(e.k * p.Z)
+		transformed[i] = ms3.Vec{X: c*p.X - s*p.Y, Y: s*p.X + c*p.Y, Z: p.Z}
+	}
+	return sdf.Evaluate(transformed, dist, userData)
 }

@@ -9,11 +9,11 @@ import (
 	"github.com/soypat/geometry/ms3"
 )
 
-// NewCPUSDF2 checks if the shader implements CPU evaluation and returns a [*SDF3CPU]
-// ready for evaluation, taking care of the buffers for evaluating the SDF correctly.
+// NewCPUSDF3 checks if the shader implements CPU evaluation and returns a [*SDF3CPU]
+// ready for evaluation. It runs a single test evaluation on construction to catch
+// missing evaluator implementations early.
 //
-// The returned [SDF3] should only require a [VecPool] as a userData argument,
-// this is automatically taken care of if a nil userData is passed in.
+// Pass nil as userData to Evaluate — the returned [*SDF3CPU] manages its own [VecPool].
 func NewCPUSDF3(root bounder3) (*SDF3CPU, error) {
 	sdf, err := AssertSDF3(root)
 	if err != nil {
@@ -32,11 +32,11 @@ func NewCPUSDF3(root bounder3) (*SDF3CPU, error) {
 	return &sdfcpu, nil
 }
 
-// NewCPUSDF2 checks if the shader implements CPU evaluation and returns a [SDF2CPU]
-// ready for evaluation, taking care of the buffers for evaluating the SDF correctly.
+// NewCPUSDF2 checks if the shader implements CPU evaluation and returns a [*SDF2CPU]
+// ready for evaluation. It runs a single test evaluation on construction to catch
+// missing evaluator implementations early.
 //
-// The returned [SDF2] should only require a [gleval.VecPool] as a userData argument,
-// this is automatically taken care of if a nil userData is passed in.
+// Pass nil as userData to Evaluate — the returned [*SDF2CPU] manages its own [VecPool].
 func NewCPUSDF2(root bounder2) (*SDF2CPU, error) {
 	sdf, err := AssertSDF2(root)
 	if err != nil {
@@ -55,8 +55,8 @@ func NewCPUSDF2(root bounder2) (*SDF2CPU, error) {
 	return &sdfcpu, nil
 }
 
-// AssertSDF3 asserts the Shader3D as a SDF3 implementation
-// and returns the raw result. It provides readable errors beyond simply converting the interface.
+// AssertSDF3 returns the argument as a [SDF3], or an error naming the concrete type
+// if it does not implement CPU evaluation.
 func AssertSDF3(s bounder3) (SDF3, error) {
 	evaluator, ok := s.(SDF3)
 	if !ok {
@@ -65,8 +65,8 @@ func AssertSDF3(s bounder3) (SDF3, error) {
 	return evaluator, nil
 }
 
-// AssertSDF2 asserts the argument as a SDF2 implementation
-// and returns the raw result. It provides readable errors beyond simply converting the interface.
+// AssertSDF2 returns the argument as a [SDF2], or an error naming the concrete type
+// if it does not implement CPU evaluation.
 func AssertSDF2(s bounder2) (SDF2, error) {
 	evaluator, ok := s.(SDF2)
 	if !ok {
@@ -75,12 +75,20 @@ func AssertSDF2(s bounder2) (SDF2, error) {
 	return evaluator, nil
 }
 
+// SDF3CPU wraps a [SDF3] with an owned [VecPool], providing a self-contained
+// CPU evaluator. Construct with [NewCPUSDF3].
 type SDF3CPU struct {
 	SDF   SDF3
 	vp    VecPool
 	evals uint64
 }
 
+// Evaluate computes the SDF distance for each position in pos, writing results into dist.
+// pos and dist must have equal non-zero length.
+//
+// Pass nil as userData to use the internal [VecPool]; in that case buffer leaks are
+// detected automatically and reported as errors. Pass an external [VecPool] (or a type
+// implementing VecPool() *VecPool) when composing evaluators in a larger tree.
 func (sdf *SDF3CPU) Evaluate(pos []ms3.Vec, dist []float32, userData any) error {
 	useOwnVecPool := userData == nil
 	if useOwnVecPool {
@@ -109,23 +117,32 @@ func (sdf *SDF3CPU) Evaluate(pos []ms3.Vec, dist []float32, userData any) error 
 	return nil
 }
 
+// Bounds returns the bounding box of the underlying SDF.
 func (sdf *SDF3CPU) Bounds() ms3.Box {
 	return sdf.SDF.Bounds()
 }
 
-// Evaluations returns total evaluations performed succesfully during sdf's lifetime.
+// Evaluations returns the total number of positions successfully evaluated over the lifetime of sdf.
 func (sdf *SDF3CPU) Evaluations() uint64 { return sdf.evals }
 
-// VecPool method exposes the SDF3CPU's VecPool in case user wishes to use their own userData in evaluations.
+// VecPool returns the internal pool, allowing callers to pass it as userData when
+// composing this evaluator inside a larger SDF tree.
 func (sdf *SDF3CPU) VecPool() *VecPool { return &sdf.vp }
 
+// SDF2CPU wraps a [SDF2] with an owned [VecPool], providing a self-contained
+// CPU evaluator. Construct with [NewCPUSDF2].
 type SDF2CPU struct {
 	SDF   SDF2
 	vp    VecPool
 	evals uint64
 }
 
-// Evaluate performs CPU evaluation of the underlying SDF2.
+// Evaluate computes the SDF distance for each position in pos, writing results into dist.
+// pos and dist must have equal non-zero length.
+//
+// Pass nil as userData to use the internal [VecPool]; in that case buffer leaks are
+// detected automatically and reported as errors. Pass an external [VecPool] (or a type
+// implementing VecPool() *VecPool) when composing evaluators in a larger tree.
 func (sdf *SDF2CPU) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {
 	useOwnVecPool := userData == nil
 	if useOwnVecPool {
@@ -158,14 +175,16 @@ func (sdf *SDF2CPU) Bounds() ms2.Box {
 	return sdf.SDF.Bounds()
 }
 
-// Evaluations returns total evaluations performed succesfully during sdf's lifetime.
+// Evaluations returns the total number of positions successfully evaluated over the lifetime of sdf.
 func (sdf *SDF2CPU) Evaluations() uint64 { return sdf.evals }
 
-// VecPool method exposes the SDF2CPU's VecPool in case user wishes to use their own userData in evaluations.
+// VecPool returns the internal pool, allowing callers to pass it as userData when
+// composing this evaluator inside a larger SDF tree.
 func (sdf *SDF2CPU) VecPool() *VecPool { return &sdf.vp }
 
-// GetVecPool asserts the userData as a VecPool. If assert fails then
-// an error is returned with information on what went wrong.
+// GetVecPool extracts a [*VecPool] from userData. It accepts either a [*VecPool] directly
+// or any type that implements a VecPool() *VecPool method (as [SDF3CPU] and [SDF2CPU] do).
+// Returns an error if userData is neither, or if the VecPool method returns nil.
 func GetVecPool(userData any) (*VecPool, error) {
 	vp, ok := userData.(*VecPool)
 	if !ok {
@@ -181,17 +200,21 @@ func GetVecPool(userData any) (*VecPool, error) {
 	return vp, nil
 }
 
-// VecPool serves as a pool of Vec3 and float32 slices for
-// evaluating SDFs on the CPU while reducing garbage generation.
-// It also aids in calculation of memory usage.
+// VecPool is a set of typed buffer pools used by CPU SDF evaluators to reuse
+// temporary slices across recursive calls, avoiding per-evaluation allocations.
+//
+// Each field is an independent pool for its element type. Evaluators call Acquire
+// at the start of a function and Release (typically via defer) at the end, so the
+// same backing memory is reused through the whole evaluation tree.
 type VecPool struct {
 	V3    bufPool[ms3.Vec]
 	V2    bufPool[ms2.Vec]
 	Float bufPool[float32]
 }
 
-// AssertAllReleased checks all buffers are not in use. Should be called
-// after ending a run to find memory leaks.
+// AssertAllReleased returns an error if any buffer is still acquired or if a
+// Release error occurred since the last check. Called automatically by [SDF3CPU]
+// and [SDF2CPU] after each evaluation when using the internal pool.
 func (vp *VecPool) AssertAllReleased() error {
 	err := vp.Float.assertAllReleased()
 	if err != nil {
@@ -223,18 +246,36 @@ func (vp *VecPool) TotalSize() uint64 {
 	return vp.Float.TotalSize() + vp.V2.TotalSize() + vp.V3.TotalSize()
 }
 
+// Deallocate frees all backing memory in all three pools. Panics if any buffer is
+// still acquired. After this call the pool is valid for reuse.
+func (vp *VecPool) Deallocate() {
+	vp.Float.Deallocate()
+	vp.V2.Deallocate()
+	vp.V3.Deallocate()
+}
+
+// bufPool is a fixed-element-type pool backed by two parallel slices: _ins holds the
+// allocated buffers and _acquired tracks which are in use. The parallel-slice layout
+// avoids a struct-per-buffer allocation and keeps the hot path (Acquire search) cache-friendly.
 type bufPool[T any] struct {
 	_ins      [][]T
 	_acquired []bool
-	// releaseErr stores error on Release call since Release is usually used in concert with defer, thus losing the error.
+	// releaseErr captures the error from a Release call. Release is typically called via
+	// defer, so callers cannot inspect the return value; the error is surfaced later by
+	// assertAllReleased. Cleared each time assertAllReleased is called.
 	releaseErr error
-	// minAllocation sets the minimum size of a buffer allocation.
+	// minAllocation is the floor for new buffer lengths, reducing future re-allocations
+	// when the caller knows the typical batch size in advance.
 	minAllocation int
 }
 
-// Acquire gets a buffer from the pool of the desired length and marks it as used.
-// If no buffer is available then a new one is allocated.
+// Acquire returns a buffer of exactly length elements, reusing an existing free buffer
+// if one is large enough or allocating a new one otherwise. The returned slice is valid
+// until the matching [bufPool.Release] call. Panics if length <= 0.
 func (bp *bufPool[T]) Acquire(length int) []T {
+	if length <= 0 {
+		panic("bufPool.Acquire: non-positive length")
+	}
 	for i, locked := range bp._acquired {
 		if !locked && len(bp._ins[i]) >= length {
 			bp._acquired[i] = true
@@ -246,7 +287,6 @@ func (bp *bufPool[T]) Acquire(length int) []T {
 		allocLen = bp.minAllocation
 	}
 	newSlice := make([]T, allocLen)
-	newSlice = newSlice[:cap(newSlice)]
 	bp._ins = append(bp._ins, newSlice)
 	bp._acquired = append(bp._acquired, true)
 	return newSlice[:length]
@@ -257,8 +297,10 @@ var (
 	errBufpoolReleaseNonexistent = errors.New("release of nonexistent resource")
 )
 
-// Release receives a buffer that was previously returned by [bufPool.Acquire]
-// and returns it to the pool and marks it as unused/free.
+// Release returns buf to the pool. buf must be a slice previously returned by
+// [bufPool.Acquire] — passing a sub-slice or an unrelated buffer is an error.
+// The error is also stored in releaseErr for deferred callers that cannot inspect
+// the return value.
 func (bp *bufPool[T]) Release(buf []T) error {
 	for i, instance := range bp._ins {
 		if &instance[0] == &buf[0] {
@@ -281,10 +323,8 @@ func (bp *bufPool[T]) assertAllReleased() error {
 		}
 	}
 	err := bp.releaseErr
-	if err != nil {
-		return err
-	}
-	return nil
+	bp.releaseErr = nil // clear so the error is reported exactly once per occurrence
+	return err
 }
 
 // TotalSize returns total amount of memory used by buffer in bytes.
@@ -303,7 +343,8 @@ func (bp *bufPool[T]) NumBuffers() int {
 	return len(bp._ins)
 }
 
-// NumFree returns total number of free buffers. To calculate number of used buffers do [bufPool.NumBuffers]() - [bufPool.NumFree]().
+// NumFree returns the number of allocated buffers that are not currently acquired.
+// In-use count = [bufPool.NumBuffers]() - NumFree().
 func (bp *bufPool[T]) NumFree() (free int) {
 	for _, b := range bp._acquired {
 		if !b {
@@ -330,4 +371,20 @@ func (bp *bufPool[T]) String() string {
 		units = "kB"
 	}
 	return fmt.Sprintf("bufPool{free:%d/%d  mem:%d%s}", bp.NumFree(), bp.NumBuffers(), alloc, units)
+}
+
+// Deallocate releases all backing memory and resets the pool to empty. Panics if any
+// buffer is still acquired. After this call the pool is valid for reuse.
+func (bp *bufPool[T]) Deallocate() {
+	for _, locked := range bp._acquired {
+		if locked {
+			panic("bufPool.Deallocate called with active acquisitions")
+		}
+	}
+	for i := range bp._ins {
+		bp._ins[i] = nil
+	}
+	bp._ins = bp._ins[:0]
+	bp._acquired = bp._acquired[:0]
+	bp.releaseErr = nil
 }

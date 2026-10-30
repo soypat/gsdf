@@ -39,6 +39,17 @@ func Rectangle2D() glbuild.ShaderObject {
 	return obj
 }
 
+//go:embed rectRound2D.glsl
+var rectRound2DSrc []byte
+
+// RectangleRound2D is the SDF definition for a 2D rectangle with rounded corners:
+//
+//	float gsdfRectRound2D(vec2 p, float x, float y, float r)
+func RectangleRound2D() glbuild.ShaderObject {
+	obj, _ := glbuild.MakeShaderFunction(rectRound2DSrc)
+	return obj
+}
+
 //go:embed octagon2D.glsl
 var oct2DSrc []byte
 

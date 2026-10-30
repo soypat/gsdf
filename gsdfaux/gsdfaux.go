@@ -10,6 +10,7 @@ import (
 	"image/png"
 	"io"
 	"os"
+	"runtime"
 
 	"time"
 
@@ -32,8 +33,19 @@ type RenderConfig struct {
 	// EnableCaching uses [gleval.BlockCachedSDF3] to omit potential evaluations.
 	// Can cut down on times for very complex SDFs, mainly when using CPU.
 	EnableCaching bool
-	builder       *gsdf.Builder
+	// number of goroutines to use in parallel to evaluate CPU bound SDFs. If zero defaults to runtime.GOMAXPROCS(0)-1.
+	ParallelCPU int
+	renderer    renderer
+	builder     *gsdf.Builder
 }
+
+type renderer uint8
+
+const (
+	_                  renderer = iota
+	renderWithOctreeMC          // octree with marching cubes
+	renderWithFlatMC            // flat renderer with marching cubes
+)
 
 type UIConfig struct {
 	Width, Height int
@@ -57,7 +69,7 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 		cfg.builder = &gsdf.Builder{}
 	}
 	bld := cfg.builder
-	if cfg.STLOutput == nil && cfg.VisualOutput == nil {
+	if cfg.STLOutput == nil && cfg.VisualOutput == nil && cfg.IRMFOutput == nil {
 		return errors.New("RenderShader3D requires output parameter in config")
 	}
 	log := func(elapsed time.Duration, args ...any) {
@@ -131,7 +143,7 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 	if err != nil || sdf == nil {
 		return fmt.Errorf("instantiating SDF: %s", err)
 	}
-	if cfg.EnableCaching {
+	if cfg.EnableCaching && cfg.UseGPU {
 		var cache gleval.BlockCachedSDF3
 		cacheRes := cfg.Resolution / 2
 		err = cache.Reset(sdf, cacheRes, cacheRes, cacheRes)
@@ -145,7 +157,19 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 		}()
 	}
 	log(fromStart(), "instantiating evaluation SDF took")
-	renderer, err := glrender.NewOctreeRenderer(sdf, cfg.Resolution, bufferEvalSize)
+	var renderer glrender.Renderer
+	if cfg.renderer == renderWithFlatMC || !cfg.UseGPU {
+		maxprocs := cfg.ParallelCPU
+		if maxprocs == 0 {
+			maxprocs = max(1, runtime.GOMAXPROCS(0)-1)
+		}
+		log(0, "CPU parallel evaluation on", maxprocs, "goroutines")
+		var fr glrender.FlatRenderer
+		err = fr.Reset(sdf, cfg.Resolution, bufferEvalSize, maxprocs)
+		renderer = &fr
+	} else {
+		renderer, err = glrender.NewOctreeRenderer(sdf, cfg.Resolution, bufferEvalSize)
+	}
 	if err != nil {
 		return err
 	}
@@ -181,9 +205,12 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 	}
 
 	if cfg.IRMFOutput != nil {
-		if err := renderIRMF(cfg, s, "glsl"); err != nil {
+		irmfWatch := stopwatch()
+		filename, err := renderIRMF(cfg.IRMFOutput, s, "glsl")
+		if err != nil {
 			return err
 		}
+		log(irmfWatch(), "wrote", filename)
 	}
 
 	if cfg.STLOutput != nil {
@@ -200,9 +227,13 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 		}
 
 		e := sdf.(interface{ Evaluations() uint64 })
-		omitted := 8 * renderer.TotalPruned()
-		percentOmit := percentUint64(omitted, e.Evaluations()+omitted)
-		log(watch(), "evaluated SDF", e.Evaluations(), "times and rendered", len(triangles), "triangles with", percentOmit, "percent evaluations omitted in octree pruning step")
+		if octree, ok := renderer.(*glrender.Octree); ok {
+			omitted := 8 * octree.TotalPruned()
+			percentOmit := percentUint64(omitted, e.Evaluations()+omitted)
+			log(watch(), "evaluated SDF", e.Evaluations(), "times and rendered", len(triangles), "triangles with", percentOmit, "percent evaluations omitted in octree pruning step with resolution", cfg.Resolution)
+		} else {
+			log(watch(), "evaluated SDF", e.Evaluations(), "times and rendered", len(triangles), "triangles with resolution", cfg.Resolution)
+		}
 
 		watch = stopwatch()
 		_, err = glrender.WriteBinarySTL(cfg.STLOutput, triangles)

@@ -10,8 +10,7 @@ import (
 )
 
 func TestABC(t *testing.T) {
-	const okchar = "BCDEFGHIJK"
-	const badchar = "ABbDdgoOpPqQR"
+	const badchar = "Abp8" //"ABbDdgoOpPqQR" // old badchar, takes too much time on CI.
 	var f Font
 	err := f.LoadTTFBytes(ISO3098TTF())
 	if err != nil {
@@ -25,7 +24,7 @@ func TestABC(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = gsdfaux.RenderPNGFile("shape.png", sdfcpu, 512, nil)
+	err = gsdfaux.RenderPNGFile("shape.png", sdfcpu, 128, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

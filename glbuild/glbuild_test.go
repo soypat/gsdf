@@ -62,7 +62,7 @@ func TestShaderNameDeduplication(t *testing.T) {
 
 func TestSprintShader(t *testing.T) {
 	s1 := bld.NewCircle(1.0)
-	s2 := bld.NewRectangle(2, 3)
+	s2 := bld.NewRectangle(2, 3, 0)
 	composite := bld.Difference2D(s1, s2)
 	str := glbuild.FormatShader(composite)
 	if str != "diff2D(circle2D,rect2D)" {

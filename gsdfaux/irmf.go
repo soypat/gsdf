@@ -2,13 +2,15 @@ package gsdfaux
 
 import (
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/soypat/gsdf/glbuild"
 )
 
-func renderIRMF(cfg RenderConfig, s glbuild.Shader3D, language string) error {
-	irmfWatch := stopwatch()
+// renderIRMF writes the IRMF program for s to w using the given shader language.
+// It returns the name of w suitable for logging.
+func renderIRMF(w io.Writer, s glbuild.Shader3D, language string) (string, error) {
 	bb := s.Bounds()
 	min, max := bb.Min, bb.Max
 	header := glbuild.IRMFHeaderV1{
@@ -22,21 +24,20 @@ func renderIRMF(cfg RenderConfig, s glbuild.Shader3D, language string) error {
 
 	var objects []glbuild.ShaderObject
 	programmer := glbuild.NewDefaultProgrammer()
-	_, objects, err := header.WriteIRMF(cfg.IRMFOutput, s, programmer)
+	_, objects, err := header.WriteIRMF(w, s, programmer)
 	if err != nil {
-		return fmt.Errorf("writing IRMF: %w", err)
+		return "", fmt.Errorf("writing IRMF: %w", err)
 	}
 
 	for i := range objects {
 		if objects[i].IsBindable() {
-			return fmt.Errorf("bindable objects unsupported for IRMF shader generation: %v", objects[i])
+			return "", fmt.Errorf("bindable objects unsupported for IRMF shader generation: %v", objects[i])
 		}
 	}
 
-	filename := "model.irmf"
-	if fp, ok := cfg.IRMFOutput.(*os.File); ok {
+	filename := "IRMF program"
+	if fp, ok := w.(*os.File); ok {
 		filename = fp.Name()
 	}
-	fmt.Printf("[%v] wrote %v\n", irmfWatch(), filename)
-	return nil
+	return filename, nil
 }

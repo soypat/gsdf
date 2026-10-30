@@ -829,3 +829,63 @@ func (ca *circarray) AppendShaderBody(b []byte) []byte {
 func (u *circarray) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
 	return append(objects, glsllib.PartialCircArray2D())
 }
+
+// Twist applies a twist deformation around the Z axis.
+// The XY plane is rotated by k*z radians at height z.
+func (bld *Builder) Twist(s glbuild.Shader3D, k float32) glbuild.Shader3D {
+	if s == nil {
+		bld.nilsdf("Twist")
+	}
+	if k == 0 {
+		bld.shapeErrorf("zero twist parameter")
+	}
+	return &twist{s: s, k: k}
+}
+
+type twist struct {
+	s glbuild.Shader3D
+	k float32
+}
+
+func (t *twist) Bounds() ms3.Box {
+	bb := t.s.Bounds()
+	// Twist preserves each point's distance from the Z axis, so XY bounds
+	// expand to a square enclosing a circle of the maximum corner radius.
+	var maxR float32
+	for _, v := range bb.Vertices() {
+		if r := hypotf(v.X, v.Y); r > maxR {
+			maxR = r
+		}
+	}
+	return ms3.Box{
+		Min: ms3.Vec{X: -maxR, Y: -maxR, Z: bb.Min.Z},
+		Max: ms3.Vec{X: maxR, Y: maxR, Z: bb.Max.Z},
+	}
+}
+
+func (t *twist) ForEachChild(userData any, fn func(userData any, s *glbuild.Shader3D) error) error {
+	return fn(userData, &t.s)
+}
+
+func (t *twist) AppendShaderName(b []byte) []byte {
+	b = append(b, "twist"...)
+	b = glbuild.AppendFloat(b, 'n', 'p', t.k)
+	b = append(b, '_')
+	b = t.s.AppendShaderName(b)
+	return b
+}
+
+func (t *twist) AppendShaderBody(b []byte) []byte {
+	b = glbuild.AppendFloatDecl(b, "k", t.k)
+	b = append(b, `float c=cos(k*p.z);
+float s=sin(k*p.z);
+vec3 q=vec3(c*p.x-s*p.y,s*p.x+c*p.y,p.z);
+return `...)
+	b = t.s.AppendShaderName(b)
+	b = append(b, "(q);"...)
+	return b
+}
+
+func (t *twist) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
+	return objects
+}

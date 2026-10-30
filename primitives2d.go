@@ -7,6 +7,7 @@ import (
 
 	"github.com/chewxy/math32"
 	"github.com/soypat/geometry/ms2"
+	"github.com/soypat/geometry/ms3"
 	"github.com/soypat/gsdf/glbuild"
 	"github.com/soypat/gsdf/glbuild/glsllib"
 )
@@ -301,16 +302,16 @@ func (u *equilateralTri2d) AppendShaderObjects(objects []glbuild.ShaderObject) [
 }
 
 type rect2D struct {
-	d ms2.Vec
+	d ms3.Vec
 }
 
-// NewRectangle creates a rectangle centered at (x,y)=(0,0) with given x and y dimensions.
-func (bld *Builder) NewRectangle(x, y float32) glbuild.Shader2D {
-	okRect := x > 0 && y > 0 && !math32.IsInf(x, 1) && !math32.IsInf(y, 1)
+// NewRectangle creates a rectangle centered at (x,y)=(0,0) with given x and y dimensions and r radius rounding.
+func (bld *Builder) NewRectangle(x, y, r float32) glbuild.Shader2D {
+	okRect := x > 0 && y > 0 && !math32.IsInf(x, 1) && !math32.IsInf(y, 1) && r <= x && r <= y && r >= 0
 	if !okRect {
 		bld.shapeErrorf("bad rectangle dimension")
 	}
-	return &rect2D{d: ms2.Vec{X: x, Y: y}}
+	return &rect2D{d: ms3.Vec{X: x, Y: y, Z: r}}
 }
 
 func (c *rect2D) Bounds() ms2.Box {
@@ -330,6 +331,10 @@ func (c *rect2D) AppendShaderName(b []byte) []byte {
 }
 
 func (c *rect2D) AppendShaderBody(b []byte) []byte {
+	r := c.radius()
+	if r != 0 {
+		return appendTypicalReturnFuncCall(b, "gsdfRectRound2D", "p", c.d.X/2, c.d.Y/2, r)
+	}
 	return appendTypicalReturnFuncCall(b, "gsdfRect2D", "p", c.d.X/2, c.d.Y/2)
 }
 
@@ -338,8 +343,14 @@ func (c *rect2D) ForEach2DChild(userData any, fn func(userData any, s *glbuild.S
 }
 
 func (u *rect2D) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
+	if u.radius() != 0 {
+		return append(objects, glsllib.RectangleRound2D())
+	}
 	return append(objects, glsllib.Rectangle2D())
 }
+
+func (c *rect2D) radius() float32 { return c.d.Z }
+func (c *rect2D) dims() ms2.Vec   { return ms2.Vec{X: c.d.X, Y: c.d.Y} }
 
 type hex2D struct {
 	side float32

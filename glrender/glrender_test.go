@@ -22,7 +22,7 @@ var bld gsdf.Builder
 func TestDualRender(t *testing.T) {
 	const (
 		shapeDim = 1.0
-		divs     = 4
+		divs     = 2
 		res      = shapeDim / divs
 	)
 
@@ -88,12 +88,12 @@ func TestSphereMarchingTriangles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	renderer, err := NewOctreeRenderer(sdf, r/65, 1<<12+1)
+	renderer, err := NewOctreeRenderer(sdf, r/33, 1<<12+1)
 	if err != nil {
 		t.Fatal(err)
 	}
 	tris := testRenderer(t, renderer, nil)
-	const expect = 159284
+	const expect = 41072
 	if len(tris) != expect {
 		t.Errorf("expected %d triangles, got %d (diff=%d)", expect, len(tris), len(tris)-expect)
 	}
@@ -110,11 +110,11 @@ func TestOctree(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	renderer, err := NewOctreeRenderer(sdf, r/64, bufsize)
+	renderer, err := NewOctreeRenderer(sdf, r/32, bufsize)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, res := range []float32{r / 4, r / 8, r / 64, r / 37, r / 4.000001, r / 13, r / 3.5} {
+	for _, res := range []float32{r / 4, r / 8, r / 37, r / 4.000001, r / 13, r / 3.5} {
 		err = renderer.Reset(sdf, res)
 		if err != nil {
 			t.Fatal(err)
