@@ -8,7 +8,7 @@ import (
 	"github.com/soypat/geometry/ms2"
 	"github.com/soypat/geometry/ms3"
 	"github.com/soypat/gsdf/glbuild"
-	"github.com/soypat/gsdf/glbuild/glsllib"
+	"github.com/soypat/gsdf/glbuild/wgsllib"
 )
 
 // OpUnion is the result of the [Union] operation. Prefer using [Union] to using this type directly.
@@ -43,7 +43,7 @@ func (bld *Builder) Union(shaders ...glbuild.Shader3D) glbuild.Shader3D {
 		}
 		if subU, ok := s.(*OpUnion); ok {
 			// Discard nested union elements and join their elements.
-			// Results in much smaller and readable GLSL code.
+			// Results in much smaller and readable WGSL code.
 			U.joined = append(U.joined, subU.joined...)
 		} else {
 			U.joined = append(U.joined, s)
@@ -321,11 +321,8 @@ func (s *symmetry) AppendShaderName(b []byte) []byte {
 }
 
 func (s *symmetry) AppendShaderBody(b []byte) []byte {
-	b = append(b, "p."...)
-	b = s.xyz.AppendMapped_xyz(b)
-	b = append(b, "=abs(p."...)
-	b = s.xyz.AppendMapped_xyz(b)
-	b = append(b, ");\n return "...)
+	b = appendSymmetryAbs(b, s.xyz)
+	b = append(b, "return "...)
 	b = s.s.AppendShaderName(b)
 	b = append(b, "(p);"...)
 	return b
@@ -382,7 +379,7 @@ func (t *transform) AppendShaderBody(b []byte) []byte {
 	b = glbuild.AppendMat4Decl(b, "invT", t.tInv)
 	b = append(b, "return "...)
 	b = t.s.AppendShaderName(b)
-	b = append(b, "(((invT) * vec4(p,0.0)).xyz);"...)
+	b = append(b, "((invT * vec4f(p,1.0)).xyz);"...)
 	return b
 }
 
@@ -533,22 +530,21 @@ func (s *array) AppendShaderBody(b []byte) []byte {
 	// s is scaling factors in 3 directions.
 	// rid is the neighboring tile index, which is then corrected for limited repetition using clamp.
 	b = fmt.Appendf(b, `
-vec3 s = vec3(%f,%f,%f);
-vec3 n = vec3(%d.,%d.,%d.);
-vec3 minlim = vec3(0.,0.,0.);
-vec3 id = round(p/s);
-vec3 o = sign(p-s*id);
-float d = %f;
-for( int k=0; k<2; k++ )
-for( int j=0; j<2; j++ )
-for( int i=0; i<2; i++ )
-{
-	vec3 rid = id + vec3(i,j,k)*o;
+var s = vec3f(%f,%f,%f);
+var n = vec3f(%d.,%d.,%d.);
+var minlim = vec3f(0.,0.,0.);
+var id = sign(p/s)*floor(abs(p/s)+0.5); // Round half away from zero.
+var o = sign(p-s*id);
+var d: f32 = %f;
+for (var k=0; k<2; k++) {
+for (var j=0; j<2; j++) {
+for (var i=0; i<2; i++) {
+	var rid = id + vec3f(f32(i),f32(j),f32(k))*o;
 	// limited repetition
 	rid = clamp(rid, minlim, n);
-	vec3 r = p - s*rid;
+	var r = p - s*rid;
 	d = min( d, %s(r) );
-}
+}}}
 return d;`, s.d.X, s.d.Y, s.d.Z,
 		s.nx-1, s.ny-1, s.nz-1,
 		largenum, sdf)
@@ -598,7 +594,7 @@ func (s *smoothUnion) AppendShaderBody(b []byte) []byte {
 	b = glbuild.AppendDistanceDecl(b, "d1", "p", s.s1)
 	b = glbuild.AppendDistanceDecl(b, "d2", "p", s.s2)
 	b = glbuild.AppendFloatDecl(b, "k", s.k)
-	b = append(b, `float h = clamp( 0.5 + 0.5*(d2-d1)/k, 0.0, 1.0 );
+	b = append(b, `var h = clamp( 0.5 + 0.5*(d2-d1)/k, 0.0, 1.0 );
 return mix( d2, d1, h ) - k*h*(1.0-h);`...)
 	return b
 }
@@ -634,7 +630,7 @@ func (s *smoothDiff) AppendShaderBody(b []byte) []byte {
 	b = glbuild.AppendDistanceDecl(b, "d1", "p", s.s1)
 	b = glbuild.AppendDistanceDecl(b, "d2", "p", s.s2)
 	b = glbuild.AppendFloatDecl(b, "k", s.k)
-	b = append(b, `float h = clamp( 0.5 - 0.5*(d2+d1)/k, 0.0, 1.0 );
+	b = append(b, `var h = clamp( 0.5 - 0.5*(d2+d1)/k, 0.0, 1.0 );
 return mix( d1, -d2, h ) + k*h*(1.0-h);`...)
 	return b
 }
@@ -666,7 +662,7 @@ func (s *smoothIntersect) AppendShaderBody(b []byte) []byte {
 	b = glbuild.AppendDistanceDecl(b, "d1", "p", s.s1)
 	b = glbuild.AppendDistanceDecl(b, "d2", "p", s.s2)
 	b = glbuild.AppendFloatDecl(b, "k", s.k)
-	b = append(b, `float h = clamp( 0.5 - 0.5*(d2-d1)/k, 0.0, 1.0 );
+	b = append(b, `var h = clamp( 0.5 - 0.5*(d2-d1)/k, 0.0, 1.0 );
 return mix( d2, d1, h ) + k*h*(1.0-h);`...)
 	return b
 }
@@ -709,8 +705,8 @@ func (s *elongate) AppendShaderName(b []byte) []byte {
 
 func (s *elongate) AppendShaderBody(b []byte) []byte {
 	b = glbuild.AppendVec3Decl(b, "h", ms3.Scale(0.5, s.h))
-	b = append(b, "vec3 q=abs(p)-h;"...)
-	b = glbuild.AppendDistanceDecl(b, "d", "max(q,0.)", s.s)
+	b = append(b, "var q=abs(p)-h;\n"...)
+	b = glbuild.AppendDistanceDecl(b, "d", "max(q,vec3f(0.))", s.s)
 	b = append(b, "return d+min(max(q.x,max(q.y,q.z)),0.);"...)
 	return b
 }
@@ -819,15 +815,15 @@ func (ca *circarray) AppendShaderBody(b []byte) []byte {
 	b = glbuild.AppendFloatDecl(b, "ncirc", float32(ca.circleDiv))
 	b = glbuild.AppendFloatDecl(b, "angle", angle)
 	b = glbuild.AppendFloatDecl(b, "ninsm1", float32(ca.nInst-1))
-	b = append(b, `vec4 p0p1 = gsdfPartialCircArray2D(p.xy, ncirc, angle, ninsm1);`...)
-	b = glbuild.AppendDistanceDecl(b, "d0", "vec3(p0p1.x,p0p1.y,p.z)", ca.s)
-	b = glbuild.AppendDistanceDecl(b, "d1", "vec3(p0p1.z,p0p1.w,p.z)", ca.s)
+	b = append(b, "var p0p1 = gsdfPartialCircArray2D(p.xy, ncirc, angle, ninsm1);\n"...)
+	b = glbuild.AppendDistanceDecl(b, "d0", "vec3f(p0p1.x,p0p1.y,p.z)", ca.s)
+	b = glbuild.AppendDistanceDecl(b, "d1", "vec3f(p0p1.z,p0p1.w,p.z)", ca.s)
 	b = append(b, "return min(d0, d1);"...)
 	return b
 }
 
 func (u *circarray) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
-	return append(objects, glsllib.PartialCircArray2D())
+	return append(objects, wgsllib.PartialCircArray2D())
 }
 
 // Twist applies a twist deformation around the Z axis.
@@ -877,9 +873,9 @@ func (t *twist) AppendShaderName(b []byte) []byte {
 
 func (t *twist) AppendShaderBody(b []byte) []byte {
 	b = glbuild.AppendFloatDecl(b, "k", t.k)
-	b = append(b, `float c=cos(k*p.z);
-float s=sin(k*p.z);
-vec3 q=vec3(c*p.x-s*p.y,s*p.x+c*p.y,p.z);
+	b = append(b, `var c=cos(k*p.z);
+var s=sin(k*p.z);
+var q=vec3f(c*p.x-s*p.y,s*p.x+c*p.y,p.z);
 return `...)
 	b = t.s.AppendShaderName(b)
 	b = append(b, "(q);"...)

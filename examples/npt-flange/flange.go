@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"runtime"
 
 	"github.com/soypat/gsdf"
 	"github.com/soypat/gsdf/forge/threads"
@@ -13,12 +12,8 @@ import (
 	"github.com/soypat/gsdf/gsdfaux"
 )
 
-const visualization = "nptflange.glsl"
+const visualization = "nptflange.wgsl"
 const stl = "nptflange.stl"
-
-func init() {
-	runtime.LockOSThread() // For when using GPU this is required.
-}
 
 func scene(bld *gsdf.Builder) (glbuild.Shader3D, error) {
 	const (

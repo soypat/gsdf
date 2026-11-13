@@ -22,11 +22,11 @@ func TestShaderNameDeduplication(t *testing.T) {
 	if s1Name != s2Name {
 		t.Error("expected same name, got\n", s1Name, "\n", s2Name)
 	}
-	decl := "float " + s1Name + "(vec3 p)"
+	decl := "fn " + s1Name + "(p_in: vec3f)"
 	for _, obj := range []glbuild.Shader3D{s1s1, s1s2} {
 		programmer := glbuild.NewDefaultProgrammer()
 		source := new(bytes.Buffer)
-		n, _, err := programmer.WriteShaderToyVisualizerSDF3(source, obj)
+		n, _, err := programmer.WriteVisualizerSDF3(source, obj)
 		if n != source.Len() {
 			t.Fatal("written length mismatch", err)
 		}

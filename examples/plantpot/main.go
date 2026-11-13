@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"log"
 
-	"runtime"
-
 	"os"
 
 	math "github.com/chewxy/math32"
@@ -20,14 +18,10 @@ import (
 const (
 	exampleName     = "plantpot"
 	stl             = exampleName + ".stl"
-	visualization   = exampleName + ".glsl"
+	visualization   = exampleName + ".wgsl"
 	visualization2D = exampleName + ".png"
 	potBaseRadius   = 40.
 )
-
-func init() {
-	runtime.LockOSThread() // In case we wish to use OpenGL.
-}
 
 // scenePotBase returns the plant pot base object.
 func scenePotBase(bld *gsdf.Builder) (glbuild.Shader3D, error) {

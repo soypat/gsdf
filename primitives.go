@@ -4,7 +4,7 @@ import (
 	"github.com/chewxy/math32"
 	"github.com/soypat/geometry/ms3"
 	"github.com/soypat/gsdf/glbuild"
-	"github.com/soypat/gsdf/glbuild/glsllib"
+	"github.com/soypat/gsdf/glbuild/wgsllib"
 )
 
 // NewBoundsBoxFrame creates a BoxFrame from a bb ([ms3.Box]) such that the BoxFrame envelops the bb.
@@ -95,7 +95,7 @@ func (s *box) AppendShaderBody(b []byte) []byte {
 }
 
 func (u *box) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
-	return append(objects, glsllib.Box3D())
+	return append(objects, wgsllib.Box3D())
 }
 
 func (s *box) Bounds() ms3.Box {
@@ -149,7 +149,7 @@ func (c *cylinder) args() (r, h, round float32) {
 }
 
 func (u *cylinder) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
-	return append(objects, glsllib.Cylinder3D())
+	return append(objects, wgsllib.Cylinder3D())
 }
 
 // NewHexagonalPrism creates a hexagonal prism given a face-to-face dimension and height.
@@ -190,7 +190,7 @@ func (s *hex) AppendShaderBody(b []byte) []byte {
 }
 
 func (u *hex) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
-	return append(objects, glsllib.Hexagon3D())
+	return append(objects, wgsllib.Hexagon3D())
 }
 
 // NewTriangularPrism creates a 3D triangular prism with a given triangle cross-sectional height (2D)
@@ -247,7 +247,7 @@ func (s *torus) Bounds() ms3.Box {
 }
 
 func (u *torus) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
-	return append(objects, glsllib.Torus3D())
+	return append(objects, wgsllib.Torus3D())
 }
 
 // NewBoxFrame creates a framed box with the frame being composed of square beams of thickness e.
@@ -297,5 +297,5 @@ func (bf *boxframe) args() (e float32, b ms3.Vec) {
 }
 
 func (u *boxframe) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
-	return append(objects, glsllib.BoxFrame3D())
+	return append(objects, wgsllib.BoxFrame3D())
 }

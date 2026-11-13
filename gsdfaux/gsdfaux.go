@@ -2,7 +2,6 @@ package gsdfaux
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"fmt"
 	"image"
@@ -15,11 +14,11 @@ import (
 	"time"
 
 	math "github.com/chewxy/math32"
-	"github.com/soypat/glgl/v4.1-core/glgl"
 	"github.com/soypat/gsdf"
 	"github.com/soypat/gsdf/glbuild"
 	"github.com/soypat/gsdf/gleval"
 	"github.com/soypat/gsdf/glrender"
+	"github.com/soypat/gsdf/gpusdf"
 )
 
 type RenderConfig struct {
@@ -46,16 +45,12 @@ const (
 	renderWithFlatMC            // flat renderer with marching cubes
 )
 
-type UIConfig struct {
-	Width, Height int
-	Context       context.Context
-}
+// UIConfig configures the interactive visualizer. See [gpusdf.UIConfig].
+type UIConfig = gpusdf.UIConfig
 
+// UI opens an interactive visualizer that renders s on the GPU. See [gpusdf.UI].
 func UI(s glbuild.Shader3D, cfg UIConfig) error {
-	if s == nil {
-		return errors.New("nil shader")
-	}
-	return ui(s, cfg)
+	return gpusdf.UI(s, cfg)
 }
 
 // RenderShader3D is an auxiliary function to aid users in getting setup in using gsdf quickly.
@@ -92,41 +87,43 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 	fromStart := stopwatch()
 	if cfg.UseGPU {
 		log(0, "using GPU\tᵍᵒᵗᵗᵃ ᵍᵒ ᶠᵃˢᵗ")
-		{
-			terminate, err := gleval.Init1x1GLFW()
-			if err != nil {
-				return err
-			}
-			defer terminate()
+		var dev gpusdf.Device
+		err = dev.Configure(gpusdf.DeviceConfig{PowerPreference: gpusdf.PowerPreferenceHighPerformance})
+		if err != nil {
+			return err
 		}
-		// We set the size of our buffer based on the limitations of
-		// GPU hardware. GPUs have compute work groups which run invocations(warps/threads).
-		// Workers run in parallel, which in turn run the invocations within their work group in parallel.
-		// Typically the number of parallel work groups run in parallel runs between 20 and 64 on modern GPUs.
-		// OpenGL does not expose an API to calculate this number so we take a best guess.
-		// 32 was the optimal guess for a AMD ATI Radeon RX 6800, with 1024 invocations, resulting in 32678 size of buffer (32*32*32).
-		const guessedNumberOfParallelWorkers = 32
-
-		source := new(bytes.Buffer)
-		prog := glbuild.NewDefaultProgrammer()
-		invoc := glgl.MaxComputeInvocations()
-		bufferEvalSize = invoc * guessedNumberOfParallelWorkers
+		defer dev.Release()
+		// Workgroups of 64 invocations performed marginally better than larger workgroups on an AMD RX 6800 and are well supported.
+		invoc := min(64, dev.MaxWorkgroupSize())
 		if invoc < 1 {
 			return errors.New("zero or negative GPU invocation size")
 		}
+		// Evaluation buffer size. Octree rendering performance is bound by the number of GPU dispatches,
+		// which is not reduced by larger buffers. Larger buffers slow down the octree renderer.
+		bufferEvalSize = 32768
+		source := new(bytes.Buffer)
+		prog := glbuild.NewDefaultProgrammer()
 		prog.SetComputeInvocations(invoc, 1, 1)
 
-		log(fromStart(), "init GL with compute invocation size ", invoc)
+		log(fromStart(), "init GPU", dev.AdapterInfo(), "with compute invocation size", invoc)
 		watch := stopwatch()
 		var objects []glbuild.ShaderObject
 		_, objects, err = prog.WriteComputeSDF3(source, s)
 		if err != nil {
 			return err
 		}
-		sdf, err = gleval.NewComputeGPUSDF3(source, bb, gleval.ComputeConfig{
-			InvocX:        invoc,
+		gpu := new(gpusdf.SDF3)
+		err = gpu.Configure(&dev, bb, gpusdf.ComputeConfig{
+			Source:        source.Bytes(),
+			WorkgroupSize: invoc,
+			MaxBatch:      bufferEvalSize,
 			ShaderObjects: objects,
 		})
+		if err != nil {
+			return err
+		}
+		defer gpu.Release()
+		sdf = gpu
 		log(watch(), "GPU shader generated and compiled")
 	} else {
 		log(0, "using CPU")
@@ -142,6 +139,7 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 	if err != nil || sdf == nil {
 		return fmt.Errorf("instantiating SDF: %s", err)
 	}
+	// Caching is only enabled for GPU since BlockCachedSDF3 is not safe for concurrent use by the parallel CPU renderer.
 	if cfg.EnableCaching && cfg.UseGPU {
 		var cache gleval.BlockCachedSDF3
 		cacheRes := cfg.Resolution / 2
@@ -187,16 +185,16 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 		visual = bld.Translate(visual, center.X, center.Y, center.Z-sz.Z)
 		visual = bld.Scale(visual, sceneSize/bb.Diagonal())
 		var objects []glbuild.ShaderObject
-		_, objects, err = glbuild.NewDefaultProgrammer().WriteShaderToyVisualizerSDF3(cfg.VisualOutput, visual)
+		_, objects, err = glbuild.NewDefaultProgrammer().WriteVisualizerSDF3(cfg.VisualOutput, visual)
 		if err != nil {
-			return fmt.Errorf("writing visual GLSL: %s", err)
+			return fmt.Errorf("writing visual WGSL: %s", err)
 		}
 		for i := range objects {
 			if objects[i].IsBindable() {
-				return fmt.Errorf("bindable objects unsupported for visual glsl shader generation: %v", objects[i])
+				return fmt.Errorf("bindable objects unsupported for visual WGSL shader generation: %v", objects[i])
 			}
 		}
-		filename := "GLSL visualization"
+		filename := "WGSL visualization"
 		if fp, ok := cfg.VisualOutput.(*os.File); ok {
 			filename = fp.Name()
 		}
@@ -295,16 +293,17 @@ func RenderPNGFile(filename string, sdf gleval.SDF2, picHeight int, colorConvers
 	return nil
 }
 
-func MakeGPUSDF2(s glbuild.Shader2D) (sdf gleval.SDF2, err error) {
+// MakeGPUSDF2 generates the compute program of s and configures a GPU SDF2 evaluator on dev with it.
+func MakeGPUSDF2(dev *gpusdf.Device, s glbuild.Shader2D) (sdf *gpusdf.SDF2, err error) {
 	var n int
 	var buf bytes.Buffer
 	err = glbuild.ShortenNames2D(&s, 8)
 	if err != nil {
 		return nil, err
 	}
-	invoc := glgl.MaxComputeInvocations()
+	invoc := min(64, dev.MaxWorkgroupSize())
 	if invoc < 1 {
-		return nil, errors.New("zero or negative GPU invocation size")
+		return nil, errors.New("zero or negative GPU invocation size, is the device configured?")
 	}
 	prog := glbuild.NewDefaultProgrammer()
 	prog.SetComputeInvocations(invoc, 1, 1)
@@ -317,8 +316,14 @@ func MakeGPUSDF2(s glbuild.Shader2D) (sdf gleval.SDF2, err error) {
 		return nil, fmt.Errorf("wrote %d bytes but WriteComputeSDF2 counted %d", buf.Len(), n)
 	}
 
-	return gleval.NewComputeGPUSDF2(&buf, s.Bounds(), gleval.ComputeConfig{
-		InvocX:        invoc,
+	sdf = new(gpusdf.SDF2)
+	err = sdf.Configure(dev, s.Bounds(), gpusdf.ComputeConfig{
+		Source:        buf.Bytes(),
+		WorkgroupSize: invoc,
 		ShaderObjects: objects,
 	})
+	if err != nil {
+		return nil, err
+	}
+	return sdf, nil
 }

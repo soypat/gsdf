@@ -8,7 +8,7 @@ import (
 	"github.com/soypat/geometry/ms2"
 	"github.com/soypat/geometry/ms3"
 	"github.com/soypat/gsdf/glbuild"
-	"github.com/soypat/gsdf/glbuild/glsllib"
+	"github.com/soypat/gsdf/glbuild/wgsllib"
 )
 
 // OpUnion2D is the result of [Union2D]. This type is exported for special reasons, see [OpUnion] documentation.
@@ -29,7 +29,7 @@ func (*Builder) Union2D(shaders ...glbuild.Shader2D) glbuild.Shader2D {
 		}
 		if subU, ok := s.(*OpUnion2D); ok {
 			// Discard nested union elements and join their elements.
-			// Results in much smaller and readable GLSL code.
+			// Results in much smaller and readable WGSL code.
 			U.joined = append(U.joined, subU.joined...)
 		} else {
 			U.joined = append(U.joined, s)
@@ -144,8 +144,8 @@ func (e *extrusion) AppendShaderName(b []byte) []byte {
 func (e *extrusion) AppendShaderBody(b []byte) []byte {
 	b = glbuild.AppendFloatDecl(b, "h", e.h/2)
 	b = glbuild.AppendDistanceDecl(b, "d", "p.xy", e.s)
-	b = append(b, `vec2 w = vec2( d, abs(p.z) - h );
-return min(max(w.x,w.y),0.0) + length(max(w,0.0));`...)
+	b = append(b, `var w = vec2f( d, abs(p.z) - h );
+return min(max(w.x,w.y),0.0) + length(max(w,vec2f(0.0)));`...)
 	return b
 }
 
@@ -192,7 +192,7 @@ func (r *revolution) AppendShaderName(b []byte) []byte {
 
 func (r *revolution) AppendShaderBody(b []byte) []byte {
 	b = glbuild.AppendFloatDecl(b, "w", r.off)
-	b = append(b, "vec2 q = vec2( length(p.xz) - w, p.y );\n"...)
+	b = append(b, "var q = vec2f( length(p.xz) - w, p.y );\n"...)
 	b = glbuild.AppendDistanceDecl(b, "d", "q", r.s2d)
 	b = append(b, "return d;"...)
 	return b
@@ -380,21 +380,20 @@ func (s *array2D) AppendShaderBody(b []byte) []byte {
 	// s is scaling factors in 3 directions.
 	// rid is the neighboring tile index, which is then corrected for limited repetition using clamp.
 	b = fmt.Appendf(b, `
-vec2 s = vec2(%f,%f);
-vec2 n = vec2(%d.,%d.);
-vec2 minlim = vec2(0.,0.);
-vec2 id = round(p/s);
-vec2 o = sign(p-s*id);
-float d = %f;
-for( int j=0; j<2; j++ )
-for( int i=0; i<2; i++ )
-{
-	vec2 rid = id + vec2(i,j)*o;
+var s = vec2f(%f,%f);
+var n = vec2f(%d.,%d.);
+var minlim = vec2f(0.,0.);
+var id = sign(p/s)*floor(abs(p/s)+0.5); // Round half away from zero.
+var o = sign(p-s*id);
+var d: f32 = %f;
+for (var j=0; j<2; j++) {
+for (var i=0; i<2; i++) {
+	var rid = id + vec2f(f32(i),f32(j))*o;
 	// limited repetition
 	rid = clamp(rid, minlim, n);
-	vec2 r = p - s*rid;
+	var r = p - s*rid;
 	d = min( d, %s(r) );
-}
+}}
 return d;`, s.d.X, s.d.Y,
 		s.nx-1, s.ny-1,
 		largenum, sdf)
@@ -588,11 +587,8 @@ func (s *symmetry2D) AppendShaderName(b []byte) []byte {
 }
 
 func (s *symmetry2D) AppendShaderBody(b []byte) []byte {
-	b = append(b, "p."...)
-	b = s.xy.AppendMapped_xyz(b)
-	b = append(b, "=abs(p."...)
-	b = s.xy.AppendMapped_xyz(b)
-	b = append(b, ");\n return "...)
+	b = appendSymmetryAbs(b, s.xy)
+	b = append(b, "return "...)
 	b = s.s.AppendShaderName(b)
 	b = append(b, "(p);"...)
 	return b
@@ -704,7 +700,7 @@ func (ca *circarray2D) AppendShaderBody(b []byte) []byte {
 	b = glbuild.AppendFloatDecl(b, "ncirc", float32(ca.circleDiv))
 	b = glbuild.AppendFloatDecl(b, "angle", angle)
 	b = glbuild.AppendFloatDecl(b, "ninsm1", float32(ca.nInst-1))
-	b = append(b, `vec4 p0p1 = gsdfPartialCircArray2D(p,ncirc,angle,ninsm1);`...)
+	b = append(b, "var p0p1 = gsdfPartialCircArray2D(p,ncirc,angle,ninsm1);\n"...)
 	b = glbuild.AppendDistanceDecl(b, "d0", "p0p1.xy", ca.s)
 	b = glbuild.AppendDistanceDecl(b, "d1", "p0p1.zw", ca.s)
 	b = append(b, "return min(d0, d1);"...)
@@ -712,7 +708,7 @@ func (ca *circarray2D) AppendShaderBody(b []byte) []byte {
 }
 
 func (u *circarray2D) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
-	return append(objects, glsllib.PartialCircArray2D())
+	return append(objects, wgsllib.PartialCircArray2D())
 }
 
 // ScaleXY scales s by scaleFactor around the origin.
@@ -790,18 +786,13 @@ func (tm *translateMulti2D) AppendShaderName(b []byte) []byte {
 }
 
 func (tm *translateMulti2D) AppendShaderBody(b []byte) []byte {
-	b = glbuild.AppendDefineDecl(b, "v", string(tm.bufname))
-	b = fmt.Appendf(b,
-		`const int num = v.length();
-	float d = 1.0e23;
-	for( int i=0; i<num; i++ )
-	{
-		vec2 pt = p - v[i];
-		d = min(d, %s(pt));
-	}
-	return d;
-`, tm.s.AppendShaderName(nil))
-	b = glbuild.AppendUndefineDecl(b, "v")
+	b = append(b, "let num = "...)
+	b = glbuild.AppendObjectLen(b, tm.bufname)
+	b = append(b, ";\nvar d = 1.0e23;\nfor (var i=0; i<num; i++) {\n\tlet pt = p - "...)
+	b = glbuild.AppendObjectAt(b, tm.bufname, "i")
+	b = append(b, ";\n\td = min(d, "...)
+	b = tm.s.AppendShaderName(b)
+	b = append(b, "(pt));\n}\nreturn d;"...)
 	return b
 }
 
@@ -851,8 +842,8 @@ func (s *elongate2D) AppendShaderName(b []byte) []byte {
 
 func (s *elongate2D) AppendShaderBody(b []byte) []byte {
 	b = glbuild.AppendVec2Decl(b, "h", ms2.Scale(0.5, s.h))
-	b = append(b, "vec2 q=abs(p)-h;"...)
-	b = glbuild.AppendDistanceDecl(b, "d", "max(q,0.)", s.s)
+	b = append(b, "var q=abs(p)-h;\n"...)
+	b = glbuild.AppendDistanceDecl(b, "d", "max(q,vec2f(0.))", s.s)
 	b = append(b, "return d+min(max(q.x,q.y),0.);"...)
 	return b
 }

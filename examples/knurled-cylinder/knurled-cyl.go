@@ -14,7 +14,7 @@ import (
 	"github.com/soypat/gsdf/gsdfaux"
 )
 
-func init() { runtime.LockOSThread() } // Required if using GPU to render shapes or using UI.
+func init() { runtime.LockOSThread() } // UI window (GLFW) must run on main thread on some operating systems (macOS).
 
 const defaultName = "knurled-cyl" // See [Flags.Name]
 
