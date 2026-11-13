@@ -9,7 +9,7 @@ import (
 	"unsafe"
 
 	"github.com/oliverbestmann/webgpu/wgpu"
-	"github.com/soypat/gsdf/glbuild"
+	"github.com/soypat/gsdf/gpusdf/glbuild"
 )
 
 // viewer renders a raymarched SDF to a surface.

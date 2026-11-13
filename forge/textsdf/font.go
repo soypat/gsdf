@@ -7,7 +7,7 @@ import (
 
 	"github.com/soypat/geometry/ms2"
 	"github.com/soypat/gsdf"
-	"github.com/soypat/gsdf/glbuild"
+	"github.com/soypat/gsdf/gpusdf/glbuild"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/sfnt"
 	"golang.org/x/image/math/fixed"

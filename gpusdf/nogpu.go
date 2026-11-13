@@ -2,7 +2,7 @@
 
 package gpusdf
 
-import "github.com/soypat/gsdf/glbuild"
+import "github.com/soypat/gsdf/gpusdf/glbuild"
 
 type deviceState struct{}
 

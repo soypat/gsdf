@@ -29,7 +29,7 @@ All images and shapes in readme were generated using this library.
 
 - **NEW!**: GPU evaluation via WebGPU. Runs on macOS, Linux, Windows and in the browser. See [`gpusdf`](./gpusdf) and the [WASM viewer example](./examples/wasm-viewer).
 
-- Reusable WGSL code between shaders. See [`glbuild/wgsllib`](glbuild/wgsllib)
+- Reusable WGSL code between shaders. See [`gpusdf/glbuild/wgsllib`](gpusdf/glbuild/wgsllib)
 
 - Extremely coherent API design.
 
@@ -39,7 +39,7 @@ All images and shapes in readme were generated using this library.
 
 - GPU and CPU implementations for all shapes and operations. CPU implementations are actually faster for simple parts.
 
-- Include arbitrary buffers into GPU calculation. See [`Shader` interface](./glbuild/glbuild.go).
+- Include arbitrary buffers into GPU calculation. See [`Shader` interface](./gpusdf/glbuild/glbuild.go).
 
 - Heapless algorithms for everything. No usage of GC in happy path.
 
@@ -51,7 +51,7 @@ All images and shapes in readme were generated using this library.
 ## Package layout/structure
 
 - `gsdf`: Top level package defines exact SDFs primitives and operations for use on CPU or GPU workloads. Consumes `glbuild` interfaces and logic to build shaders.
-- `glbuild`: Automatic WGSL shader generation interfaces and logic.
+- `gpusdf/glbuild`: Shape interfaces and automatic WGSL shader generation. Does not depend on WebGPU, importing it does not import `gpusdf`.
 - `gleval`: SDF evaluation interfaces and CPU evaluation facilities.
 - `gpusdf`: GPU evaluation of SDFs and the interactive UI using WebGPU. Compiles on all targets; functions return an error where no GPU support is available.
 - `glrender`: Triangle rendering logic which consumes gleval. STL generation.
@@ -80,7 +80,8 @@ python3 -m http.server -d examples/wasm-viewer 8080
 
 ### Migrating from OpenGL
 gsdf previously used OpenGL 4.3 compute shaders. GPU evaluation now uses WebGPU:
-- Shaders are generated in WGSL. Custom [`glbuild.Shader`](./glbuild/glbuild.go) implementations must emit WGSL in `AppendShaderBody`.
+- `glbuild` moved to `github.com/soypat/gsdf/gpusdf/glbuild` (and `glsllib` to `gpusdf/glbuild/wgsllib`). Update imports, the package name is unchanged.
+- Shaders are generated in WGSL. `Shader.AppendShaderBody` was renamed to `AppendWGSLBody` so custom [`glbuild.Shader`](./gpusdf/glbuild/glbuild.go) implementations fail to compile until ported from GLSL to WGSL.
 - `gleval.NewComputeGPUSDF3/2`, `gleval.Init1x1GLFW`, `PolygonGPU`, `Lines2DGPU`, `DisplaceMulti2D` and `Batcher` moved to `gpusdf` (`gpusdf.SDF3`, `gpusdf.Device`, `gpusdf.Polygon`, ...).
 - `gsdfaux.MakeGPUSDF2` receives a `*gpusdf.Device`.
 - `runtime.LockOSThread` is no longer required for GPU evaluation. It is still required for the UI on macOS.

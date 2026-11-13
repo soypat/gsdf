@@ -5,7 +5,7 @@ import (
 
 	"github.com/soypat/geometry/ms2"
 	"github.com/soypat/gsdf"
-	"github.com/soypat/gsdf/glbuild"
+	"github.com/soypat/gsdf/gpusdf/glbuild"
 )
 
 // BoltParams defines the parameters for a bolt.

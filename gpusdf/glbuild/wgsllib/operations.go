@@ -3,7 +3,7 @@ package wgsllib
 import (
 	_ "embed"
 
-	"github.com/soypat/gsdf/glbuild"
+	"github.com/soypat/gsdf/gpusdf/glbuild"
 )
 
 //go:embed circarray2D.wgsl

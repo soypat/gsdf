@@ -8,7 +8,7 @@ import (
 
 	"github.com/go-gl/glfw/v3.4/glfw"
 	"github.com/oliverbestmann/webgpu/wgpuglfw"
-	"github.com/soypat/gsdf/glbuild"
+	"github.com/soypat/gsdf/gpusdf/glbuild"
 )
 
 func ui(s glbuild.Shader3D, cfg UIConfig) error {
