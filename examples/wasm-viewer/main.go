@@ -10,14 +10,14 @@ import (
 
 	"github.com/soypat/geometry/ms3"
 	"github.com/soypat/gsdf"
-	"github.com/soypat/gsdf/glbuild"
 	"github.com/soypat/gsdf/gleval"
 	"github.com/soypat/gsdf/gpusdf"
+	"github.com/soypat/gsdf/gpusdf/glbuild"
 	"github.com/soypat/gsdf/gsdfaux"
 )
 
 func init() {
-	runtime.LockOSThread() // UI window (GLFW) must run on main thread on some operating systems (macOS).
+	runtime.LockOSThread() // UI window (GLFW) must run on main thread on some operating systems (macOS, linux).
 }
 
 func scene(bld *gsdf.Builder) glbuild.Shader3D {

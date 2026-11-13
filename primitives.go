@@ -3,8 +3,8 @@ package gsdf
 import (
 	"github.com/chewxy/math32"
 	"github.com/soypat/geometry/ms3"
-	"github.com/soypat/gsdf/glbuild"
-	"github.com/soypat/gsdf/glbuild/wgsllib"
+	"github.com/soypat/gsdf/gpusdf/glbuild"
+	"github.com/soypat/gsdf/gpusdf/glbuild/wgsllib"
 )
 
 // NewBoundsBoxFrame creates a BoxFrame from a bb ([ms3.Box]) such that the BoxFrame envelops the bb.
@@ -43,7 +43,7 @@ func (s *sphere) AppendShaderName(b []byte) []byte {
 	return b
 }
 
-func (s *sphere) AppendShaderBody(b []byte) []byte {
+func (s *sphere) AppendWGSLBody(b []byte) []byte {
 	b = append(b, "return length(p)-"...)
 	b = glbuild.AppendFloat(b, '-', '.', s.r)
 	b = append(b, ';')
@@ -89,7 +89,7 @@ func (s *box) AppendShaderName(b []byte) []byte {
 	return b
 }
 
-func (s *box) AppendShaderBody(b []byte) []byte {
+func (s *box) AppendWGSLBody(b []byte) []byte {
 	v := ms3.Scale(0.5, s.dims)
 	return appendTypicalReturnFuncCall(b, "gsdfBox3D", "p", v.X, v.Y, v.Z, s.round)
 }
@@ -139,7 +139,7 @@ func (s *cylinder) AppendShaderName(b []byte) []byte {
 	return b
 }
 
-func (s *cylinder) AppendShaderBody(b []byte) []byte {
+func (s *cylinder) AppendWGSLBody(b []byte) []byte {
 	r, h, round := s.args()
 	return appendTypicalReturnFuncCall(b, "gsdfCylinder3D", "p", r, h, round)
 }
@@ -185,7 +185,7 @@ func (s *hex) AppendShaderName(b []byte) []byte {
 	return b
 }
 
-func (s *hex) AppendShaderBody(b []byte) []byte {
+func (s *hex) AppendWGSLBody(b []byte) []byte {
 	return appendTypicalReturnFuncCall(b, "gsdfHexagon3D", "p", s.side, s.h)
 }
 
@@ -234,7 +234,7 @@ func (s *torus) AppendShaderName(b []byte) []byte {
 	return b
 }
 
-func (s *torus) AppendShaderBody(b []byte) []byte {
+func (s *torus) AppendWGSLBody(b []byte) []byte {
 	return appendTypicalReturnFuncCall(b, "gsdfTorus3D", "p.xzy", s.rGreater, s.rLesser)
 }
 
@@ -280,7 +280,7 @@ func (bf *boxframe) AppendShaderName(b []byte) []byte {
 	return b
 }
 
-func (bf *boxframe) AppendShaderBody(b []byte) []byte {
+func (bf *boxframe) AppendWGSLBody(b []byte) []byte {
 	e, bb := bf.args()
 	return appendTypicalReturnFuncCall(b, "gsdfBoxFrame3D", "p", bb.X, bb.Y, bb.Z, e)
 }

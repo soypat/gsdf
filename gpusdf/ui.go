@@ -5,7 +5,7 @@ import (
 	"errors"
 	"math"
 
-	"github.com/soypat/gsdf/glbuild"
+	"github.com/soypat/gsdf/gpusdf/glbuild"
 )
 
 // UIConfig configures the interactive 3D shape visualizer. See [UI].

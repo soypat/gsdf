@@ -4,7 +4,7 @@ import (
 	"errors"
 
 	"github.com/soypat/gsdf"
-	"github.com/soypat/gsdf/glbuild"
+	"github.com/soypat/gsdf/gpusdf/glbuild"
 )
 
 type NutStyle int

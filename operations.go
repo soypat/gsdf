@@ -7,8 +7,8 @@ import (
 	"github.com/chewxy/math32"
 	"github.com/soypat/geometry/ms2"
 	"github.com/soypat/geometry/ms3"
-	"github.com/soypat/gsdf/glbuild"
-	"github.com/soypat/gsdf/glbuild/wgsllib"
+	"github.com/soypat/gsdf/gpusdf/glbuild"
+	"github.com/soypat/gsdf/gpusdf/glbuild/wgsllib"
 )
 
 // OpUnion is the result of the [Union] operation. Prefer using [Union] to using this type directly.
@@ -88,8 +88,8 @@ func (u *OpUnion) AppendShaderName(b []byte) []byte {
 	return b
 }
 
-// AppendShaderBody implements [glbuild.Shader].
-func (u *OpUnion) AppendShaderBody(b []byte) []byte {
+// AppendWGSLBody implements [glbuild.Shader].
+func (u *OpUnion) AppendWGSLBody(b []byte) []byte {
 	u.mustValidate()
 	b = glbuild.AppendDistanceDecl(b, "d", "p", u.joined[0])
 	for i := range u.joined[1:] {
@@ -145,7 +145,7 @@ func (s *diff) AppendShaderName(b []byte) []byte {
 	return b
 }
 
-func (s *diff) AppendShaderBody(b []byte) []byte {
+func (s *diff) AppendWGSLBody(b []byte) []byte {
 	b = glbuild.AppendDistanceDecl(b, "a", "p", s.s1)
 	b = glbuild.AppendDistanceDecl(b, "b", "p", s.s2)
 	b = append(b, "return max(a,-b);"...)
@@ -188,7 +188,7 @@ func (s *intersect) AppendShaderName(b []byte) []byte {
 	return b
 }
 
-func (s *intersect) AppendShaderBody(b []byte) []byte {
+func (s *intersect) AppendWGSLBody(b []byte) []byte {
 	b = append(b, "return max("...)
 	b = s.s1.AppendShaderName(b)
 	b = append(b, "(p),"...)
@@ -233,7 +233,7 @@ func (s *xor) AppendShaderName(b []byte) []byte {
 	return b
 }
 
-func (s *xor) AppendShaderBody(b []byte) []byte {
+func (s *xor) AppendWGSLBody(b []byte) []byte {
 	b = glbuild.AppendDistanceDecl(b, "d1", "(p)", s.s1)
 	b = glbuild.AppendDistanceDecl(b, "d2", "(p)", s.s2)
 	b = append(b, "return max(min(d1,d2),-max(d1,d2));"...)
@@ -269,7 +269,7 @@ func (s *scale) AppendShaderName(b []byte) []byte {
 	return b
 }
 
-func (s *scale) AppendShaderBody(b []byte) []byte {
+func (s *scale) AppendWGSLBody(b []byte) []byte {
 	b = glbuild.AppendFloatDecl(b, "s", s.scale)
 	b = append(b, "return "...)
 	b = s.s.AppendShaderName(b)
@@ -320,7 +320,7 @@ func (s *symmetry) AppendShaderName(b []byte) []byte {
 	return b
 }
 
-func (s *symmetry) AppendShaderBody(b []byte) []byte {
+func (s *symmetry) AppendWGSLBody(b []byte) []byte {
 	b = appendSymmetryAbs(b, s.xyz)
 	b = append(b, "return "...)
 	b = s.s.AppendShaderName(b)
@@ -375,7 +375,7 @@ func (t *transform) AppendShaderName(b []byte) []byte {
 	return b
 }
 
-func (t *transform) AppendShaderBody(b []byte) []byte {
+func (t *transform) AppendWGSLBody(b []byte) []byte {
 	b = glbuild.AppendMat4Decl(b, "invT", t.tInv)
 	b = append(b, "return "...)
 	b = t.s.AppendShaderName(b)
@@ -423,7 +423,7 @@ func (s *translate) AppendShaderName(b []byte) []byte {
 	return b
 }
 
-func (s *translate) AppendShaderBody(b []byte) []byte {
+func (s *translate) AppendWGSLBody(b []byte) []byte {
 	b = glbuild.AppendVec3Decl(b, "t", s.p)
 	b = append(b, "return "...)
 	b = s.s.AppendShaderName(b)
@@ -468,7 +468,7 @@ func (s *offset) AppendShaderName(b []byte) []byte {
 	return b
 }
 
-func (s *offset) AppendShaderBody(b []byte) []byte {
+func (s *offset) AppendWGSLBody(b []byte) []byte {
 	b = append(b, "return "...)
 	b = s.s.AppendShaderName(b)
 	b = append(b, "(p)+("...)
@@ -523,7 +523,7 @@ func (s *array) AppendShaderName(b []byte) []byte {
 
 func (s *array) nvec3() ms3.Vec { return ms3.Vec{X: float32(s.nx), Y: float32(s.ny), Z: float32(s.nz)} }
 
-func (s *array) AppendShaderBody(b []byte) []byte {
+func (s *array) AppendWGSLBody(b []byte) []byte {
 	sdf := string(s.s.AppendShaderName(nil))
 	// id is the tile index in 3 directions.
 	// o is neighbor offset direction (which neighboring tile is closest in 3 directions)
@@ -590,7 +590,7 @@ func (s *smoothUnion) AppendShaderName(b []byte) []byte {
 	return b
 }
 
-func (s *smoothUnion) AppendShaderBody(b []byte) []byte {
+func (s *smoothUnion) AppendWGSLBody(b []byte) []byte {
 	b = glbuild.AppendDistanceDecl(b, "d1", "p", s.s1)
 	b = glbuild.AppendDistanceDecl(b, "d2", "p", s.s2)
 	b = glbuild.AppendFloatDecl(b, "k", s.k)
@@ -626,7 +626,7 @@ func (s *smoothDiff) AppendShaderName(b []byte) []byte {
 	return b
 }
 
-func (s *smoothDiff) AppendShaderBody(b []byte) []byte {
+func (s *smoothDiff) AppendWGSLBody(b []byte) []byte {
 	b = glbuild.AppendDistanceDecl(b, "d1", "p", s.s1)
 	b = glbuild.AppendDistanceDecl(b, "d2", "p", s.s2)
 	b = glbuild.AppendFloatDecl(b, "k", s.k)
@@ -658,7 +658,7 @@ func (s *smoothIntersect) AppendShaderName(b []byte) []byte {
 	return b
 }
 
-func (s *smoothIntersect) AppendShaderBody(b []byte) []byte {
+func (s *smoothIntersect) AppendWGSLBody(b []byte) []byte {
 	b = glbuild.AppendDistanceDecl(b, "d1", "p", s.s1)
 	b = glbuild.AppendDistanceDecl(b, "d2", "p", s.s2)
 	b = glbuild.AppendFloatDecl(b, "k", s.k)
@@ -703,7 +703,7 @@ func (s *elongate) AppendShaderName(b []byte) []byte {
 	return b
 }
 
-func (s *elongate) AppendShaderBody(b []byte) []byte {
+func (s *elongate) AppendWGSLBody(b []byte) []byte {
 	b = glbuild.AppendVec3Decl(b, "h", ms3.Scale(0.5, s.h))
 	b = append(b, "var q=abs(p)-h;\n"...)
 	b = glbuild.AppendDistanceDecl(b, "d", "max(q,vec3f(0.))", s.s)
@@ -742,7 +742,7 @@ func (s *shell) AppendShaderName(b []byte) []byte {
 	return b
 }
 
-func (s *shell) AppendShaderBody(b []byte) []byte {
+func (s *shell) AppendWGSLBody(b []byte) []byte {
 	b = glbuild.AppendFloatDecl(b, "t", s.thick)
 	b = append(b, "return t*(abs("...)
 	b = s.s.AppendShaderName(b)
@@ -810,7 +810,7 @@ func (ca *circarray) AppendShaderName(b []byte) []byte {
 	return b
 }
 
-func (ca *circarray) AppendShaderBody(b []byte) []byte {
+func (ca *circarray) AppendWGSLBody(b []byte) []byte {
 	angle := 2 * math32.Pi / float32(ca.circleDiv)
 	b = glbuild.AppendFloatDecl(b, "ncirc", float32(ca.circleDiv))
 	b = glbuild.AppendFloatDecl(b, "angle", angle)
@@ -871,7 +871,7 @@ func (t *twist) AppendShaderName(b []byte) []byte {
 	return b
 }
 
-func (t *twist) AppendShaderBody(b []byte) []byte {
+func (t *twist) AppendWGSLBody(b []byte) []byte {
 	b = glbuild.AppendFloatDecl(b, "k", t.k)
 	b = append(b, `var c=cos(k*p.z);
 var s=sin(k*p.z);

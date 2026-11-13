@@ -19,10 +19,10 @@ import (
 	"github.com/soypat/geometry/ms3"
 	"github.com/soypat/gsdf"
 	"github.com/soypat/gsdf/forge/threads"
-	"github.com/soypat/gsdf/glbuild"
 	"github.com/soypat/gsdf/gleval"
 	"github.com/soypat/gsdf/glrender"
 	"github.com/soypat/gsdf/gpusdf"
+	"github.com/soypat/gsdf/gpusdf/glbuild"
 	"github.com/soypat/gsdf/gsdfaux"
 )
 

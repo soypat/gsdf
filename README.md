@@ -29,7 +29,7 @@ All images and shapes in readme were generated using this library.
 
 - **NEW!**: GPU evaluation via WebGPU. Runs on macOS, Linux, Windows and in the browser. See [`gpusdf`](./gpusdf) and the [WASM viewer example](./examples/wasm-viewer).
 
-- Reusable WGSL code between shaders. See [`glbuild/wgsllib`](glbuild/wgsllib)
+- Reusable WGSL code between shaders. See [`gpusdf/glbuild/wgsllib`](gpusdf/glbuild/wgsllib)
 
 - Extremely coherent API design.
 
@@ -39,7 +39,7 @@ All images and shapes in readme were generated using this library.
 
 - GPU and CPU implementations for all shapes and operations. CPU implementations are actually faster for simple parts.
 
-- Include arbitrary buffers into GPU calculation. See [`Shader` interface](./glbuild/glbuild.go).
+- Include arbitrary buffers into GPU calculation. See [`Shader` interface](./gpusdf/glbuild/glbuild.go).
 
 - Heapless algorithms for everything. No usage of GC in happy path.
 
@@ -51,7 +51,7 @@ All images and shapes in readme were generated using this library.
 ## Package layout/structure
 
 - `gsdf`: Top level package defines exact SDFs primitives and operations for use on CPU or GPU workloads. Consumes `glbuild` interfaces and logic to build shaders.
-- `glbuild`: Automatic WGSL shader generation interfaces and logic.
+- `gpusdf/glbuild`: Shape interfaces and automatic WGSL shader generation. Does not depend on WebGPU, importing it does not import `gpusdf`.
 - `gleval`: SDF evaluation interfaces and CPU evaluation facilities.
 - `gpusdf`: GPU evaluation of SDFs and the interactive UI using WebGPU. Compiles on all targets; functions return an error where no GPU support is available.
 - `glrender`: Triangle rendering logic which consumes gleval. STL generation.
@@ -69,7 +69,7 @@ Most 3D examples output two files:
 - `example-name.stl`: Triangle model file used in 3D printing software such as [Cura](https://ultimaker.com/software/ultimaker-cura/). Can be visualized online in sites such as [View STL](https://www.viewstl.com/).
 
 
-CPU output and timings on 12th Gen Intel i5-12400F (12) @ 4.400GHz. GPU timings on AMD ATI Radeon RX 6800 (Vulkan).
+CPU output and timings on 12th Gen Intel i5-12400F (12) @ 4.400GHz. GPU timings on AMD ATI Radeon RX 6800 (Vulkan). Timings vary with system load.
 
 The [WASM viewer example](./examples/wasm-viewer) runs the same program natively or in the browser, see its `index.html` for instructions:
 ```sh
@@ -80,7 +80,8 @@ python3 -m http.server -d examples/wasm-viewer 8080
 
 ### Migrating from OpenGL
 gsdf previously used OpenGL 4.3 compute shaders. GPU evaluation now uses WebGPU:
-- Shaders are generated in WGSL. Custom [`glbuild.Shader`](./glbuild/glbuild.go) implementations must emit WGSL in `AppendShaderBody`.
+- `glbuild` moved to `github.com/soypat/gsdf/gpusdf/glbuild` (and `glsllib` to `gpusdf/glbuild/wgsllib`). Update imports, the package name is unchanged.
+- Shaders are generated in WGSL. `Shader.AppendShaderBody` was renamed to `AppendWGSLBody` so custom [`glbuild.Shader`](./gpusdf/glbuild/glbuild.go) implementations fail to compile until ported from GLSL to WGSL.
 - `gleval.NewComputeGPUSDF3/2`, `gleval.Init1x1GLFW`, `PolygonGPU`, `Lines2DGPU`, `DisplaceMulti2D` and `Batcher` moved to `gpusdf` (`gpusdf.SDF3`, `gpusdf.Device`, `gpusdf.Polygon`, ...).
 - `gsdfaux.MakeGPUSDF2` receives a `*gpusdf.Device`.
 - `runtime.LockOSThread` is no longer required for GPU evaluation. It is still required for the UI on macOS.
@@ -122,17 +123,17 @@ func main() {
 ## npt-flange
 This was converted from the [original sdf library example](https://github.com/soypat/sdf/blob/main/examples/npt-flange/flange.go).
 
-#### GPU rendering in 2.8 seconds. 0.4M triangles
+#### GPU rendering in 2.3 seconds. 0.4M triangles
 ```sh
 go run ./examples/npt-flange -resdiv 400 -gpu
 [-] using GPU	ᵍᵒᵗᵗᵃ ᵍᵒ ᶠᵃˢᵗ
-[144ms] init GPU radv AMD Radeon RX 6800 (RADV NAVI21) (vulkan, discrete-gpu) with compute invocation size 64
-[14.67ms] GPU shader generated and compiled
-[158ms] instantiating evaluation SDF took
-[223.6µs] wrote nptflange.wgsl
-[2.48s] evaluated SDF 46148745 times and rendered 423852 triangles with 95.7 percent evaluations omitted in octree pruning step with resolution 0.21679485
-[194ms] wrote nptflange.stl
-[2.83s] render done
+[126ms] init GPU radv AMD Radeon RX 6800 (RADV NAVI21) (vulkan, discrete-gpu) with compute invocation size 64
+[9.91ms] GPU shader generated and compiled
+[136ms] instantiating evaluation SDF took
+[104.2µs] wrote nptflange.wgsl
+[1.85s] evaluated SDF 45912059 times and rendered 423852 triangles with 95.72 percent evaluations omitted in octree pruning step with resolution 0.21679485
+[327ms] wrote nptflange.stl
+[2.32s] render done
 finished npt-flange example
 ```
 
@@ -156,17 +157,17 @@ finished npt-flange example
 
 Note that the amount of triangles is very similar to the NPT flange example, but this part is more computationally complex.
 
-#### GPU rendering in 1.3 seconds. 0.3M triangles
+#### GPU rendering in 1.1 seconds. 0.3M triangles
 ```sh
 go run ./examples/fibonacci-showerhead -resdiv 350 -gpu
 [-] using GPU	ᵍᵒᵗᵗᵃ ᵍᵒ ᶠᵃˢᵗ
-[32.7ms] init GPU radv AMD Radeon RX 6800 (RADV NAVI21) (vulkan, discrete-gpu) with compute invocation size 64
-[56.21ms] GPU shader generated and compiled
-[88.93ms] instantiating evaluation SDF took
-[186.3µs] wrote showerhead.wgsl
-[918ms] evaluated SDF 14646431 times and rendered 309872 triangles with 89.08 percent evaluations omitted in octree pruning step with resolution 0.2979682
-[255ms] wrote showerhead.stl
-[1.26s] render done
+[106ms] init GPU radv AMD Radeon RX 6800 (RADV NAVI21) (vulkan, discrete-gpu) with compute invocation size 64
+[30.08ms] GPU shader generated and compiled
+[136ms] instantiating evaluation SDF took
+[1.84ms] wrote showerhead.wgsl
+[739ms] evaluated SDF 14656720 times and rendered 309872 triangles with 89.08 percent evaluations omitted in octree pruning step with resolution 0.2979682
+[230ms] wrote showerhead.stl
+[1.11s] render done
 showerhead example done
 ```
 

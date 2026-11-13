@@ -37,6 +37,9 @@ type Octree struct {
 	posbuf []ms3.Vec
 	// distbuf is set to the calculated distances for posbuf. length==capacity always.
 	distbuf []float32
+	// evaluated is the number of positions at the start of posbuf whose distances are stored in distbuf.
+	// Evaluated positions not yet marched are kept between iterations to avoid evaluating them again.
+	evaluated int
 	// pruned statistics: quantity of minimum resolution cubes pruned from octree and their calculations omitted (x8).
 	pruned uint64
 }
@@ -160,17 +163,24 @@ func (oc *Octree) ReadTriangles(dst []ms3.Triangle, userData any) (n int, err er
 		}
 		oc.posbuf, oc.cubes = oc.oct.DecomposeDFS(oc.posbuf, oc.cubes)
 
-		// Limit evaluation to what is needed by this call to ReadTriangles.
-		currentLim := min(8*(len(dst)-n), aligndown(len(oc.posbuf), 8))
-		if currentLim == 0 {
+		// Evaluate all positions not yet evaluated in a single call. Evaluating large batches
+		// is key to performance on high latency evaluators such as GPUs.
+		lim := aligndown(len(oc.posbuf), 8)
+		if lim == 0 {
 			panic("zero buffer")
 		}
-		err = oc.s.Evaluate(oc.posbuf[:currentLim], oc.distbuf[:currentLim], userData)
-		if err != nil {
-			return 0, err
+		if lim > oc.evaluated {
+			err = oc.s.Evaluate(oc.posbuf[oc.evaluated:lim], oc.distbuf[oc.evaluated:lim], userData)
+			if err != nil {
+				return 0, err
+			}
+			oc.evaluated = lim
 		}
-		nt, k := marchCubes(dst[n:], oc.posbuf[:currentLim], oc.distbuf[:currentLim], oc.oct.Resolution)
+		nt, k := marchCubes(dst[n:], oc.posbuf[:oc.evaluated], oc.distbuf[:oc.evaluated], oc.oct.Resolution)
 		n += nt
+		// Keep positions not yet marched along with their distances.
+		copy(oc.distbuf, oc.distbuf[k:oc.evaluated])
+		oc.evaluated -= k
 		k = copy(oc.posbuf, oc.posbuf[k:])
 		oc.posbuf = oc.posbuf[:k]
 	}
@@ -180,11 +190,13 @@ func (oc *Octree) ReadTriangles(dst []ms3.Triangle, userData any) (n int, err er
 func (oc *Octree) prune(userData any) (err error) {
 	// The cubes pruned must not contain a surface within.
 	const szDistMult = sqrt3 / 2
-	pos := oc.posbuf[len(oc.posbuf):cap(oc.posbuf)] // Use free space in position buffer.
+	// Use free space in position and distance buffers. Distances of positions in posbuf must be preserved.
+	start := len(oc.posbuf)
+	pos := oc.posbuf[start:cap(oc.posbuf)]
 	if len(pos) < len(oc.prunecubes) {
 		return nil
 	}
-	unpruned, smallestPruned, err := octreePrunea(oc.s, oc.prunecubes, oc.oct.Origin, oc.oct.Resolution, pos, oc.distbuf[:len(pos)], userData, szDistMult, false)
+	unpruned, smallestPruned, err := octreePrunea(oc.s, oc.prunecubes, oc.oct.Origin, oc.oct.Resolution, pos, oc.distbuf[start:start+len(pos)], userData, szDistMult, false)
 	oc.prunecubes = unpruned
 	oc.pruned += smallestPruned
 	return err

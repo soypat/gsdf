@@ -19,11 +19,11 @@ import (
 
 	"github.com/soypat/geometry/ms2"
 	"github.com/soypat/geometry/ms3"
-	"github.com/soypat/gsdf/glbuild"
+	"github.com/soypat/gsdf/gpusdf/glbuild"
 )
 
 var (
-	errNoGPU              = errors.New("gpusdf: GPU evaluation requires cgo (native) or GOOS=js and is not supported on TinyGo")
+	errNoWGPU             = errors.New("gpusdf: GPU evaluation requires cgo (native) or GOOS=js and is not supported on TinyGo")
 	errNotConfigured      = errors.New("gpusdf: not configured")
 	errDeviceNotReady     = errors.New("gpusdf: device not configured")
 	errBusy               = errors.New("gpusdf: evaluation in flight, call Read before submitting again")

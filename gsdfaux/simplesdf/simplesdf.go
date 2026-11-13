@@ -2,7 +2,7 @@ package simplesdf
 
 import (
 	"github.com/soypat/gsdf"
-	"github.com/soypat/gsdf/glbuild"
+	"github.com/soypat/gsdf/gpusdf/glbuild"
 )
 
 // SDF3 is an immutable, chainable 3D signed-distance-function value.

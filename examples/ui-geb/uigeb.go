@@ -10,7 +10,7 @@ import (
 	"github.com/soypat/geometry/ms3"
 	"github.com/soypat/gsdf"
 	"github.com/soypat/gsdf/forge/textsdf"
-	"github.com/soypat/gsdf/glbuild"
+	"github.com/soypat/gsdf/gpusdf/glbuild"
 	"github.com/soypat/gsdf/gsdfaux"
 )
 

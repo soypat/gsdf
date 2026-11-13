@@ -8,7 +8,7 @@ import (
 	"unsafe"
 
 	"github.com/oliverbestmann/webgpu/wgpu"
-	"github.com/soypat/gsdf/glbuild"
+	"github.com/soypat/gsdf/gpusdf/glbuild"
 )
 
 type deviceState struct {

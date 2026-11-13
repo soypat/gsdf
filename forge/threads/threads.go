@@ -8,8 +8,8 @@ import (
 	"github.com/soypat/geometry/ms2"
 	"github.com/soypat/geometry/ms3"
 	"github.com/soypat/gsdf"
-	"github.com/soypat/gsdf/glbuild"
 	"github.com/soypat/gsdf/gleval"
+	"github.com/soypat/gsdf/gpusdf/glbuild"
 )
 
 // Screws
@@ -114,7 +114,7 @@ func (s *screw) AppendShaderName(b []byte) []byte {
 	return b
 }
 
-func (s *screw) AppendShaderBody(b []byte) []byte {
+func (s *screw) AppendWGSLBody(b []byte) []byte {
 	b = glbuild.AppendFloatDecl(b, "lead", s.lead)
 	b = glbuild.AppendFloatDecl(b, "pitch", s.pitch)
 	b = glbuild.AppendFloatDecl(b, "taper", s.taper)

@@ -23,7 +23,7 @@ import (
 //
 //	fn <AppendShaderName>(p_in: vec3f) -> f32 {
 //		var p = p_in;
-//		<AppendShaderBody>
+//		<AppendWGSLBody>
 //	}
 //
 // [Shader2D] functions are identical but receive a vec2f argument. The p variable is mutable inside the body.
@@ -31,9 +31,9 @@ type Shader interface {
 	// AppendShaderName appends the name of the WGSL shader function
 	// to the buffer and returns the result. It should be unique to that shader.
 	AppendShaderName(b []byte) []byte
-	// AppendShaderBody appends the WGSL body of the shader function to the
+	// AppendWGSLBody appends the WGSL body of the shader function to the
 	// buffer and returns the result.
-	AppendShaderBody(b []byte) []byte
+	AppendWGSLBody(b []byte) []byte
 	// AppendShaderObject appends "objects" (read as data) needed to
 	// evaluate the shader correctly. See [ShaderObject] for more information
 	// on what an object can represent.
@@ -446,7 +446,7 @@ func (p *Programmer) writeShaders(w io.Writer, nodes []Shader) (n int, objs []Sh
 			for j := i + 1; j < len(nodes); j++ {
 				conflictBody = nodes[j].AppendShaderName(conflictBody[:0])
 				if bytes.Equal(conflictBody, name) {
-					conflictBody = nodes[j].AppendShaderBody(conflictBody[:0])
+					conflictBody = nodes[j].AppendWGSLBody(conflictBody[:0])
 					break
 				}
 				conflictBody = conflictBody[:0]
@@ -578,7 +578,7 @@ func makeShortname(s Shader, scratch []byte, rewritelen int) (newNameOrNil []byt
 	}
 	newName := append([]byte{}, scratch[:rewritelen]...)
 	h = hash(scratch, h)
-	scratch = s.AppendShaderBody(scratch[:0])
+	scratch = s.AppendWGSLBody(scratch[:0])
 	h = hash(scratch, h)
 	newName = strconv.AppendUint(newName, h, 32)
 	return newName, scratch
@@ -703,7 +703,7 @@ func AppendShaderSource(dst []byte, s Shader) (result, name, body []byte) {
 		dst = append(dst, "(p_in: vec2f) -> f32 {\nvar p = p_in;\n"...)
 	}
 	bodyStart := len(dst)
-	dst = s.AppendShaderBody(dst)
+	dst = s.AppendWGSLBody(dst)
 	bodyEnd := len(dst)
 	dst = append(dst, "\n}\n"...)
 	return dst, dst[nameStart:nameEnd], dst[bodyStart:bodyEnd]
@@ -1227,7 +1227,7 @@ func (c3 *CachedShader3D) RefreshCache() {
 	c3.bb = c3.Shader.Bounds()
 	c3.data = c3.Shader.AppendShaderName(c3.data[:0])
 	c3.bodyOffset = len(c3.data)
-	c3.data = c3.Shader.AppendShaderBody(c3.data)
+	c3.data = c3.Shader.AppendWGSLBody(c3.data)
 }
 
 // Bounds returns the cached 3D bounds. Implements [Shader3D]. Update by calling RefreshCache.
@@ -1243,8 +1243,8 @@ func (c3 *CachedShader3D) AppendShaderName(b []byte) []byte {
 	return append(b, c3.data[:c3.bodyOffset]...)
 }
 
-// AppendShaderBody returns the cached Shader function body. Implements [Shader]. Update by calling RefreshCache.
-func (c3 *CachedShader3D) AppendShaderBody(b []byte) []byte {
+// AppendWGSLBody returns the cached Shader function body. Implements [Shader]. Update by calling RefreshCache.
+func (c3 *CachedShader3D) AppendWGSLBody(b []byte) []byte {
 	return append(b, c3.data[c3.bodyOffset:]...)
 }
 
@@ -1289,7 +1289,7 @@ func (c2 *CachedShader2D) RefreshCache() {
 	c2.bb = c2.Shader.Bounds()
 	c2.data = c2.Shader.AppendShaderName(c2.data[:0])
 	c2.bodyOffset = len(c2.data)
-	c2.data = c2.Shader.AppendShaderBody(c2.data)
+	c2.data = c2.Shader.AppendWGSLBody(c2.data)
 }
 
 // Bounds returns the cached 2D bounds. Implements [Shader3D]. Update by calling RefreshCache.
@@ -1305,8 +1305,8 @@ func (c2 *CachedShader2D) AppendShaderName(b []byte) []byte {
 	return append(b, c2.data[:c2.bodyOffset]...)
 }
 
-// AppendShaderBody returns the cached Shader function body. Implements [Shader]. Update by calling RefreshCache.
-func (c2 *CachedShader2D) AppendShaderBody(b []byte) []byte {
+// AppendWGSLBody returns the cached Shader function body. Implements [Shader]. Update by calling RefreshCache.
+func (c2 *CachedShader2D) AppendWGSLBody(b []byte) []byte {
 	return append(b, c2.data[c2.bodyOffset:]...)
 }
 
@@ -1339,9 +1339,9 @@ func (nos3 *nameOverloadShader3D) ForEachChild(userData any, fn func(userData an
 	return nos3.Shader.ForEachChild(userData, fn)
 }
 
-// AppendShaderBody returns the cached Shader function body. Implements [Shader]. Update by calling RefreshCache.
-func (nos3 *nameOverloadShader3D) AppendShaderBody(b []byte) []byte {
-	return nos3.Shader.AppendShaderBody(b)
+// AppendWGSLBody returns the cached Shader function body. Implements [Shader]. Update by calling RefreshCache.
+func (nos3 *nameOverloadShader3D) AppendWGSLBody(b []byte) []byte {
+	return nos3.Shader.AppendWGSLBody(b)
 }
 
 // ForEach2DChild calls the underlying Shader's ForEach2DChild. This method is called for 3D shapes that
@@ -1398,8 +1398,8 @@ func (nos2 *nameOverloadShader2D) AppendShaderName(b []byte) []byte {
 	return append(b, nos2.name...)
 }
 
-func (nos2 *nameOverloadShader2D) AppendShaderBody(b []byte) []byte {
-	return nos2.Shader.AppendShaderBody(b)
+func (nos2 *nameOverloadShader2D) AppendWGSLBody(b []byte) []byte {
+	return nos2.Shader.AppendWGSLBody(b)
 }
 
 func (nos2 *nameOverloadShader2D) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {

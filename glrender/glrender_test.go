@@ -5,16 +5,18 @@ import (
 	"errors"
 	"image"
 	"image/png"
+	"io"
 	"math"
 	"os"
+	"slices"
 	"testing"
 
 	"github.com/soypat/geometry/i3"
 	"github.com/soypat/geometry/ms3"
 	"github.com/soypat/gsdf"
 	"github.com/soypat/gsdf/forge/threads"
-	"github.com/soypat/gsdf/glbuild"
 	"github.com/soypat/gsdf/gleval"
+	"github.com/soypat/gsdf/gpusdf/glbuild"
 )
 
 var bld gsdf.Builder
@@ -120,6 +122,65 @@ func TestOctree(t *testing.T) {
 			t.Fatal(err)
 		}
 		_ = testRenderer(t, renderer, nil)
+	}
+}
+
+// TestOctreeReadSizeIndependent checks the octree renders the same triangles regardless of the destination
+// buffer size. Small destination buffers stop marching mid-batch, which exercises keeping evaluated
+// distances of positions not yet marched between iterations and pruning in the free buffer space.
+func TestOctreeReadSizeIndependent(t *testing.T) {
+	const r = 1.0
+	obj := bld.Union(bld.NewSphere(r), bld.Translate(bld.NewBox(r, r/2, r/3, r/10), r, 0, 0))
+	sdf, err := gleval.NewCPUSDF3(obj)
+	if err != nil {
+		t.Fatal(err)
+	}
+	renderer, err := NewOctreeRenderer(sdf, r/16, 1<<12)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := RenderAll(renderer, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = renderer.Reset(sdf, r/16)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []ms3.Triangle
+	var dst [marchingCubesMaxTriangles + 1]ms3.Triangle
+	for {
+		n, err := renderer.ReadTriangles(dst[:], nil)
+		got = append(got, dst[:n]...)
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(got) != len(want) {
+		t.Fatalf("want %d triangles, got %d", len(want), len(got))
+	}
+	// Triangle order depends on read size due to pruning order, compare sorted triangles.
+	cmp := func(a, b ms3.Triangle) int {
+		for i := range a {
+			for _, c := range [][2]float32{{a[i].X, b[i].X}, {a[i].Y, b[i].Y}, {a[i].Z, b[i].Z}} {
+				if c[0] != c[1] {
+					if c[0] < c[1] {
+						return -1
+					}
+					return 1
+				}
+			}
+		}
+		return 0
+	}
+	slices.SortFunc(want, cmp)
+	slices.SortFunc(got, cmp)
+	for i := range want {
+		if want[i] != got[i] {
+			t.Fatalf("triangle %d mismatch: want %v, got %v", i, want[i], got[i])
+		}
 	}
 }
 

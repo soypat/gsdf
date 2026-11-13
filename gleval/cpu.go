@@ -90,13 +90,14 @@ type SDF3CPU struct {
 // detected automatically and reported as errors. Pass an external [VecPool] (or a type
 // implementing VecPool() *VecPool) when composing evaluators in a larger tree.
 func (sdf *SDF3CPU) Evaluate(pos []ms3.Vec, dist []float32, userData any) error {
-	useOwnVecPool := userData == nil
-	if useOwnVecPool {
-		userData = &sdf.vp
-	} else if len(pos) != len(dist) {
+	if len(pos) != len(dist) {
 		return errMismatchBufferLength
 	} else if len(dist) == 0 {
 		return errEmptyBuffers
+	}
+	useOwnVecPool := userData == nil
+	if useOwnVecPool {
+		userData = &sdf.vp
 	}
 	err := sdf.SDF.Evaluate(pos, dist, userData)
 	var err2 error
@@ -144,13 +145,14 @@ type SDF2CPU struct {
 // detected automatically and reported as errors. Pass an external [VecPool] (or a type
 // implementing VecPool() *VecPool) when composing evaluators in a larger tree.
 func (sdf *SDF2CPU) Evaluate(pos []ms2.Vec, dist []float32, userData any) error {
-	useOwnVecPool := userData == nil
-	if useOwnVecPool {
-		userData = &sdf.vp
-	} else if len(pos) != len(dist) {
+	if len(pos) != len(dist) {
 		return errMismatchBufferLength
 	} else if len(pos) == 0 {
 		return errEmptyBuffers
+	}
+	useOwnVecPool := userData == nil
+	if useOwnVecPool {
+		userData = &sdf.vp
 	}
 	err := sdf.SDF.Evaluate(pos, dist, userData)
 	var err2 error

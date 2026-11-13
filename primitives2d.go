@@ -8,8 +8,8 @@ import (
 	"github.com/chewxy/math32"
 	"github.com/soypat/geometry/ms2"
 	"github.com/soypat/geometry/ms3"
-	"github.com/soypat/gsdf/glbuild"
-	"github.com/soypat/gsdf/glbuild/wgsllib"
+	"github.com/soypat/gsdf/gpusdf/glbuild"
+	"github.com/soypat/gsdf/gpusdf/glbuild/wgsllib"
 )
 
 // NewLine2D creates a straight line between (x0,y0) and (x1,y1) with a given thickness.
@@ -50,7 +50,7 @@ func (l *line2D) AppendShaderName(b []byte) []byte {
 	return b
 }
 
-func (l *line2D) AppendShaderBody(b []byte) []byte {
+func (l *line2D) AppendWGSLBody(b []byte) []byte {
 	b = append(b, "return sqrt(gsdfLineSq2D(p,vec4f("...)
 	b = glbuild.AppendFloats(b, ',', '-', '.', l.a.X, l.a.Y, l.b.X, l.b.Y)
 	b = append(b, ")))-"...)
@@ -114,7 +114,7 @@ func (l *lines2D) AppendShaderName(b []byte) []byte {
 	return b
 }
 
-func (l *lines2D) AppendShaderBody(b []byte) []byte {
+func (l *lines2D) AppendWGSLBody(b []byte) []byte {
 	b = glbuild.AppendFloatDecl(b, "w", l.width/2)
 	b = glbuild.AppendGenericSliceDecl(b, "vec4f", "points", len(l.points), func(b []byte, i int) []byte {
 		pt := l.points[i]
@@ -152,7 +152,7 @@ func (l *lines2Dssbo) AppendShaderName(b []byte) []byte {
 	return l.lines2D.AppendShaderName(b)
 }
 
-func (l *lines2Dssbo) AppendShaderBody(b []byte) []byte {
+func (l *lines2Dssbo) AppendWGSLBody(b []byte) []byte {
 	b = glbuild.AppendFloatDecl(b, "w", l.width/2)
 	b = append(b, "let num = "...)
 	b = glbuild.AppendObjectLen(b, l.bufname)
@@ -206,7 +206,7 @@ func (a *arc2D) AppendShaderName(b []byte) []byte {
 	return b
 }
 
-func (a *arc2D) AppendShaderBody(b []byte) []byte {
+func (a *arc2D) AppendWGSLBody(b []byte) []byte {
 	s, c := math32.Sincos(a.angle / 2)
 	return appendTypicalReturnFuncCall(b, "gsdfArc2D", "p", a.radius, a.thick/2, s, c)
 }
@@ -243,7 +243,7 @@ func (c *circle2D) AppendShaderName(b []byte) []byte {
 	return b
 }
 
-func (c *circle2D) AppendShaderBody(b []byte) []byte {
+func (c *circle2D) AppendWGSLBody(b []byte) []byte {
 	b = glbuild.AppendFloatDecl(b, "r", c.r)
 	b = append(b, "return length(p)-r;"...)
 	return b
@@ -287,7 +287,7 @@ func (t *equilateralTri2d) AppendShaderName(b []byte) []byte {
 	return b
 }
 
-func (t *equilateralTri2d) AppendShaderBody(b []byte) []byte {
+func (t *equilateralTri2d) AppendWGSLBody(b []byte) []byte {
 	return appendTypicalReturnFuncCall(b, "gsdfEqTri", "p", t.hTri/sqrt3)
 }
 
@@ -328,7 +328,7 @@ func (c *rect2D) AppendShaderName(b []byte) []byte {
 	return b
 }
 
-func (c *rect2D) AppendShaderBody(b []byte) []byte {
+func (c *rect2D) AppendWGSLBody(b []byte) []byte {
 	r := c.radius()
 	if r != 0 {
 		return appendTypicalReturnFuncCall(b, "gsdfRectRound2D", "p", c.d.X/2, c.d.Y/2, r)
@@ -375,7 +375,7 @@ func (c *hex2D) AppendShaderName(b []byte) []byte {
 	return b
 }
 
-func (c *hex2D) AppendShaderBody(b []byte) []byte {
+func (c *hex2D) AppendWGSLBody(b []byte) []byte {
 	return appendTypicalReturnFuncCall(b, "gsdfHexagon2D", "p", c.side)
 }
 
@@ -411,7 +411,7 @@ func (oct *oct2D) AppendShaderName(b []byte) []byte {
 	return b
 }
 
-func (oct *oct2D) AppendShaderBody(b []byte) []byte {
+func (oct *oct2D) AppendWGSLBody(b []byte) []byte {
 	return appendTypicalReturnFuncCall(b, "gsdfOctagon2D", "p", oct.c)
 }
 
@@ -448,7 +448,7 @@ func (c *ellipse2D) AppendShaderName(b []byte) []byte {
 	return b
 }
 
-func (c *ellipse2D) AppendShaderBody(b []byte) []byte {
+func (c *ellipse2D) AppendWGSLBody(b []byte) []byte {
 	return appendTypicalReturnFuncCall(b, "gsdfEllipse2D", "p", c.a, c.b)
 }
 
@@ -543,7 +543,7 @@ func appendPolyShader(b []byte, bufname []byte) []byte {
 	return b
 }
 
-func (c *poly2D) AppendShaderBody(b []byte) []byte {
+func (c *poly2D) AppendWGSLBody(b []byte) []byte {
 	b = glbuild.AppendVec2SliceDecl(b, "v", c.vert)
 	b = append(b, "let num = "...)
 	b = strconv.AppendInt(b, int64(len(c.vert)), 10)
@@ -571,7 +571,7 @@ func (c *polySSBO) AppendShaderName(b []byte) []byte {
 	return c.poly2D.AppendShaderName(b)
 }
 
-func (c *polySSBO) AppendShaderBody(b []byte) []byte {
+func (c *polySSBO) AppendWGSLBody(b []byte) []byte {
 	b = append(b, "let num = "...)
 	b = glbuild.AppendObjectLen(b, c.bufname)
 	b = append(b, ";\n"...)
@@ -616,7 +616,7 @@ func (c *diamond) AppendShaderName(b []byte) []byte {
 	return b
 }
 
-func (c *diamond) AppendShaderBody(b []byte) []byte {
+func (c *diamond) AppendWGSLBody(b []byte) []byte {
 	return appendTypicalReturnFuncCall(b, "gsdfDiamond2D", "p", c.d.X/2, c.d.Y/2)
 }
 
@@ -656,7 +656,7 @@ func (c *x2d) AppendShaderName(b []byte) []byte {
 	return b
 }
 
-func (c *x2d) AppendShaderBody(b []byte) []byte {
+func (c *x2d) AppendWGSLBody(b []byte) []byte {
 	return appendTypicalReturnFuncCall(b, "gsdfRoundedX2D", "p", c.dim, c.thick)
 }
 
@@ -718,7 +718,7 @@ func (c *quadbezier2d) AppendShaderName(b []byte) []byte {
 	return b
 }
 
-func (c *quadbezier2d) AppendShaderBody(b []byte) []byte {
+func (c *quadbezier2d) AppendWGSLBody(b []byte) []byte {
 	b = glbuild.AppendVec2Decl(b, "A", c.a)
 	b = glbuild.AppendVec2Decl(b, "B", c.b)
 	b = glbuild.AppendVec2Decl(b, "C", c.c)

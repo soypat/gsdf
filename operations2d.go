@@ -7,8 +7,8 @@ import (
 	"github.com/chewxy/math32"
 	"github.com/soypat/geometry/ms2"
 	"github.com/soypat/geometry/ms3"
-	"github.com/soypat/gsdf/glbuild"
-	"github.com/soypat/gsdf/glbuild/wgsllib"
+	"github.com/soypat/gsdf/gpusdf/glbuild"
+	"github.com/soypat/gsdf/gpusdf/glbuild/wgsllib"
 )
 
 // OpUnion2D is the result of [Union2D]. This type is exported for special reasons, see [OpUnion] documentation.
@@ -75,8 +75,8 @@ func (u *OpUnion2D) AppendShaderName(b []byte) []byte {
 	return b
 }
 
-// AppendShaderBody implements [glbuild.Shader].
-func (u *OpUnion2D) AppendShaderBody(b []byte) []byte {
+// AppendWGSLBody implements [glbuild.Shader].
+func (u *OpUnion2D) AppendWGSLBody(b []byte) []byte {
 	u.mustValidate()
 	b = glbuild.AppendDistanceDecl(b, "d", "p", u.joined[0])
 	for i := range u.joined[1:] {
@@ -141,7 +141,7 @@ func (e *extrusion) AppendShaderName(b []byte) []byte {
 	return b
 }
 
-func (e *extrusion) AppendShaderBody(b []byte) []byte {
+func (e *extrusion) AppendWGSLBody(b []byte) []byte {
 	b = glbuild.AppendFloatDecl(b, "h", e.h/2)
 	b = glbuild.AppendDistanceDecl(b, "d", "p.xy", e.s)
 	b = append(b, `var w = vec2f( d, abs(p.z) - h );
@@ -190,7 +190,7 @@ func (r *revolution) AppendShaderName(b []byte) []byte {
 	return b
 }
 
-func (r *revolution) AppendShaderBody(b []byte) []byte {
+func (r *revolution) AppendWGSLBody(b []byte) []byte {
 	b = glbuild.AppendFloatDecl(b, "w", r.off)
 	b = append(b, "var q = vec2f( length(p.xz) - w, p.y );\n"...)
 	b = glbuild.AppendDistanceDecl(b, "d", "q", r.s2d)
@@ -230,7 +230,7 @@ func (s *diff2D) AppendShaderName(b []byte) []byte {
 	return b
 }
 
-func (s *diff2D) AppendShaderBody(b []byte) []byte {
+func (s *diff2D) AppendWGSLBody(b []byte) []byte {
 	b = append(b, "return max("...)
 	b = s.s1.AppendShaderName(b)
 	b = append(b, "(p),-"...)
@@ -274,7 +274,7 @@ func (s *intersect2D) AppendShaderName(b []byte) []byte {
 	return b
 }
 
-func (s *intersect2D) AppendShaderBody(b []byte) []byte {
+func (s *intersect2D) AppendWGSLBody(b []byte) []byte {
 	b = append(b, "return max("...)
 	b = s.s1.AppendShaderName(b)
 	b = append(b, "(p),"...)
@@ -318,7 +318,7 @@ func (s *xor2D) AppendShaderName(b []byte) []byte {
 	return b
 }
 
-func (s *xor2D) AppendShaderBody(b []byte) []byte {
+func (s *xor2D) AppendWGSLBody(b []byte) []byte {
 	b = glbuild.AppendDistanceDecl(b, "d1", "(p)", s.s1)
 	b = glbuild.AppendDistanceDecl(b, "d2", "(p)", s.s2)
 	b = append(b, "return max(min(d1,d2),-max(d1,d2));"...)
@@ -373,7 +373,7 @@ func (s *array2D) nvec2() ms2.Vec {
 	return ms2.Vec{X: float32(s.nx), Y: float32(s.ny)}
 }
 
-func (s *array2D) AppendShaderBody(b []byte) []byte {
+func (s *array2D) AppendWGSLBody(b []byte) []byte {
 	sdf := string(s.s.AppendShaderName(nil))
 	// id is the tile index in 3 directions.
 	// o is neighbor offset direction (which neighboring tile is closest in 3 directions)
@@ -440,7 +440,7 @@ func (s *offset2D) AppendShaderName(b []byte) []byte {
 	return b
 }
 
-func (s *offset2D) AppendShaderBody(b []byte) []byte {
+func (s *offset2D) AppendWGSLBody(b []byte) []byte {
 	b = append(b, "return "...)
 	b = s.s.AppendShaderName(b)
 	b = append(b, "(p)+("...)
@@ -479,7 +479,7 @@ func (s *translate2D) AppendShaderName(b []byte) []byte {
 	return b
 }
 
-func (s *translate2D) AppendShaderBody(b []byte) []byte {
+func (s *translate2D) AppendWGSLBody(b []byte) []byte {
 	b = glbuild.AppendVec2Decl(b, "t", s.p)
 	b = append(b, "return "...)
 	b = s.s.AppendShaderName(b)
@@ -538,7 +538,7 @@ func (s *rotation2D) AppendShaderName(b []byte) []byte {
 	return b
 }
 
-func (r *rotation2D) AppendShaderBody(b []byte) []byte {
+func (r *rotation2D) AppendWGSLBody(b []byte) []byte {
 	b = glbuild.AppendMat2Decl(b, "invT", r.tInv)
 	b = append(b, "return "...)
 	b = r.s.AppendShaderName(b)
@@ -586,7 +586,7 @@ func (s *symmetry2D) AppendShaderName(b []byte) []byte {
 	return b
 }
 
-func (s *symmetry2D) AppendShaderBody(b []byte) []byte {
+func (s *symmetry2D) AppendWGSLBody(b []byte) []byte {
 	b = appendSymmetryAbs(b, s.xy)
 	b = append(b, "return "...)
 	b = s.s.AppendShaderName(b)
@@ -634,7 +634,7 @@ func (s *annulus2D) AppendShaderName(b []byte) []byte {
 	return b
 }
 
-func (s *annulus2D) AppendShaderBody(b []byte) []byte {
+func (s *annulus2D) AppendWGSLBody(b []byte) []byte {
 	b = glbuild.AppendFloatDecl(b, "r", s.r)
 	b = glbuild.AppendDistanceDecl(b, "d", "p", s.s)
 	b = append(b, "return abs(d)-r;"...)
@@ -695,7 +695,7 @@ func (ca *circarray2D) AppendShaderName(b []byte) []byte {
 	return b
 }
 
-func (ca *circarray2D) AppendShaderBody(b []byte) []byte {
+func (ca *circarray2D) AppendWGSLBody(b []byte) []byte {
 	angle := 2 * math.Pi / float32(ca.circleDiv)
 	b = glbuild.AppendFloatDecl(b, "ncirc", float32(ca.circleDiv))
 	b = glbuild.AppendFloatDecl(b, "angle", angle)
@@ -736,7 +736,7 @@ func (s *scale2D) AppendShaderName(b []byte) []byte {
 	return b
 }
 
-func (s *scale2D) AppendShaderBody(b []byte) []byte {
+func (s *scale2D) AppendWGSLBody(b []byte) []byte {
 	b = glbuild.AppendFloatDecl(b, "s", s.scale)
 	b = append(b, "return "...)
 	b = s.s.AppendShaderName(b)
@@ -785,7 +785,7 @@ func (tm *translateMulti2D) AppendShaderName(b []byte) []byte {
 	return b
 }
 
-func (tm *translateMulti2D) AppendShaderBody(b []byte) []byte {
+func (tm *translateMulti2D) AppendWGSLBody(b []byte) []byte {
 	b = append(b, "let num = "...)
 	b = glbuild.AppendObjectLen(b, tm.bufname)
 	b = append(b, ";\nvar d = 1.0e23;\nfor (var i=0; i<num; i++) {\n\tlet pt = p - "...)
@@ -840,7 +840,7 @@ func (s *elongate2D) AppendShaderName(b []byte) []byte {
 	return b
 }
 
-func (s *elongate2D) AppendShaderBody(b []byte) []byte {
+func (s *elongate2D) AppendWGSLBody(b []byte) []byte {
 	b = glbuild.AppendVec2Decl(b, "h", ms2.Scale(0.5, s.h))
 	b = append(b, "var q=abs(p)-h;\n"...)
 	b = glbuild.AppendDistanceDecl(b, "d", "max(q,vec2f(0.))", s.s)

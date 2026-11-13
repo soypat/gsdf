@@ -1,6 +1,6 @@
 package simplesdf
 
-import "github.com/soypat/gsdf/glbuild"
+import "github.com/soypat/gsdf/gpusdf/glbuild"
 
 // Shader returns the underlying [glbuild.Shader2D] for use with the wider gsdf ecosystem.
 func (s SDF2) Shader() glbuild.Shader2D { return s.s }
