@@ -16,14 +16,12 @@ import (
 	"github.com/soypat/geometry/ms1"
 	"github.com/soypat/geometry/ms2"
 	"github.com/soypat/geometry/ms3"
-	"github.com/soypat/glgl/v4.1-core/glgl"
 	"github.com/soypat/gsdf"
 	"github.com/soypat/gsdf/glbuild"
 	"github.com/soypat/gsdf/gleval"
+	"github.com/soypat/gsdf/gpusdf"
 	"github.com/soypat/gsdf/gsdfaux"
 )
-
-const compileFlags = glgl.CompileFlagsStrict
 
 var testGSDFCalled = false
 
@@ -39,6 +37,10 @@ type shaderTestConfig struct {
 	progbuf   bytes.Buffer
 	rng       *rand.Rand
 	failedObj glbuild.Shader3D
+	// GPU evaluation fields, only used if useGPU is true.
+	dev  *gpusdf.Device
+	gpu3 gpusdf.SDF3
+	gpu2 gpusdf.SDF2
 }
 
 func newShaderTestConfig() *shaderTestConfig {
@@ -307,6 +309,9 @@ func testPrimitives2D(t *tb, cfg *shaderTestConfig) {
 	polySSBO := bld.NewPolygon(vertices)
 	linesSSBO := bld.NewLines2D(segments, 0.1)
 	displaceSSBO := bld.TranslateMulti2D(poly, vertices)
+	// Several shader objects of same element type are pooled into a single binding at different offsets.
+	polySSBO2 := bld.NewPolygon(vertices[:len(vertices)-3])
+	pooledSSBO := bld.Union2D(polySSBO, linesSSBO, displaceSSBO, bld.Translate2D(polySSBO2, maxdim/4, 0))
 
 	// Next polys generated with no SSBOs.
 	bld.SetFlags(flags | gsdf.FlagNoShaderBuffers)
@@ -328,6 +333,7 @@ func testPrimitives2D(t *tb, cfg *shaderTestConfig) {
 		linesSSBO,
 		linesNoSSBO,
 		displaceSSBO,
+		pooledSSBO,
 		bld.NewOctagon(dimVec.X),
 		bld.NewDiamond2D(dimVec.X, dimVec.Y),
 		bld.NewRoundedX(dimVec.X, thick),
@@ -479,9 +485,14 @@ func testShader2D(t *tb, obj glbuild.Shader2D, cfg *shaderTestConfig) {
 	defer func() {
 		if t.fail && !failed {
 			name := "testfail_" + glbuild.FormatShader(obj)
-			sdf, _ := gsdfaux.MakeGPUSDF2(obj)
-			gsdfaux.RenderPNGFile(name+"_gpu2d.png", sdf, 500, nil)
-			sdf, _ = gleval.NewCPUSDF2(obj)
+			if cfg.useGPU {
+				sdf, err := gsdfaux.MakeGPUSDF2(cfg.dev, obj)
+				if err == nil {
+					gsdfaux.RenderPNGFile(name+"_gpu2d.png", sdf, 500, nil)
+					sdf.Release()
+				}
+			}
+			sdf, _ := gleval.NewCPUSDF2(obj)
 			gsdfaux.RenderPNGFile(name+"_cpu2d.png", sdf, 500, nil)
 		}
 	}()
@@ -922,14 +933,15 @@ func (cfg *shaderTestConfig) makeGPUSDF2(shader glbuild.Shader2D, bounds ms2.Box
 	if !cfg.useGPU {
 		return nil, nil // no GPU available to compile. End test here.
 	}
-	sdfgpu, err := gleval.NewComputeGPUSDF2(&cfg.progbuf, bounds, gleval.ComputeConfig{
-		InvocX:        invocx,
+	err = cfg.gpu2.Configure(cfg.dev, bounds, gpusdf.ComputeConfig{
+		Source:        cfg.progbuf.Bytes(),
+		WorkgroupSize: invocx,
 		ShaderObjects: objs,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("creating %s GPUSDF2: %w", appendShaderName(nil, shader), err)
+		return nil, fmt.Errorf("creating %s GPUSDF2: %w\n%s", appendShaderName(nil, shader), err, cfg.progbuf.String())
 	}
-	return sdfgpu, err
+	return &cfg.gpu2, err
 }
 
 func (cfg *shaderTestConfig) makeGPUSDF3(shader glbuild.Shader3D, bounds ms3.Box) (gleval.SDF3, error) {
@@ -944,12 +956,13 @@ func (cfg *shaderTestConfig) makeGPUSDF3(shader glbuild.Shader3D, bounds ms3.Box
 	if !cfg.useGPU {
 		return nil, nil // no GPU available to compile. End test here.
 	}
-	sdfgpu, err := gleval.NewComputeGPUSDF3(&cfg.progbuf, bounds, gleval.ComputeConfig{
-		InvocX:        invocx,
+	err = cfg.gpu3.Configure(cfg.dev, bounds, gpusdf.ComputeConfig{
+		Source:        cfg.progbuf.Bytes(),
+		WorkgroupSize: invocx,
 		ShaderObjects: objs,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("creating %s GPUSDF2: %w", appendShaderName(nil, shader), err)
+		return nil, fmt.Errorf("creating %s GPUSDF3: %w\n%s", appendShaderName(nil, shader), err, cfg.progbuf.String())
 	}
-	return sdfgpu, err
+	return &cfg.gpu3, err
 }

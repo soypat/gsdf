@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 
@@ -8,6 +9,7 @@ import (
 	"github.com/soypat/gsdf"
 	"github.com/soypat/gsdf/glbuild"
 	"github.com/soypat/gsdf/gleval"
+	"github.com/soypat/gsdf/gpusdf"
 	"github.com/soypat/gsdf/gsdfaux"
 )
 
@@ -27,6 +29,8 @@ func scene(bld *gsdf.Builder) (glbuild.Shader2D, error) {
 
 func main() {
 	useGPU := false
+	flag.BoolVar(&useGPU, "gpu", useGPU, "Enable GPU usage")
+	flag.Parse()
 	var bld gsdf.Builder
 	s, err := scene(&bld)
 	if err != nil {
@@ -34,7 +38,13 @@ func main() {
 	}
 	var sdf2 gleval.SDF2
 	if useGPU {
-		sdf2, err = gsdfaux.MakeGPUSDF2(s)
+		var dev gpusdf.Device
+		err = dev.Configure(gpusdf.DeviceConfig{})
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer dev.Release()
+		sdf2, err = gsdfaux.MakeGPUSDF2(&dev, s)
 	} else {
 		sdf2, err = gleval.NewCPUSDF2(s)
 	}

@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"runtime"
 
 	"os"
 
@@ -19,12 +18,8 @@ import (
 
 const (
 	stl           = "showerhead.stl"
-	visualization = "showerhead.glsl"
+	visualization = "showerhead.wgsl"
 )
-
-func init() {
-	runtime.LockOSThread() // In case we wish to use OpenGL.
-}
 
 // scene returns the showerhead object.
 func scene(bld *gsdf.Builder) (glbuild.Shader3D, error) {

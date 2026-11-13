@@ -17,16 +17,17 @@ import (
 	"github.com/chewxy/math32"
 	"github.com/soypat/geometry/ms2"
 	"github.com/soypat/geometry/ms3"
-	"github.com/soypat/glgl/v4.1-core/glgl"
 	"github.com/soypat/gsdf"
 	"github.com/soypat/gsdf/forge/threads"
 	"github.com/soypat/gsdf/glbuild"
 	"github.com/soypat/gsdf/gleval"
 	"github.com/soypat/gsdf/glrender"
+	"github.com/soypat/gsdf/gpusdf"
 	"github.com/soypat/gsdf/gsdfaux"
 )
 
-const compileFlags glgl.CompileFlags = glgl.CompileFlagsStrict
+// dev is the GPU device on which all GPU evaluations are performed.
+var dev gpusdf.Device
 
 func main() {
 	start := time.Now()
@@ -39,19 +40,14 @@ func main() {
 }
 
 func run() error {
-	_, terminate, err := glgl.InitWithCurrentWindow33(glgl.WindowConfig{
-		Title:   "compute",
-		Version: [2]int{4, 1},
-		Width:   1,
-		Height:  1,
-	})
+	err := dev.Configure(gpusdf.DeviceConfig{})
 	if err != nil {
-		log.Fatal("FAIL to start GLFW", err.Error())
+		log.Fatal("FAIL to configure GPU device: ", err.Error())
 	}
-	invoc := glgl.MaxComputeInvocations()
-	fmt.Println("invoc size:", invoc)
+	defer dev.Release()
+	invoc := min(256, dev.MaxWorkgroupSize())
+	fmt.Println("GPU:", dev.AdapterInfo(), "invoc size:", invoc)
 	programmer.SetComputeInvocations(invoc, 1, 1)
-	defer terminate()
 
 	err = test_multidisplacegpu()
 	if err != nil {
@@ -77,7 +73,7 @@ func run() error {
 
 	err = test_visualizer_generation()
 	if err != nil {
-		return fmt.Errorf("generating visualization GLSL: %w", err)
+		return fmt.Errorf("generating visualization WGSL: %w", err)
 	}
 	err = test_sdf_gpu_cpu()
 	if err != nil {
@@ -92,10 +88,6 @@ func run() error {
 
 var bld = &gsdf.Builder{}
 var programmer = glbuild.NewDefaultProgrammer()
-
-func init() {
-	runtime.LockOSThread() // For GL.
-}
 
 var PremadePrimitives = []glbuild.Shader3D{
 	mustShader(threads.Screw(bld, 5, threads.ISO{ // Negative normal.
@@ -248,7 +240,7 @@ func test_visualizer_generation() error {
 	const boxdim = r / 1.2
 	const reps = 3
 	const diam = 2 * r
-	const filename = "visual.glsl"
+	const filename = "visual.wgsl"
 
 	point1 := bld.NewSphere(r / 32)
 	point2 := bld.NewSphere(r / 33)
@@ -285,7 +277,7 @@ func test_union2D() error {
 	if err != nil {
 		return err
 	}
-	sdfGPU, err := gsdfaux.MakeGPUSDF2(union)
+	sdfGPU, err := gsdfaux.MakeGPUSDF2(&dev, union)
 	if err != nil {
 		return err
 	}
@@ -358,12 +350,12 @@ func test_polygongpu() error {
 	if err != nil {
 		return err
 	}
-	polyGPU := &gleval.PolygonGPU{Vertices: vecs}
+	polyGPU := &gpusdf.Polygon{Vertices: vecs}
 	invocX, _, _ := programmer.ComputeInvocations()
-	polyGPU.Configure(gleval.ComputeConfig{
-		InvocX:       invocX,
-		CompileFlags: compileFlags,
-	})
+	err = polyGPU.Configure(&dev, gpusdf.KernelConfig{WorkgroupSize: invocX})
+	if err != nil {
+		return err
+	}
 	return testsdf2("poly", sdfcpu, polyGPU)
 }
 
@@ -384,18 +376,15 @@ func test_multidisplacegpu() error {
 		union = bld.Union2D(sdfs...)
 	}
 
-	displCPU, err := gsdfaux.MakeGPUSDF2(union)
+	displCPU, err := gsdfaux.MakeGPUSDF2(&dev, union)
 	if err != nil {
 		return err
 	}
-	displGPU := &gleval.DisplaceMulti2D{
+	displGPU := &gpusdf.DisplaceMulti2D{
 		Displacements: displace,
 	}
 	invocX, _, _ := programmer.ComputeInvocations()
-	err = displGPU.Configure(programmer, circle, gleval.ComputeConfig{
-		InvocX:       invocX,
-		CompileFlags: compileFlags,
-	})
+	err = displGPU.Configure(&dev, programmer, circle, gpusdf.KernelConfig{WorkgroupSize: invocX})
 	if err != nil {
 		return err
 	}
@@ -423,19 +412,19 @@ func test_linesgpu() error {
 		union = bld.Union2D(sdfs...)
 	}
 
-	linesCPU, err := gsdfaux.MakeGPUSDF2(union)
+	linesCPU, err := gsdfaux.MakeGPUSDF2(&dev, union)
 	if err != nil {
 		return err
 	}
-	linesGPU := &gleval.Lines2DGPU{
+	linesGPU := &gpusdf.Lines2D{
 		Lines: lines,
 		Width: width,
 	}
 	invocX, _, _ := programmer.ComputeInvocations()
-	linesGPU.Configure(gleval.ComputeConfig{
-		InvocX:       invocX,
-		CompileFlags: compileFlags,
-	})
+	err = linesGPU.Configure(&dev, gpusdf.KernelConfig{WorkgroupSize: invocX})
+	if err != nil {
+		return err
+	}
 	return testsdf2("lines", linesCPU, linesGPU)
 }
 
@@ -499,7 +488,7 @@ func visualize(sdf glbuild.Shader3D, filename string) error {
 	const desiredScale = 2.0
 	diag := ms3.Norm(bb.Size())
 	sdf = bld.Scale(sdf, desiredScale/diag)
-	written, ssbos, err := programmer.WriteShaderToyVisualizerSDF3(fp, sdf)
+	written, ssbos, err := programmer.WriteVisualizerSDF3(fp, sdf)
 	if err != nil {
 		return err
 	}
@@ -543,7 +532,7 @@ func test_bounds(sdf gleval.SDF3, scratchDist []float32, userData any) (err erro
 	}
 	defer func() {
 		if err != nil {
-			filename := "testboundfail_" + typename + ".glsl"
+			filename := "testboundfail_" + typename + ".wgsl"
 			log.Println("test_bounds failed: generating visualization aid file", filename)
 			visualize(shader, filename)
 		}
@@ -628,7 +617,7 @@ func test_bounds(sdf gleval.SDF3, scratchDist []float32, userData any) (err erro
 	return nil
 }
 
-func makeGPUSDF3(s glbuild.Shader3D) *gleval.SDF3Compute {
+func makeGPUSDF3(s glbuild.Shader3D) *gpusdf.SDF3 {
 	if s == nil {
 		panic("nil Shader3D")
 	}
@@ -640,10 +629,11 @@ func makeGPUSDF3(s glbuild.Shader3D) *gleval.SDF3Compute {
 		panic("bytes written mismatch")
 	}
 	invocX, _, _ := programmer.ComputeInvocations()
-	sdfgpu, err := gleval.NewComputeGPUSDF3(&source, s.Bounds(), gleval.ComputeConfig{
-		InvocX:        invocX,
+	sdfgpu := new(gpusdf.SDF3)
+	err = sdfgpu.Configure(&dev, s.Bounds(), gpusdf.ComputeConfig{
+		Source:        source.Bytes(),
+		WorkgroupSize: invocX,
 		ShaderObjects: ssbos,
-		CompileFlags:  compileFlags,
 	})
 	if err != nil {
 		panic(err)
@@ -664,10 +654,11 @@ func makeGPUSDF2(s glbuild.Shader2D) gleval.SDF2 {
 		panic("bytes written mismatch")
 	}
 	invocX, _, _ := programmer.ComputeInvocations()
-	sdfgpu, err := gleval.NewComputeGPUSDF2(&source, s.Bounds(), gleval.ComputeConfig{
-		InvocX:        invocX,
+	sdfgpu := new(gpusdf.SDF2)
+	err = sdfgpu.Configure(&dev, s.Bounds(), gpusdf.ComputeConfig{
+		Source:        source.Bytes(),
+		WorkgroupSize: invocX,
 		ShaderObjects: ssbos,
-		CompileFlags:  compileFlags,
 	})
 	if err != nil {
 		panic(err)

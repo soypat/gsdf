@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"runtime"
 	"strconv"
 	"strings"
 
@@ -15,10 +14,6 @@ import (
 	"github.com/soypat/gsdf/gleval"
 	"github.com/soypat/gsdf/gsdfaux"
 )
-
-func init() {
-	runtime.LockOSThread() // For when using GPU this is required.
-}
 
 func buildSpacer(bld *gsdf.Builder, holeDiameter, length, scale float32) (glbuild.Shader3D, error) {
 	// hexFaceToFace := math.Ceil(holeDiameter*1.4) - 0.15

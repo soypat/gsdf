@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"runtime"
 	"time"
 
 	"os"
@@ -18,13 +17,9 @@ import (
 
 const (
 	stl             = "gasket.stl"
-	visualization   = "gasket.glsl"
+	visualization   = "gasket.wgsl"
 	visualization2D = "gasket2D.png"
 )
-
-func init() {
-	runtime.LockOSThread() // In case we wish to use OpenGL.
-}
 
 // scene returns the gasket object.
 func scene(bld *gsdf.Builder) (glbuild.Shader3D, error) {

@@ -9,7 +9,7 @@ import (
 	"github.com/soypat/geometry/ms2"
 	"github.com/soypat/geometry/ms3"
 	"github.com/soypat/gsdf/glbuild"
-	"github.com/soypat/gsdf/glbuild/glsllib"
+	"github.com/soypat/gsdf/glbuild/wgsllib"
 )
 
 // NewLine2D creates a straight line between (x0,y0) and (x1,y1) with a given thickness.
@@ -51,7 +51,7 @@ func (l *line2D) AppendShaderName(b []byte) []byte {
 }
 
 func (l *line2D) AppendShaderBody(b []byte) []byte {
-	b = append(b, "return sqrt(gsdfLineSq2D(p,vec4("...)
+	b = append(b, "return sqrt(gsdfLineSq2D(p,vec4f("...)
 	b = glbuild.AppendFloats(b, ',', '-', '.', l.a.X, l.a.Y, l.b.X, l.b.Y)
 	b = append(b, ")))-"...)
 	b = glbuild.AppendFloat(b, '-', '.', l.width/2)
@@ -64,7 +64,7 @@ func (l *line2D) ForEach2DChild(userData any, fn func(userData any, s *glbuild.S
 }
 
 func (u *line2D) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
-	return append(objects, glsllib.LineSquared2D())
+	return append(objects, wgsllib.LineSquared2D())
 }
 
 // NewLines2D creates sequential straight lines between the argument points.
@@ -116,23 +116,20 @@ func (l *lines2D) AppendShaderName(b []byte) []byte {
 
 func (l *lines2D) AppendShaderBody(b []byte) []byte {
 	b = glbuild.AppendFloatDecl(b, "w", l.width/2)
-	b = glbuild.AppendGenericSliceDecl(b, "vec4", "points", len(l.points), func(b []byte, i int) []byte {
+	b = glbuild.AppendGenericSliceDecl(b, "vec4f", "points", len(l.points), func(b []byte, i int) []byte {
 		pt := l.points[i]
-		b = append(b, "vec4("...)
+		b = append(b, "vec4f("...)
 		b = glbuild.AppendFloats(b, ',', '-', '.', pt[0].X, pt[0].Y, pt[1].X, pt[1].Y)
 		b = append(b, ')')
 		return b
 	})
 	b = glbuild.AppendIntDecl(b, "num", len(l.points))
 	b = append(b, `
-float d2 = 1.0e23;
-for (int i=0; i<num; i++)
-{
+var d2 = 1.0e23;
+for (var i=0; i<num; i++) {
 	d2 = min(d2,gsdfLineSq2D(p, points[i]));
 }
-return sqrt(d2)-w;
-`...)
-	b = glbuild.AppendUndefineDecl(b, "points")
+return sqrt(d2)-w;`...)
 	return b
 }
 
@@ -141,7 +138,7 @@ func (l *lines2D) ForEach2DChild(userData any, fn func(userData any, s *glbuild.
 }
 
 func (u *lines2D) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
-	return append(objects, glsllib.LineSquared2D())
+	return append(objects, wgsllib.LineSquared2D())
 }
 
 type lines2Dssbo struct {
@@ -149,18 +146,19 @@ type lines2Dssbo struct {
 	bufname []byte
 }
 
+// AppendShaderName implements [glbuild.Shader]. Name differs from lines2D since body differs.
+func (l *lines2Dssbo) AppendShaderName(b []byte) []byte {
+	b = append(b, "ssbo"...)
+	return l.lines2D.AppendShaderName(b)
+}
+
 func (l *lines2Dssbo) AppendShaderBody(b []byte) []byte {
 	b = glbuild.AppendFloatDecl(b, "w", l.width/2)
-	b = glbuild.AppendDefineDecl(b, "points", string(l.bufname))
-	b = append(b, `const int num = points.length();
-float d2 = 1.0e23;
-for (int i=0; i<num; i++)
-{
-	d2 = min(d2,gsdfLineSq2D(p, points[i]));
-}
-return sqrt(d2)-w;
-`...)
-	b = glbuild.AppendUndefineDecl(b, "points")
+	b = append(b, "let num = "...)
+	b = glbuild.AppendObjectLen(b, l.bufname)
+	b = append(b, ";\nvar d2 = 1.0e23;\nfor (var i=0; i<num; i++) {\n\td2 = min(d2,gsdfLineSq2D(p, "...)
+	b = glbuild.AppendObjectAt(b, l.bufname, "i")
+	b = append(b, "));\n}\nreturn sqrt(d2)-w;"...)
 	return b
 }
 
@@ -169,7 +167,7 @@ func (u *lines2Dssbo) AppendShaderObjects(objects []glbuild.ShaderObject) []glbu
 	if err != nil {
 		panic(err)
 	}
-	return append(objects, ssbo, glsllib.LineSquared2D())
+	return append(objects, ssbo, wgsllib.LineSquared2D())
 }
 
 // NewArc returns a 2D arc centered at the origin (x,y)=(0,0) for a given radius and arc angle and thickness of the arc.
@@ -218,7 +216,7 @@ func (a *arc2D) ForEach2DChild(userData any, fn func(userData any, s *glbuild.Sh
 }
 
 func (u *arc2D) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
-	return append(objects, glsllib.Arc2D())
+	return append(objects, wgsllib.Arc2D())
 }
 
 type circle2D struct {
@@ -229,7 +227,7 @@ type circle2D struct {
 func (bld *Builder) NewCircle(radius float32) glbuild.Shader2D {
 	okRadius := radius > 0 && !math32.IsInf(radius, 1)
 	if !okRadius {
-		bld.shapeErrorf("bad circle radius: " + strconv.FormatFloat(float64(radius), 'g', 6, 32))
+		bld.shapeErrorf("bad circle radius: %g", radius)
 	}
 	return &circle2D{r: radius}
 }
@@ -284,7 +282,7 @@ func (t *equilateralTri2d) Bounds() ms2.Box {
 }
 
 func (t *equilateralTri2d) AppendShaderName(b []byte) []byte {
-	b = append(b, "circle"...)
+	b = append(b, "eqtri"...)
 	b = glbuild.AppendFloat(b, 'n', 'p', t.hTri)
 	return b
 }
@@ -298,7 +296,7 @@ func (t *equilateralTri2d) ForEach2DChild(userData any, fn func(userData any, s 
 }
 
 func (u *equilateralTri2d) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
-	return append(objects, glsllib.EquilateralTriangle2D())
+	return append(objects, wgsllib.EquilateralTriangle2D())
 }
 
 type rect2D struct {
@@ -344,9 +342,9 @@ func (c *rect2D) ForEach2DChild(userData any, fn func(userData any, s *glbuild.S
 
 func (u *rect2D) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
 	if u.radius() != 0 {
-		return append(objects, glsllib.RectangleRound2D())
+		return append(objects, wgsllib.RectangleRound2D())
 	}
-	return append(objects, glsllib.Rectangle2D())
+	return append(objects, wgsllib.Rectangle2D())
 }
 
 func (c *rect2D) radius() float32 { return c.d.Z }
@@ -386,7 +384,7 @@ func (c *hex2D) ForEach2DChild(userData any, fn func(userData any, s *glbuild.Sh
 }
 
 func (u *hex2D) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
-	return append(objects, glsllib.Hexagon2D())
+	return append(objects, wgsllib.Hexagon2D())
 }
 
 type oct2D struct {
@@ -422,7 +420,7 @@ func (oct *oct2D) ForEach2DChild(userData any, fn func(userData any, s *glbuild.
 }
 
 func (oct *oct2D) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
-	return append(objects, glsllib.Octagon2D())
+	return append(objects, wgsllib.Octagon2D())
 }
 
 type ellipse2D struct {
@@ -459,7 +457,7 @@ func (c *ellipse2D) ForEach2DChild(userData any, fn func(userData any, s *glbuil
 }
 
 func (u *ellipse2D) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
-	return append(objects, glsllib.Ellipse2D())
+	return append(objects, wgsllib.Ellipse2D())
 }
 
 type poly2D struct {
@@ -470,7 +468,7 @@ type poly2D struct {
 func (bld *Builder) NewPolygon(vertices []ms2.Vec) glbuild.Shader2D {
 	vertices, err := bld.validatePolygon(vertices)
 	if err != nil {
-		bld.shapeErrorf(err.Error())
+		bld.shapeErrorf("%s", err.Error())
 	}
 	poly := poly2D{vert: vertices}
 	if bld.useShaderBuffer(len(vertices) * 2) {
@@ -521,18 +519,36 @@ func (c *poly2D) AppendShaderName(b []byte) []byte {
 	return b
 }
 
-const polyShader = `const int num = v.length();
-vec2 d_s = vec2(dot(p-v[0],p-v[0]), 1.0);
-for( int i=0, j=num-1; i<num; j=i, i++ )
-{
-	d_s = gsdfWinding(p,v[i],v[j],d_s);
+// appendPolyShader appends the polygon SDF body. Expects a `num` variable with the number of vertices.
+// If bufname is nil the vertices are expected to be in a `v` array variable, else the vertices are
+// read from the shader object buffer of name bufname.
+func appendPolyShader(b []byte, bufname []byte) []byte {
+	at := func(b []byte, idx string) []byte {
+		if bufname == nil {
+			b = append(b, "v["...)
+			b = append(b, idx...)
+			return append(b, ']')
+		}
+		return glbuild.AppendObjectAt(b, bufname, idx)
+	}
+	b = append(b, "var d_s = vec2f(dot(p-"...)
+	b = at(b, "0")
+	b = append(b, ",p-"...)
+	b = at(b, "0")
+	b = append(b, "), 1.0);\nvar j = num-1;\nfor (var i=0; i<num; i++) {\n\td_s = gsdfWinding(p,"...)
+	b = at(b, "i")
+	b = append(b, ',')
+	b = at(b, "j")
+	b = append(b, ",d_s);\n\tj = i;\n}\nreturn d_s.y*sqrt(d_s.x);"...)
+	return b
 }
-return d_s.y*sqrt(d_s.x);
-`
 
 func (c *poly2D) AppendShaderBody(b []byte) []byte {
 	b = glbuild.AppendVec2SliceDecl(b, "v", c.vert)
-	b = append(b, polyShader...)
+	b = append(b, "let num = "...)
+	b = strconv.AppendInt(b, int64(len(c.vert)), 10)
+	b = append(b, ";\n"...)
+	b = appendPolyShader(b, nil)
 	return b
 }
 
@@ -541,7 +557,7 @@ func (c *poly2D) ForEach2DChild(userData any, fn func(userData any, s *glbuild.S
 }
 
 func (u *poly2D) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
-	return append(objects, glsllib.WindingNumber())
+	return append(objects, wgsllib.WindingNumber())
 }
 
 type polySSBO struct {
@@ -549,10 +565,17 @@ type polySSBO struct {
 	bufname []byte
 }
 
+// AppendShaderName implements [glbuild.Shader]. Name differs from poly2D since body differs.
+func (c *polySSBO) AppendShaderName(b []byte) []byte {
+	b = append(b, "ssbo"...)
+	return c.poly2D.AppendShaderName(b)
+}
+
 func (c *polySSBO) AppendShaderBody(b []byte) []byte {
-	b = glbuild.AppendDefineDecl(b, "v", string(c.bufname))
-	b = append(b, polyShader...)
-	b = glbuild.AppendUndefineDecl(b, "v")
+	b = append(b, "let num = "...)
+	b = glbuild.AppendObjectLen(b, c.bufname)
+	b = append(b, ";\n"...)
+	b = appendPolyShader(b, c.bufname)
 	return b
 }
 
@@ -561,7 +584,7 @@ func (u *polySSBO) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild
 	if err != nil {
 		panic(err)
 	}
-	return append(objects, ssbo, glsllib.WindingNumber())
+	return append(objects, ssbo, wgsllib.WindingNumber())
 }
 
 type diamond struct {
@@ -602,7 +625,7 @@ func (c *diamond) ForEach2DChild(userData any, fn func(userData any, s *glbuild.
 }
 
 func (u *diamond) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
-	return append(objects, glsllib.Diamond2D())
+	return append(objects, wgsllib.Diamond2D())
 }
 
 type x2d struct {
@@ -642,7 +665,7 @@ func (c *x2d) ForEach2DChild(userData any, fn func(userData any, s *glbuild.Shad
 }
 
 func (u *x2d) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
-	return append(objects, glsllib.RoundedX2D())
+	return append(objects, wgsllib.RoundedX2D())
 }
 
 type quadbezier2d struct {
@@ -707,5 +730,5 @@ func (c *quadbezier2d) ForEach2DChild(userData any, fn func(userData any, s *glb
 }
 
 func (u *quadbezier2d) AppendShaderObjects(objects []glbuild.ShaderObject) []glbuild.ShaderObject {
-	return append(objects, glsllib.QuadraticBezier2D())
+	return append(objects, wgsllib.QuadraticBezier2D())
 }

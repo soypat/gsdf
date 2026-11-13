@@ -5,21 +5,17 @@ import (
 	"fmt"
 	"image/color"
 	"log"
-	"runtime"
 	"time"
 
 	"github.com/soypat/gsdf"
 	"github.com/soypat/gsdf/forge/textsdf"
 	"github.com/soypat/gsdf/glbuild"
 	"github.com/soypat/gsdf/gleval"
+	"github.com/soypat/gsdf/gpusdf"
 	"github.com/soypat/gsdf/gsdfaux"
 )
 
 const filename = "text.png"
-
-func init() {
-	runtime.LockOSThread()
-}
 
 func scene(bld *gsdf.Builder) (glbuild.Shader2D, error) {
 	var f textsdf.Font
@@ -37,12 +33,13 @@ func main() {
 	useGPU := false
 	flag.BoolVar(&useGPU, "gpu", useGPU, "Enable GPU usage")
 	flag.Parse()
+	var dev gpusdf.Device
 	if useGPU {
-		term, err := gleval.Init1x1GLFW()
+		err := dev.Configure(gpusdf.DeviceConfig{})
 		if err != nil {
 			log.Fatal(err)
 		}
-		defer term()
+		defer dev.Release()
 	}
 	var bld gsdf.Builder
 	s, err := scene(&bld)
@@ -51,7 +48,7 @@ func main() {
 	}
 	var sdf2 gleval.SDF2
 	if useGPU {
-		sdf2, err = gsdfaux.MakeGPUSDF2(s)
+		sdf2, err = gsdfaux.MakeGPUSDF2(&dev, s)
 	} else {
 		sdf2, err = gleval.NewCPUSDF2(s)
 	}

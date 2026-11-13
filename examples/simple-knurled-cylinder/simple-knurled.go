@@ -2,12 +2,9 @@ package main
 
 import (
 	"math"
-	"runtime"
 
 	. "github.com/soypat/gsdf/gsdfaux/simplesdf"
 )
-
-func init() { runtime.LockOSThread() } // Required if using GPU to render shapes or using UI.
 
 func main() {
 	// main body
