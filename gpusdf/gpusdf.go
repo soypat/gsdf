@@ -23,7 +23,7 @@ import (
 )
 
 var (
-	errNoGPU              = errors.New("gpusdf: GPU evaluation requires cgo (native) or GOOS=js and is not supported on TinyGo")
+	errNoWGPU             = errors.New("gpusdf: GPU evaluation requires cgo (native) or GOOS=js and is not supported on TinyGo")
 	errNotConfigured      = errors.New("gpusdf: not configured")
 	errDeviceNotReady     = errors.New("gpusdf: device not configured")
 	errBusy               = errors.New("gpusdf: evaluation in flight, call Read before submitting again")

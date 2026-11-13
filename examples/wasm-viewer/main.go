@@ -17,7 +17,7 @@ import (
 )
 
 func init() {
-	runtime.LockOSThread() // UI window (GLFW) must run on main thread on some operating systems (macOS).
+	runtime.LockOSThread() // UI window (GLFW) must run on main thread on some operating systems (macOS, linux).
 }
 
 func scene(bld *gsdf.Builder) glbuild.Shader3D {
