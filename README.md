@@ -31,6 +31,8 @@ All images and shapes in readme were generated using this library.
 
 - Reusable WGSL code between shaders. See [`gpusdf/glbuild/wgsllib`](gpusdf/glbuild/wgsllib)
 
+- **NEW!**: [Infinite Resolution Materials Format (IRMF)](https://irmf.io) support, writing WGSL programs.
+
 - Extremely coherent API design.
 
 - UI for visualizing parts, rendered directly from shaders. See [UI example](./examples/ui-mandala) by running `go run ./examples/ui-mandala`. Same UI runs in the browser.
@@ -64,9 +66,10 @@ All images and shapes in readme were generated using this library.
 # Examples
 Find examples under [examples](./examples/) directory. Run on GPU with: `-gpu` flag.
 
-Most 3D examples output two files:
+Most 3D examples output two or three files:
 - `example-name.wgsl`: Visualization shader that can be copy pasted into [compute.toys](https://compute.toys) to visualize the part.
 - `example-name.stl`: Triangle model file used in 3D printing software such as [Cura](https://ultimaker.com/software/ultimaker-cura/). Can be visualized online in sites such as [View STL](https://www.viewstl.com/).
+- `example-name.irmf`: (When `-irmf` flag is set) Infinite Resolution Materials Format file containing a WGSL program. Lossless representation of the part for use in IRMF-compatible 3D printers and editors.
 
 
 CPU output and timings on 12th Gen Intel i5-12400F (12) @ 4.400GHz. GPU timings on AMD ATI Radeon RX 6800 (Vulkan). Timings vary with system load.

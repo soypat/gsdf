@@ -55,8 +55,9 @@ local
 # GPU shaders
 *.glsl
 *.wgsl
+*.irmf
 # These are library shaders that are used by gsdf. This is where we define reusable shader functions.
-!gpusdf/glbuild/glsllib/*.wgsl
+!gpusdf/glbuild/wgsllib/*.wgsl
 # 3D triangle files.
 *.stl
 
