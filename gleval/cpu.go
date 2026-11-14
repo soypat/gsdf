@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"sync/atomic"
 
 	"github.com/soypat/geometry/ms2"
 	"github.com/soypat/geometry/ms3"
@@ -80,7 +81,7 @@ func AssertSDF2(s bounder2) (SDF2, error) {
 type SDF3CPU struct {
 	SDF   SDF3
 	vp    VecPool
-	evals uint64
+	evals atomic.Uint64 // Safe for concurrent use by parallel renderers.
 }
 
 // Evaluate computes the SDF distance for each position in pos, writing results into dist.
@@ -114,7 +115,7 @@ func (sdf *SDF3CPU) Evaluate(pos []ms3.Vec, dist []float32, userData any) error 
 	if err2 != nil {
 		return err2
 	}
-	sdf.evals += uint64(len(pos))
+	sdf.evals.Add(uint64(len(pos)))
 	return nil
 }
 
@@ -124,7 +125,7 @@ func (sdf *SDF3CPU) Bounds() ms3.Box {
 }
 
 // Evaluations returns the total number of positions successfully evaluated over the lifetime of sdf.
-func (sdf *SDF3CPU) Evaluations() uint64 { return sdf.evals }
+func (sdf *SDF3CPU) Evaluations() uint64 { return sdf.evals.Load() }
 
 // VecPool returns the internal pool, allowing callers to pass it as userData when
 // composing this evaluator inside a larger SDF tree.
@@ -135,7 +136,7 @@ func (sdf *SDF3CPU) VecPool() *VecPool { return &sdf.vp }
 type SDF2CPU struct {
 	SDF   SDF2
 	vp    VecPool
-	evals uint64
+	evals atomic.Uint64 // Safe for concurrent use by parallel renderers.
 }
 
 // Evaluate computes the SDF distance for each position in pos, writing results into dist.
@@ -168,7 +169,7 @@ func (sdf *SDF2CPU) Evaluate(pos []ms2.Vec, dist []float32, userData any) error 
 	if err2 != nil {
 		return err2
 	}
-	sdf.evals += uint64(len(pos))
+	sdf.evals.Add(uint64(len(pos)))
 	return nil
 }
 
@@ -178,7 +179,7 @@ func (sdf *SDF2CPU) Bounds() ms2.Box {
 }
 
 // Evaluations returns the total number of positions successfully evaluated over the lifetime of sdf.
-func (sdf *SDF2CPU) Evaluations() uint64 { return sdf.evals }
+func (sdf *SDF2CPU) Evaluations() uint64 { return sdf.evals.Load() }
 
 // VecPool returns the internal pool, allowing callers to pass it as userData when
 // composing this evaluator inside a larger SDF tree.
