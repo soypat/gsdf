@@ -31,12 +31,13 @@ func TestRenderIRMFWGSL(t *testing.T) {
 		`"language": "wgsl"`,
 		`"units": "mm"`,
 		"fn mainModel4(xyz: vec3f) -> vec4f",
+		"select(0.0, 1.0, d <= 0.0)", // WGSL has no ?: ternary operator.
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("IRMF output missing %q:\n%s", want, out)
 		}
 	}
-	for _, unwanted := range []string{"vec4(", "void mainModel4", "#version"} {
+	for _, unwanted := range []string{"vec4(", "void mainModel4", "#version", "?"} {
 		if strings.Contains(out, unwanted) {
 			t.Errorf("IRMF output contains GLSL syntax %q:\n%s", unwanted, out)
 		}

@@ -80,7 +80,7 @@ func (ih IRMFHeaderV1) WriteIRMF(w io.Writer, obj Shader3D, programmer *Programm
 const irmfMainModel4WGSL = `
 fn mainModel4(xyz: vec3f) -> vec4f {
   let d = %s(xyz);
-  let materials = vec4f(d <= 0.0 ? 1.0 : 0.0, 0.0, 0.0, 0.0);
-  return materials;
+  let material = select(0.0, 1.0, d <= 0.0);
+  return vec4f(material, 0.0, 0.0, 0.0);
 }
 `
