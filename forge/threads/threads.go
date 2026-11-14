@@ -125,7 +125,8 @@ var y = length(p.xy);
 if (taper != 0.) {
 	y += p.z * atan(taper);
 }
-var theta = atan2(p.y, p.x);
+// atan2(0,0) is undefined in WGSL (NaN on Metal). Use 0 to match CPU (Go's Atan2).
+var theta = select(atan2(p.y, p.x), 0.0, all(p.xy == vec2f(0.0)));
 var z = p.z + lead*theta/(2.*Pi);
 var sawt = (z + pitch/2.)/pitch;
 var saw = pitch*(sawt - floor(sawt)) - 0.5*pitch;
