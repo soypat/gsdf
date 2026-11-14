@@ -1,5 +1,6 @@
 fn gsdfPartialCircArray2D(p: vec2f, ncirc: f32, angle: f32, ninsm1: f32) -> vec4f {
-    let pangle = atan2(p.y, p.x);
+    // atan2(0,0) is undefined in WGSL (NaN on Metal). Use 0 to match CPU (Go's Atan2).
+    let pangle = select(atan2(p.y, p.x), 0.0, all(p == vec2f(0.0)));
     var i = floor(pangle/angle);
     if (i < 0.0) {
         i = ncirc + i;

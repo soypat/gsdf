@@ -549,6 +549,7 @@ func cmpDist[T any](t *tb, pos []T, dcpu, dgpu []float32) error {
 			if mismatches > 8 {
 				return errors.New("too many mismatched")
 			}
+			mismatchErr = fmt.Errorf("%d CPU/GPU mismatches", mismatches)
 		}
 	}
 	return mismatchErr
