@@ -1,0 +1,71 @@
+package glbuild_test
+
+import (
+	"bytes"
+	"strings"
+	"testing"
+
+	"github.com/soypat/gsdf"
+	"github.com/soypat/gsdf/gpusdf/glbuild"
+)
+
+var bld gsdf.Builder
+
+func TestShaderNameDeduplication(t *testing.T) {
+	// s1 and s2 are identical in name and body but different primitives.
+	s1 := bld.NewCylinder(1, 2, 0)
+	s2 := bld.NewCylinder(1, 2, 0)
+	s1s1 := bld.Union(s1, s1)
+	s1s2 := bld.Union(s1, s2)
+	s1Name := string(s1.AppendShaderName(nil))
+	s2Name := string(s2.AppendShaderName(nil))
+	if s1Name != s2Name {
+		t.Error("expected same name, got\n", s1Name, "\n", s2Name)
+	}
+	decl := "fn " + s1Name + "(p_in: vec3f)"
+	for _, obj := range []glbuild.Shader3D{s1s1, s1s2} {
+		programmer := glbuild.NewDefaultProgrammer()
+		source := new(bytes.Buffer)
+		n, _, err := programmer.WriteVisualizerSDF3(source, obj)
+		if n != source.Len() {
+			t.Fatal("written length mismatch", err)
+		}
+		if err != nil {
+			t.Error(err)
+		}
+		src := source.String()
+		declCount := strings.Count(src, decl)
+		if declCount != 1 {
+			t.Errorf("\n%s\nVisualizer: want one declaration, got %d", src, declCount)
+		}
+		source.Reset()
+		n, ssbos, err := programmer.WriteComputeSDF3(source, obj)
+		if n != source.Len() {
+			t.Fatal("written length mismatch", err)
+		}
+		for i := range ssbos {
+			if ssbos[i].IsBindable() {
+				t.Fatalf("unexpected bindable ssbo: %+v", ssbos[i])
+			}
+		}
+
+		if err != nil {
+			t.Error(err)
+		}
+		src = source.String()
+		declCount = strings.Count(src, decl)
+		if declCount != 1 {
+			t.Errorf("\n%s\nCompute: want one declaration, got %d", src, declCount)
+		}
+	}
+}
+
+func TestSprintShader(t *testing.T) {
+	s1 := bld.NewCircle(1.0)
+	s2 := bld.NewRectangle(2, 3, 0)
+	composite := bld.Difference2D(s1, s2)
+	str := glbuild.FormatShader(composite)
+	if str != "diff2D(circle2D,rect2D)" {
+		t.Error(str)
+	}
+}

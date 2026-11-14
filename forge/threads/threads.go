@@ -8,8 +8,8 @@ import (
 	"github.com/soypat/geometry/ms2"
 	"github.com/soypat/geometry/ms3"
 	"github.com/soypat/gsdf"
-	"github.com/soypat/gsdf/glbuild"
 	"github.com/soypat/gsdf/gleval"
+	"github.com/soypat/gsdf/gpusdf/glbuild"
 )
 
 // Screws
@@ -114,25 +114,25 @@ func (s *screw) AppendShaderName(b []byte) []byte {
 	return b
 }
 
-func (s *screw) AppendShaderBody(b []byte) []byte {
+func (s *screw) AppendWGSLBody(b []byte) []byte {
 	b = glbuild.AppendFloatDecl(b, "lead", s.lead)
 	b = glbuild.AppendFloatDecl(b, "pitch", s.pitch)
 	b = glbuild.AppendFloatDecl(b, "taper", s.taper)
 	b = glbuild.AppendFloatDecl(b, "L", s.lengthDiv2)
 	b = append(b, `
-#define Pi 3.1415926535897932384626433832795
-float y = length(p.xy);
+const Pi = 3.1415926535897932384626433832795;
+var y = length(p.xy);
 if (taper != 0.) {
 	y += p.z * atan(taper);
 }
-float theta = atan(p.y, p.x);
-float z = p.z + lead*theta/(2.*Pi);
-float sawt = (z + pitch/2.)/pitch;
-float saw = pitch*(sawt - floor(sawt)) - 0.5*pitch;
-vec2 p2 = vec2(saw ,y);
+var theta = atan2(p.y, p.x);
+var z = p.z + lead*theta/(2.*Pi);
+var sawt = (z + pitch/2.)/pitch;
+var saw = pitch*(sawt - floor(sawt)) - 0.5*pitch;
+var p2 = vec2f(saw ,y);
 `...)
 	b = glbuild.AppendDistanceDecl(b, "d2", "p2", s.thread)
-	b = append(b, `float d3 = abs(p.z) - L;
+	b = append(b, `var d3 = abs(p.z) - L;
 return max(d2, d3);`...)
 	return b
 }

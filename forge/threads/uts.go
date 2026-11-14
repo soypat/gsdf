@@ -2,7 +2,7 @@ package threads
 
 import (
 	"github.com/soypat/gsdf"
-	"github.com/soypat/gsdf/glbuild"
+	"github.com/soypat/gsdf/gpusdf/glbuild"
 )
 
 // Unified thread standard.

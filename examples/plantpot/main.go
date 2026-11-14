@@ -6,30 +6,24 @@ import (
 	"io"
 	"log"
 
-	"runtime"
-
 	"os"
 
 	math "github.com/chewxy/math32"
 	"github.com/soypat/geometry/ms2"
 	"github.com/soypat/gsdf"
-	"github.com/soypat/gsdf/glbuild"
 	"github.com/soypat/gsdf/gleval"
+	"github.com/soypat/gsdf/gpusdf/glbuild"
 	"github.com/soypat/gsdf/gsdfaux"
 )
 
 const (
 	exampleName     = "plantpot"
 	stl             = exampleName + ".stl"
-	visualization   = exampleName + ".glsl"
+	visualization   = exampleName + ".wgsl"
 	visualization2D = exampleName + ".png"
 	irmf            = exampleName + ".irmf"
 	potBaseRadius   = 40.
 )
-
-func init() {
-	runtime.LockOSThread() // In case we wish to use OpenGL.
-}
 
 // scenePotBase returns the plant pot base object.
 func scenePotBase(bld *gsdf.Builder) (glbuild.Shader3D, error) {

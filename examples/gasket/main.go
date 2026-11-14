@@ -5,28 +5,23 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"runtime"
 	"time"
 
 	"os"
 
 	"github.com/soypat/geometry/ms2"
 	"github.com/soypat/gsdf"
-	"github.com/soypat/gsdf/glbuild"
 	"github.com/soypat/gsdf/gleval"
+	"github.com/soypat/gsdf/gpusdf/glbuild"
 	"github.com/soypat/gsdf/gsdfaux"
 )
 
 const (
 	stl             = "gasket.stl"
-	visualization   = "gasket.glsl"
+	visualization   = "gasket.wgsl"
 	visualization2D = "gasket2D.png"
 	irmf            = "gasket.irmf"
 )
-
-func init() {
-	runtime.LockOSThread() // In case we wish to use OpenGL.
-}
 
 // scene returns the gasket object.
 func scene(bld *gsdf.Builder) (glbuild.Shader3D, error) {

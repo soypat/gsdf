@@ -1,0 +1,49 @@
+<!doctype html>
+<!--
+gsdf WebGPU viewer. Build and serve from the repository root with:
+
+    GOOS=js GOARCH=wasm go build -o examples/wasm-viewer/main.wasm ./examples/wasm-viewer
+    cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" examples/wasm-viewer/
+    python3 -m http.server -d examples/wasm-viewer 8080
+
+Then open http://localhost:8080 in a browser with WebGPU support (Chrome, Edge, Safari 26+, Firefox 141+ on Windows).
+Drag to orbit the camera, scroll to zoom.
+
+On Linux, Chrome ships WebGPU disabled ("No available adapters" in the console). Enable chrome://flags/#enable-unsafe-webgpu
+and chrome://flags/#enable-vulkan and restart, or start a separate browser instance with:
+
+    google-chrome-stable --user-data-dir=/tmp/gsdf-chrome --enable-unsafe-webgpu --enable-features=Vulkan http://localhost:8080
+-->
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>gsdf WebGPU viewer</title>
+    <style>
+        html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+        canvas { width: 100vw; height: 100vh; display: block; touch-action: none; }
+    </style>
+</head>
+<body>
+<canvas id="gsdf"></canvas>
+<script src="wasm_exec.js"></script>
+<script>
+    // Match canvas resolution to its displayed size. The Go program picks up size changes.
+    const canvas = document.getElementById("gsdf");
+    function fit() {
+        canvas.width = Math.floor(canvas.clientWidth * devicePixelRatio);
+        canvas.height = Math.floor(canvas.clientHeight * devicePixelRatio);
+    }
+    window.addEventListener("resize", fit);
+    fit();
+
+    const go = new Go();
+    WebAssembly.instantiateStreaming(fetch("main.wasm"), go.importObject).then((result) => {
+        // github.com/oliverbestmann/webgpu requires the instantiated module in the global "wasm" variable
+        // to access Go memory when uploading buffers to the GPU.
+        window.wasm = result;
+        go.run(result.instance);
+    });
+</script>
+</body>
+</html>

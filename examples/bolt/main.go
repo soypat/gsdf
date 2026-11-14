@@ -7,22 +7,17 @@ import (
 	"log"
 	"math"
 	"os"
-	"runtime"
 
 	"github.com/soypat/geometry/ms3"
 	"github.com/soypat/gsdf"
 	"github.com/soypat/gsdf/forge/threads"
-	"github.com/soypat/gsdf/glbuild"
+	"github.com/soypat/gsdf/gpusdf/glbuild"
 	"github.com/soypat/gsdf/gsdfaux"
 )
 
-const visualization = "bolt.glsl"
+const visualization = "bolt.wgsl"
 const stl = "bolt.stl"
 const irmf = "bolt.irmf"
-
-func init() {
-	runtime.LockOSThread() // For when using GPU this is required.
-}
 
 // scene generates the 3D object for rendering.
 func scene(bld *gsdf.Builder) (glbuild.Shader3D, error) {

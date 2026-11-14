@@ -10,7 +10,7 @@ import (
 	"github.com/chewxy/math32"
 	"github.com/soypat/geometry/ms2"
 	"github.com/soypat/geometry/ms3"
-	"github.com/soypat/gsdf/glbuild"
+	"github.com/soypat/gsdf/gpusdf/glbuild"
 )
 
 const (
@@ -264,4 +264,24 @@ func appendTypicalReturnFuncCall(dst []byte, funcname string, firstArgs string, 
 	}
 	dst = append(dst, ");"...)
 	return dst
+}
+
+// appendSymmetryAbs appends absolute value assignments to the components of p selected by xyz.
+// WGSL does not support multi-component swizzle assignment so each component is assigned separately:
+//
+//	p.x=abs(p.x);
+func appendSymmetryAbs(b []byte, xyz glbuild.XYZBits) []byte {
+	comps := [3]bool{xyz.X(), xyz.Y(), xyz.Z()}
+	for i, set := range comps {
+		if !set {
+			continue
+		}
+		c := "xyz"[i]
+		b = append(b, "p."...)
+		b = append(b, c)
+		b = append(b, "=abs(p."...)
+		b = append(b, c)
+		b = append(b, ");\n"...)
+	}
+	return b
 }

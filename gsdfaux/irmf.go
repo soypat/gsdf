@@ -5,17 +5,17 @@ import (
 	"io"
 	"os"
 
-	"github.com/soypat/gsdf/glbuild"
+	"github.com/soypat/gsdf/gpusdf/glbuild"
 )
 
-// renderIRMF writes the IRMF program for s to w using the given shader language.
+// renderIRMF writes the IRMF (WGSL) program for s to w.
 // It returns the name of w suitable for logging.
-func renderIRMF(w io.Writer, s glbuild.Shader3D, language string) (string, error) {
+func renderIRMF(w io.Writer, s glbuild.Shader3D) (string, error) {
 	bb := s.Bounds()
 	min, max := bb.Min, bb.Max
 	header := glbuild.IRMFHeaderV1{
 		IRMFVersion: "1.0",
-		Language:    language,
+		Language:    "wgsl",
 		Materials:   []string{"material0"},
 		Min:         [3]float32{min.X, min.Y, min.Z},
 		Max:         [3]float32{max.X, max.Y, max.Z},

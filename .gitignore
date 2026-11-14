@@ -6,6 +6,7 @@ go.work.sum
 *.test
 # Dependency directories after running `go mod vendor`
 vendor/
+agents.md
 
 # Binaries for programs and plugins
 *.elf
@@ -53,9 +54,10 @@ local
 
 # GPU shaders
 *.glsl
+*.wgsl
 *.irmf
 # These are library shaders that are used by gsdf. This is where we define reusable shader functions.
-!glbuild/glsllib/*.glsl
+!gpusdf/glbuild/wgsllib/*.wgsl
 # 3D triangle files.
 *.stl
 

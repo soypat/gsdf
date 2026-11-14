@@ -10,11 +10,11 @@ import (
 	math32 "github.com/chewxy/math32"
 	"github.com/soypat/geometry/ms3"
 	"github.com/soypat/gsdf"
-	"github.com/soypat/gsdf/glbuild"
+	"github.com/soypat/gsdf/gpusdf/glbuild"
 	"github.com/soypat/gsdf/gsdfaux"
 )
 
-func init() { runtime.LockOSThread() } // Required if using GPU to render shapes or using UI.
+func init() { runtime.LockOSThread() } // UI window (GLFW) must run on main thread on some operating systems (macOS, linux).
 
 const defaultName = "knurled-cyl" // See [Flags.Name]
 
