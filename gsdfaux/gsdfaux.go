@@ -24,6 +24,8 @@ import (
 type RenderConfig struct {
 	STLOutput    io.Writer
 	VisualOutput io.Writer
+	// IRMFOutput, when non-nil, receives the object as an IRMF file containing a WGSL program.
+	IRMFOutput io.Writer
 	// Resolution decides the STL output resolution. It correlates with the minimum triangle size.
 	Resolution float32
 	UseGPU     bool
@@ -63,7 +65,7 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 		cfg.builder = &gsdf.Builder{}
 	}
 	bld := cfg.builder
-	if cfg.STLOutput == nil && cfg.VisualOutput == nil {
+	if cfg.STLOutput == nil && cfg.VisualOutput == nil && cfg.IRMFOutput == nil {
 		return errors.New("RenderShader3D requires output parameter in config")
 	}
 	log := func(elapsed time.Duration, args ...any) {
@@ -199,6 +201,15 @@ func RenderShader3D(s glbuild.Shader3D, cfg RenderConfig) (err error) {
 			filename = fp.Name()
 		}
 		log(visualWatch(), "wrote", filename)
+	}
+
+	if cfg.IRMFOutput != nil {
+		irmfWatch := stopwatch()
+		filename, err := renderIRMF(cfg.IRMFOutput, s)
+		if err != nil {
+			return err
+		}
+		log(irmfWatch(), "wrote", filename)
 	}
 
 	if cfg.STLOutput != nil {
